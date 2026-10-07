@@ -102,3 +102,10 @@ Las capturas quedan en `C:\Users\Calos\sbx-xchg\outbox\`.
 - **RAM:** ~500–600 MB en el Sandbox (wallpaper 3840×2400, ~15 ventanas Qt y fuentes de 15 MB). Pendiente de optimizar: reducir el wallpaper al tamaño de la pantalla y cargar en diferido los paneles cerrados.
 - **Sustitutos vacíos:** media, notificaciones, bandeja, Bluetooth y red aún no muestran datos.
 - **Python temporal:** los colores se generan con Python (`materialyoucolor`) hasta portarlo a C++.
+
+## Actualización (2026-10-07, 14:40)
+- [x] `/proc` virtual: CPU, RAM, swap, uptime y nombre del sistema reales en la barra y la sidebar.
+- [x] Temas de iconos Breeze Plus / Breeze, descargados con SHA256 verificado (`tools/dev/fetch_icons.py`).
+- [x] Índice de apps del Menú Inicio (37 en el Sandbox), con iconos del tema y respaldo al icono real.
+- [x] El overview y las sidebars toman el foco de teclado al abrirse (comprobado en el Sandbox).
+- [ ] **Siguiente:** confirmar que se puede escribir en la búsqueda (el foco ya llega; la prueba automática de tecleo no escribió nada) y luego seguir el orden de "Pendiente".

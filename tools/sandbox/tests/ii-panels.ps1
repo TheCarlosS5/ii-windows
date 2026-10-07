@@ -24,8 +24,13 @@ foreach ($s in 'searchToggleRelease', 'sidebarRightToggle', 'sidebarLeftToggle',
     }
     Start-Sleep 1.5
     & "$dev\screenshot.ps1" -Out "$out\panel-$s.png" | Out-Null
-    & "$dev\send-shortcut.ps1" -Name $s | Out-Null   # toggle back
-    if ($s -eq 'searchToggleRelease') { & "$dev\send-shortcut.ps1" -Name $s | Out-Null }
+    # toggle back (search toggles on release after a press)
+    if ($s -eq 'searchToggleRelease') {
+        & "$dev\send-shortcut.ps1" -Name $s -PressOnly | Out-Null
+        & "$dev\send-shortcut.ps1" -Name $s -ReleaseOnly | Out-Null
+    } else {
+        & "$dev\send-shortcut.ps1" -Name $s | Out-Null
+    }
     Start-Sleep 1
 }
 

@@ -16,6 +16,9 @@ robocopy "$root\quickshell\build\qml_modules" "$dist\qml" /E /NFL /NDL /NJH /NJS
 if (Test-Path "$root\third_party\fonts") {
     robocopy "$root\third_party\fonts" "$dist\fonts" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 }
+if (Test-Path "$root\third_party\icons") {
+    robocopy "$root\third_party\icons" "$dist\icons" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+}
 # QML stand-ins for modules without a Windows backend yet
 robocopy "$root\shim\qml" "$dist\qml" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 "deployed $((Get-Item "$dist\quickshell.exe").LastWriteTime)"
