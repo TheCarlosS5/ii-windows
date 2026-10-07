@@ -30,3 +30,25 @@ Formato: fecha · decisión · por qué · alternativas descartadas.
 
 ## D7 · 2026-10-07 · No lanzar con `SW_HIDE`
 - Windows aplica el `wShowWindow` de `STARTUPINFO` al **primer** `ShowWindow` del proceso. Lanzar la shell con ventana oculta escondería su primera ventana. El lanzador usará `CREATE_NO_WINDOW` sin `STARTF_USESHOWWINDOW`. *Pendiente:* neutralizarlo también dentro del backend.
+
+## D8 · 2026-10-07 · El fondo va encima de Progman, no dentro de WorkerW
+- **Hecho comprobado en Sandbox (build 26100.6584):** el mensaje `0x052C` a Progman ya **no crea** un `WorkerW`. Progman solo tiene `SHELLDLL_DefView → SysListView32`.
+- **Decisión:** las capas Background y Bottom son ventanas propias de nivel superior, mantenidas justo encima de Progman: debajo de cualquier app y encima del wallpaper de Windows. Se recolocan al cambiar la ventana activa (gancho WinEvent fuera de proceso).
+- **Por qué no hacerlas hijas de Explorer:** una ventana hija muere con Explorer, y la shell se quedaría con un HWND inválido. Así, un reinicio de Explorer no la afecta.
+- **Ojo:** insertar detrás de una ventana *topmost* la vuelve topmost. Si encima de Progman solo hay ventanas topmost, se usa `HWND_NOTOPMOST`.
+- **Pendiente:** Win+D eleva el escritorio de Windows por encima. `ii-host` hará su propio "mostrar escritorio".
+
+## D9 · 2026-10-07 · Render loop "basic" de Qt Quick
+- **Problema:** con el render loop *threaded*, las animaciones de las ventanas de la shell (capas, clic-a-través) se quedaban congeladas en el primer frame hasta que llegaba input (el overview vacío hasta mover el ratón). Reproducido y comparado con capturas a lo largo del tiempo.
+- **Decisión:** `QSG_RENDER_LOOP=basic` por defecto en Windows (se respeta si el usuario lo define). Con él las animaciones corren desde el hilo de la GUI.
+
+## D10 · 2026-10-07 · ABN_FULLSCREENAPP solo para apps ajenas
+- El overview de ii ocupa la pantalla entera, y Windows lo notificaba como "app a pantalla completa", lo que hacía bajar la barra. Ahora se busca qué ventana cubre el monitor y, si es de la propia shell, se ignora.
+
+## D11 · 2026-10-07 · Cambios a ii como overlay, no como fork
+- `upstream/` queda intacto. `overlay/ii/` añade o reemplaza archivos y `tools/dev/stage-ii.ps1` monta `build/ii`.
+- Se prefiere arreglar en C++ cuando el fallo es genérico; ii no se toca:
+  - rutas `/C:/` y `C:/`
+  - fuentes
+  - `/proc` virtual
+- El overlay se reserva para servicios cuyo origen de datos es propio de Linux (por ejemplo `hyprctl`).
