@@ -10,3 +10,6 @@ prototypes/**/wallpaper.*
 prototypes/**/result.txt
 prototypes/**/*.log
 build/
+__pycache__/
+prototypes/**/stdout.txt
+prototypes/**/stderr.txt
