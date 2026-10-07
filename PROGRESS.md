@@ -3,7 +3,7 @@
 Port de la interfaz de [Illogical Impulse](https://github.com/end-4/dots-hyprland) (end-4) a Windows 11.
 Documentos: [Viabilidad](docs/FEASIBILITY.md) · [Decisiones](docs/DECISIONS.md)
 
-## Estado (2026-10-07, 18:30)
+## Estado (2026-10-07, 19:00)
 - ✅ **Hito 1, viabilidad:** prototipos hechos y ruta elegida.
 - ✅ **Hito 2, cimientos:** `ii-host`, rescate y atajo de pánico. Probado en Windows Sandbox con 28/28 comprobaciones.
 - 🟡 **Hito 3, ii funcionando:** el QML original de ii corre en Windows (en Sandbox) con datos reales:
@@ -13,9 +13,11 @@ Documentos: [Viabilidad](docs/FEASIBILITY.md) · [Decisiones](docs/DECISIONS.md)
   - las dos sidebars: toggles, volumen, calendario y lista de notificaciones
   - los controles de media (Spotify, navegadores, cualquier app que use los controles de Windows)
   - las notificaciones de Windows (Discord, WhatsApp, etc.) como popups de ii
+  - la bandeja del sistema (Discord, Steam…) dentro de la barra de ii, con el menú propio de cada app
+  - el estado de la red (cable o Wi-Fi) y su nombre
   - las tipografías, iconos y colores Material
 
-  Faltan red, Bluetooth, bandeja, batería y brillo, y las prioridades: dock, overlays y widgets.
+  Faltan Bluetooth, batería y brillo, y las prioridades: dock, overlays y widgets.
 
 Todo lo de esta etapa se ha probado **solo dentro de Windows Sandbox**. En tu sesión real no se ha instalado ni cambiado nada, salvo las herramientas de desarrollo del Hito 1.
 
@@ -53,7 +55,9 @@ Todo lo de esta etapa se ha probado **solo dentro de Windows Sandbox**. En tu se
   - `Quickshell.Services.Pipewire` → Core Audio: dispositivos, volumen, apps, dispositivo por defecto
   - `Quickshell.Services.Mpris` → controles multimedia de Windows (GSMTC): título, artista, portada, progreso, play/pausa/siguiente
   - `Quickshell.Services.Notifications` → notificaciones de Windows + `notify-send`
-- [x] Sustitutos QML provisionales, con la API correcta y vacíos: bandeja, Bluetooth, UPower, Polkit, PAM, Kirigami.Icon y resaltado de código.
+  - `Quickshell.Services.SystemTray` → iconos de la bandeja de Windows (ver Bandeja)
+  - `Quickshell.Windows` (nuevo): red con la API Wi-Fi nativa y el Network List Manager
+- [x] Sustitutos QML provisionales, con la API correcta y vacíos: Bluetooth, UPower, Polkit, PAM, Kirigami.Icon y resaltado de código.
 - [x] `/proc` virtual: CPU, RAM, swap, uptime y nombre del sistema reales.
 - [x] Índice de apps del Menú Inicio y de la Store, con iconos del tema Breeze Plus y respaldo al icono real del `.exe`.
 - [x] `ii-shim.exe`: equivalentes de los comandos Linux que ii llama (`qalc`, `xdg-open`, `notify-send`, `playerctl`, `wpctl`, `pidof`, `pkill`, `loginctl`…).
@@ -70,13 +74,20 @@ Todo lo de esta etapa se ha probado **solo dentro de Windows Sandbox**. En tu se
   - Comprobado en Sandbox: 14/14 (`tests\test-banners.ps1`).
   - Si prefieres ver también los banners de Windows: `ii-host --keep-banners`.
 
+### Bandeja del sistema (cómo funciona)
+- Las apps registran sus iconos buscando la ventana de bandeja de Windows. La shell crea una propia que va primero y **le reenvía todo a Explorer**, así que Explorer siempre conserva todos los iconos. Si ii se cierra, no se pierde nada.
+- Clic izquierdo = clic normal en el icono. Clic derecho = el menú propio de la app (el mismo que en Windows). Clic central = doble clic.
+- Si Explorer se reinicia, la bandeja de ii se aparta unos segundos para no interferir y luego vuelve (probado: si no se apartaba, la barra de Windows quedaba en blanco).
+
+### Arreglo de seguridad: autoocultar de la barra de tareas
+- Se encontró en el Sandbox: Windows guarda tarde el estado de la barra, y un reinicio de Explorer podía dejarla en "ocultar automáticamente" aunque ya se hubiera restaurado. Ahora se guarda también en el registro al restaurar y antes de cerrar sesión. Probado con autoocultar apagado y encendido (tu caso): 14/14.
+
 ## Pendiente (en este orden)
-1. Servicios reales que faltan:
-   - red: WlanAPI
+1. Servicios que faltan (no se pueden probar ahora: tu adaptador Bluetooth no está conectado y tu PC no tiene batería ni Wi-Fi):
    - Bluetooth
-   - bandeja del sistema
    - batería y modos de energía
    - brillo: DDC/CI
+   - El Wi-Fi está programado (lista, conectar, contraseña, encender/apagar), pero solo se ha probado la parte de cable.
 2. Menú de sesión (no apareció en la prueba) y cheatsheet con los atajos de Windows.
 3. Tus prioridades: dock, overlays y widgets de escritorio con accesos directos y carpetas reales.
 4. Generador de colores en C++ (sin Python), selector de wallpaper (`Imágenes\Wallpapers`), cursor Bibata, colores en Windows y Terminal.
@@ -106,6 +117,10 @@ pwsh -File sbx.ps1 run tests\ii-panels.ps1                  # abre cada panel po
 pwsh -File sbx.ps1 run tests\ii-launcher.ps1                # búsqueda de apps y calculadora
 pwsh -File sbx.ps1 run tests\ii-media.ps1                   # controles multimedia
 pwsh -File sbx.ps1 run tests\ii-notifications.ps1           # notify-send + notificación real de Windows
+pwsh -File sbx.ps1 run tests\ii-network.ps1                 # red en la barra y los ajustes rápidos
+pwsh -File sbx.ps1 run tests\ii-tray.ps1                    # bandeja: iconos, clics y menú nativo
+pwsh -File sbx.ps1 run tests\ii-tray-explorer.ps1           # bandeja + reinicio de Explorer
+pwsh -File sbx.ps1 run tests\persist-both.ps1               # autoocultar se restaura bien (2 configuraciones)
 ```
 Las capturas quedan en `C:\Users\Calos\sbx-xchg\outbox\`.
 
@@ -117,5 +132,7 @@ Las capturas quedan en `C:\Users\Calos\sbx-xchg\outbox\`.
 ## Problemas conocidos
 - **RAM:** ~500–600 MB en el Sandbox (wallpaper 3840×2400, ~15 ventanas Qt y fuentes de 15 MB). Pendiente de optimizar: reducir el wallpaper al tamaño de la pantalla y cargar en diferido los paneles cerrados.
 - **Notificaciones:** los botones propios de cada notificación de Windows (p. ej. "Responder") no se pueden pulsar desde fuera; ii muestra un botón "Open" que abre la app. La primera notificación de una app nueva puede salir también como banner de Windows (una sola vez).
-- **Sustitutos vacíos:** bandeja, Bluetooth, red y batería aún no muestran datos.
+- **Sustitutos vacíos:** Bluetooth y batería aún no muestran datos.
+- **Bandeja:** el menú de ii para fijar/desfijar iconos se cambió por el menú nativo de cada app. Los iconos propios de Explorer (volumen, quitar USB) también aparecen.
+- **Sin `ii-host`:** tras reiniciar Explorer, el fondo de ii puede quedar por encima de la barra de Windows. Con `ii-host` (el uso normal) la barra está oculta y no se nota.
 - **Python temporal:** los colores se generan con Python (`materialyoucolor`) hasta portarlo a C++.
