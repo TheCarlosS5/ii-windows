@@ -12,10 +12,11 @@ add_executable(ii-host WIN32
 	src/taskbar.cpp
 	src/desktop.cpp
 	src/keyboard.cpp
+	src/showdesktop.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(ii-host PRIVATE user32 shell32 ole32)
+target_link_libraries(ii-host PRIVATE user32 shell32 ole32 dwmapi)
 
 # Console multi-call binary: Windows stand-ins for small Linux commands ii calls.
 add_executable(ii-shim src/shim.cpp)

@@ -40,6 +40,8 @@ namespace desktop {
 void hideIcons();
 void reapplyIcons();  // hides the icons again if Explorer recreated them (cheap)
 void restoreIcons();
+// Win+D: minimize the app windows, and on the next press restore exactly those.
+void toggleShowDesktop();
 } // namespace desktop
 
 // Undo everything the host may have changed. Safe to call any number of times.

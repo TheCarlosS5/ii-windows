@@ -162,6 +162,10 @@ void watchExplorer() {
 
 void dispatchShortcut(WPARAM pressed, LPARAM index) {
 	auto* name = keyboard::shortcutName(index);
+	if (name && name[0] == L'@') {
+		if (pressed && wcscmp(name, L"@showDesktop") == 0) desktop::toggleShowDesktop();
+		return;
+	}
 	auto* sink = findShellSink();
 	if (!name || !sink) return;
 

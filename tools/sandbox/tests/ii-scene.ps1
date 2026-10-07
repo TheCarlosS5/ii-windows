@@ -37,6 +37,9 @@ Start-Sleep 4
 [K]::Keys(0x5B, 0x44, -0x44, -0x5B)   # Win+D
 Start-Sleep 2
 & "$dev\screenshot.ps1" -Out "$out\scene-3-wind.png" | Out-Null
+[K]::Keys(0x5B, 0x44, -0x44, -0x5B)   # Win+D again: windows come back
+Start-Sleep 2
+& "$dev\screenshot.ps1" -Out "$out\scene-3b-wind-again.png" | Out-Null
 [K]::Keys(0x5B, -0x5B)                # lone Win: ii search
 Start-Sleep 2
 & "$dev\screenshot.ps1" -Out "$out\scene-4-search.png" | Out-Null
