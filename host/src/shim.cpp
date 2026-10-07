@@ -263,8 +263,9 @@ int killall(const Args& args) {
 }
 
 int notifySend(const Args& args) {
-	// Collect options the shell understands; forward as "app\x1fsummary\x1fbody\x1ficon\x1furgency".
-	std::wstring app = L"ii-windows", icon, urgency = L"normal";
+	// Collect options the shell understands; forward as
+	// "app\x1fsummary\x1fbody\x1ficon\x1furgency\x1ftimeout\x1ftransient".
+	std::wstring app = L"ii-windows", icon, urgency = L"normal", timeout, transient = L"0";
 	std::vector<std::wstring> positional;
 	for (size_t i = 0; i < args.size(); ++i) {
 		const auto& a = args[i];
@@ -279,9 +280,13 @@ int notifySend(const Args& args) {
 			icon = value(a.rfind(L"--", 0) == 0 ? L"--icon" : L"-i");
 		} else if (a.rfind(L"-u", 0) == 0 || a.rfind(L"--urgency", 0) == 0) {
 			urgency = value(a.rfind(L"--", 0) == 0 ? L"--urgency" : L"-u");
+		} else if (a.rfind(L"-t", 0) == 0 || a.rfind(L"--expire-time", 0) == 0) {
+			timeout = value(a.rfind(L"--", 0) == 0 ? L"--expire-time" : L"-t");
+		} else if (a == L"-e" || a == L"--transient") {
+			transient = L"1";
 		} else if (a.rfind(L"-", 0) == 0) {
-			// -t/-h/-c and friends take a value; skip it when given separately.
-			if (a.find(L'=') == std::wstring::npos && i + 1 < args.size() && a != L"-e" && a != L"--transient") ++i;
+			// -h/-c and friends take a value; skip it when given separately.
+			if (a.find(L'=') == std::wstring::npos && i + 1 < args.size()) ++i;
 		} else {
 			positional.push_back(a);
 		}
@@ -289,8 +294,8 @@ int notifySend(const Args& args) {
 	if (positional.empty()) return 1;
 
 	auto payload = app + L'\x1f' + positional[0] + L'\x1f' + (positional.size() > 1 ? positional[1] : L"")
-	             + L'\x1f' + icon + L'\x1f' + urgency;
-	auto* sink = FindWindowW(L"IiShellShortcutSink", nullptr);
+	             + L'\x1f' + icon + L'\x1f' + urgency + L'\x1f' + timeout + L'\x1f' + transient;
+	auto* sink = FindWindowW(L"IiShellNotificationSink", nullptr);
 	if (!sink) return 1;
 	COPYDATASTRUCT data {};
 	data.dwData = 0x49490010; // notification

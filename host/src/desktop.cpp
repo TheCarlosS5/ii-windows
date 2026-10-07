@@ -59,6 +59,7 @@ void restoreAll(bool restartExplorer) {
 	log(L"restoreAll(restartExplorer=%d)", restartExplorer ? 1 : 0);
 	taskbar::restore();
 	desktop::restoreIcons();
+	banners::restore();
 
 	if (!restartExplorer) return;
 

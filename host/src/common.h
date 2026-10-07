@@ -44,6 +44,11 @@ void restoreIcons();
 void toggleShowDesktop();
 } // namespace desktop
 
+namespace banners {
+void hide();    // records, then turns off Windows' own notification banners per app (cheap to repeat)
+void restore(); // puts every recorded ShowBanner value back
+} // namespace banners
+
 // Undo everything the host may have changed. Safe to call any number of times.
 void restoreAll(bool restartExplorer);
 

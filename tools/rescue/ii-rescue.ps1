@@ -81,10 +81,30 @@ foreach ($v in $views | Where-Object { $_ -ne [IntPtr]::Zero }) {
     if ($list -ne [IntPtr]::Zero) { [IiRescue.Win]::ShowWindow($list, 8) | Out-Null }
 }
 Write-State 'iconsHidden' 0
-Write-State 'hostClean' 1
 Log 'desktop icons shown'
 
-# 5. optional clean Explorer restart
+# 5. Windows' notification banners back to each app's original setting
+$bannerFile = Join-Path $dataDir 'banners.txt'
+if (Test-Path $bannerFile) {
+    $settings = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings'
+    $done = @{}
+    foreach ($line in Get-Content $bannerFile -Encoding UTF8) {
+        $parts = $line -split "`t", 2
+        if ($parts.Count -ne 2 -or $done.ContainsKey($parts[1])) { continue }
+        $done[$parts[1]] = $true
+        # -LiteralPath: AUMIDs can contain wildcard characters such as [ ]
+        $key = Join-Path $settings $parts[1]
+        if (-not (Test-Path -LiteralPath $key)) { continue }
+        if ([int]$parts[0] -lt 0) { Remove-ItemProperty -LiteralPath $key -Name ShowBanner -ErrorAction SilentlyContinue }
+        else { Set-ItemProperty -LiteralPath $key -Name ShowBanner -Value ([int]$parts[0]) -Type DWord }
+    }
+    Remove-Item $bannerFile
+    Log "notification banners restored ($($done.Count) apps)"
+}
+Write-State 'bannersHidden' 0
+Write-State 'hostClean' 1
+
+# 6. optional clean Explorer restart
 if ($RestartExplorer) {
     Get-Process explorer -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Seconds 2
