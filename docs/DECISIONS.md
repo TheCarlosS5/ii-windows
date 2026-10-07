@@ -52,3 +52,11 @@ Formato: fecha · decisión · por qué · alternativas descartadas.
   - fuentes
   - `/proc` virtual
 - El overlay se reserva para servicios cuyo origen de datos es propio de Linux (por ejemplo `hyprctl`).
+
+## D12 · 2026-10-07 · Notificaciones: leer las de Windows y apagar sus banners
+- **Opciones:**
+  - (a) solo `notify-send`: ii no vería Discord, WhatsApp, etc.
+  - (b) `UserNotificationListener`: API oficial. Funciona sin paquete ni administrador; su evento de cambios sí exige identidad de paquete, así que se consulta cada segundo.
+  - (c) sustituir el centro de notificaciones de Windows: requiere inyección en Explorer, descartado.
+- **Decisión:** (b). Para que no salgan dos popups, `ii-host` apaga `ShowBanner` por app en `HKCU` mientras corre, con copia previa y restauración en salida, guardián y rescate. Las notificaciones siguen llegando al centro de Windows, así que si ii falla no se pierde nada.
+- **Comprobado:** en Sandbox, con `ShowBanner=0` el banner no aparece y la notificación sigue llegando al listener.
