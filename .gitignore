@@ -1,0 +1,12 @@
+# third-party checkouts (pinned, fetched by tools)
+/upstream/
+/ref-*/
+# quickshell fork is its own repository (branch "windows")
+/quickshell/
+# prototypes: dependencies, outputs and personal files
+node_modules/
+prototypes/**/*.png
+prototypes/**/wallpaper.*
+prototypes/**/result.txt
+prototypes/**/*.log
+build/

@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; font: 500 14px "Segoe UI Variable", sans-serif; color: #e6e1e9; overflow: hidden; }
+  .bar { display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 8px; box-sizing: border-box; background: rgba(20, 18, 24, .55); }
+  .group { display: flex; gap: 6px; align-items: center; padding: 4px 12px; border-radius: 999px; background: rgba(43, 41, 48, .85); }
+  .ws { width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; transition: background .25s cubic-bezier(.2, 0, 0, 1); }
+  .ws.on { background: #d0bcff; color: #381e72; }
+  .clock { font-size: 15px; }
+</style>
+<div class="bar">
+  <div class="group"><span>✦</span><span>Web prototype</span></div>
+  <div class="group"><div class="ws on">1</div><div class="ws">2</div><div class="ws">3</div><div class="ws">4</div></div>
+  <div class="group clock" id="c"></div>
+</div>
+<script>
+  const ws = [...document.querySelectorAll('.ws')]; let i = 0;
+  setInterval(() => { ws[i].classList.remove('on'); i = (i + 1) % ws.length; ws[i].classList.add('on'); }, 700);
+  const c = document.getElementById('c'); const tick = () => c.textContent = new Date().toLocaleTimeString();
+  tick(); setInterval(tick, 1000);
+</script>
