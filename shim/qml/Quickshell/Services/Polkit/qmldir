@@ -1,0 +1,2 @@
+module Quickshell.Services.Polkit
+PolkitAgent 0.1 PolkitAgent.qml
