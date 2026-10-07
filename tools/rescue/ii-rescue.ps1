@@ -67,6 +67,13 @@ if ((Read-State 'taskbarHidden' 0) -ne 0 -and $original -ge 0) {
     $abd.hWnd = $tray
     $abd.lParam = [IntPtr]$original
     [IiRescue.Win]::SHAppBarMessage(10, [ref]$abd) | Out-Null   # ABM_SETSTATE
+    # Explorer saves that state lazily; write it to its settings too so it sticks.
+    $stuck = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3'
+    $settings = (Get-ItemProperty $stuck -ErrorAction SilentlyContinue).Settings
+    if ($settings -and $settings.Length -gt 8) {
+        $settings[8] = if ($original -band 1) { $settings[8] -bor 1 } else { $settings[8] -band 0xFE }
+        Set-ItemProperty $stuck -Name Settings -Value $settings -Type Binary
+    }
     Log "taskbar auto-hide state restored to $original"
 }
 Write-State 'taskbarHidden' 0

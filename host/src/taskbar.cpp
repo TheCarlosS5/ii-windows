@@ -13,7 +13,8 @@ namespace ii::taskbar {
 namespace {
 
 std::vector<HWND> allTaskbars() {
-	auto bars = findTopLevel(L"Shell_TrayWnd");
+	std::vector<HWND> bars;
+	if (auto* tray = explorerTray()) bars.push_back(tray);
 	auto secondary = findTopLevel(L"Shell_SecondaryTrayWnd");
 	bars.insert(bars.end(), secondary.begin(), secondary.end());
 	return bars;
@@ -26,13 +27,35 @@ UINT_PTR getState() {
 }
 
 void setState(UINT_PTR value) {
-	auto tray = FindWindowW(L"Shell_TrayWnd", nullptr);
+	auto tray = explorerTray();
 	if (!tray) return;
 	APPBARDATA abd {};
 	abd.cbSize = sizeof(abd);
 	abd.hWnd = tray;
 	abd.lParam = static_cast<LPARAM>(value);
 	SHAppBarMessage(ABM_SETSTATE, &abd);
+}
+
+// ABM_SETSTATE only changes Explorer's live state; it saves it to StuckRects3 whenever it next
+// feels like it (possibly while ours is active). After a restore, write the restored auto-hide
+// bit there too, so an Explorer crash or logoff can't bring back the hidden state.
+void persistAutoHide(bool autoHide) {
+	HKEY key = nullptr;
+	if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StuckRects3", 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS) {
+		return;
+	}
+	BYTE data[256];
+	DWORD size = sizeof(data);
+	DWORD type = 0;
+	if (RegQueryValueExW(key, L"Settings", nullptr, &type, data, &size) == ERROR_SUCCESS && type == REG_BINARY && size > 8) {
+		auto wanted = static_cast<BYTE>(autoHide ? (data[8] | 0x01) : (data[8] & ~0x01));
+		if (wanted != data[8]) {
+			data[8] = wanted;
+			RegSetValueExW(key, L"Settings", 0, REG_BINARY, data, size);
+			log(L"taskbar: saved auto-hide=%d to StuckRects3", autoHide ? 1 : 0);
+		}
+	}
+	RegCloseKey(key);
 }
 
 } // namespace
@@ -44,7 +67,7 @@ bool isTaskbarWindow(HWND hwnd) {
 }
 
 void hide() {
-	if (!FindWindowW(L"Shell_TrayWnd", nullptr)) {
+	if (!explorerTray()) {
 		log(L"taskbar: Shell_TrayWnd not found (Explorer not running?)");
 		return;
 	}
@@ -79,6 +102,7 @@ void restore() {
 	auto original = state::get(L"taskbarOriginalState", -1);
 	if (state::get(L"taskbarHidden", 0) != 0 && original >= 0) {
 		setState(static_cast<UINT_PTR>(original));
+		persistAutoHide((original & ABS_AUTOHIDE) != 0);
 		log(L"taskbar: restored appbar state %d", original);
 	}
 

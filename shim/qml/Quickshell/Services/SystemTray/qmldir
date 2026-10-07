@@ -1,5 +1,0 @@
-module Quickshell.Services.SystemTray
-singleton SystemTray 0.1 SystemTray.qml
-singleton Status 0.1 Status.qml
-singleton Category 0.1 Category.qml
-SystemTrayItem 0.1 SystemTrayItem.qml

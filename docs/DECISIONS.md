@@ -60,3 +60,20 @@ Formato: fecha · decisión · por qué · alternativas descartadas.
   - (c) sustituir el centro de notificaciones de Windows: requiere inyección en Explorer, descartado.
 - **Decisión:** (b). Para que no salgan dos popups, `ii-host` apaga `ShowBanner` por app en `HKCU` mientras corre, con copia previa y restauración en salida, guardián y rescate. Las notificaciones siguen llegando al centro de Windows, así que si ii falla no se pierde nada.
 - **Comprobado:** en Sandbox, con `ShowBanner=0` el banner no aparece y la notificación sigue llegando al listener.
+
+## D13 · 2026-10-07 · Bandeja del sistema: un `Shell_TrayWnd` propio que reenvía a Explorer
+- Con la barra de tareas oculta, los iconos de bandeja (Discord, Steam…) quedarían inaccesibles.
+- **Opciones:**
+  - (a) leer los iconos de Explorer: solo con inyección, descartado.
+  - (b) reemplazar Explorer como shell: descartado por seguridad.
+  - (c) una ventana propia de clase `Shell_TrayWnd`, por delante de la de Explorer, que recibe `Shell_NotifyIcon` y **reenvía todo** a Explorer.
+- **Decisión:** (c), en un hilo propio para no depender de la interfaz.
+  - Explorer conserva siempre todos sus iconos, así que si ii se cierra o falla no se pierde nada.
+  - Los clics se entregan a cada app con los mismos mensajes que usa Explorer. El clic derecho abre el menú nativo de la app.
+- **Cuidado comprobado:** si nuestra ventana existe mientras Explorer arranca, su barra queda en blanco. Por eso la bandeja se aparta: destruye su ventana cuando Explorer sale o anuncia una barra nueva, y la recrea cuando la de Explorer lleva unos segundos estable.
+- **Probado en Sandbox:** clics, menú nativo, reinicio de Explorer con ii corriendo, e iconos intactos en Explorer al salir.
+
+## D14 · 2026-10-07 · El autoocultar de la barra se guarda también en el registro al restaurar
+- `ABM_SETSTATE` solo cambia el estado en memoria de Explorer, que lo guarda en `StuckRects3` cuando quiere. En el Sandbox quedó guardado "autoocultar" aunque el estado restaurado era "normal", y un reinicio de Explorer lo trajo de vuelta.
+- **Decisión:** al restaurar, `ii-host` y `ii-rescue` también escriben ese bit en `StuckRects3`. Además, `ii-host` restaura en `WM_QUERYENDSESSION`, antes de que Explorer guarde al cerrar sesión, y vuelve a ocultar si se cancela.
+- **Probado:** `tests\test-persist.ps1`, 7/7 con autoocultar apagado y 7/7 con autoocultar encendido (tu configuración).

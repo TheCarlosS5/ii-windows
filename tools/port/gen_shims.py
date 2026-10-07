@@ -98,44 +98,7 @@ module('Quickshell.Services.UPower', [
 
 # Mpris: real module (GSMTC) in quickshell/src/win32/services/mpris.cpp
 
-# --- SystemTray ----------------------------------------------------------------------------
-module('Quickshell.Services.SystemTray', [
-    'singleton SystemTray 0.1 SystemTray.qml',
-    'singleton Status 0.1 Status.qml',
-    'singleton Category 0.1 Category.qml',
-    'SystemTrayItem 0.1 SystemTrayItem.qml',
-], {
-    'SystemTray.qml': f'''
-    pragma Singleton
-    import QtQuick
-
-    QtObject {{
-        readonly property var items: {model()}
-    }}
-    ''',
-    'Status.qml': enum_singleton(['Passive', 'Active', 'NeedsAttention']),
-    'Category.qml': enum_singleton(['ApplicationStatus', 'Communications', 'SystemServices', 'Hardware']),
-    'SystemTrayItem.qml': '''
-    import QtQuick
-
-    QtObject {
-        property string id: ""
-        property string title: ""
-        property int status: 0
-        property int category: 0
-        property string icon: ""
-        property string tooltipTitle: ""
-        property string tooltipDescription: ""
-        property var menu: null
-        property bool hasMenu: false
-        property bool onlyMenu: false
-        function activate() {}
-        function secondaryActivate() {}
-        function scroll(delta, horizontal) {}
-        function display(parentWindow, relativeX, relativeY) {}
-    }
-    ''',
-})
+# SystemTray: real module (Shell_NotifyIcon) in quickshell/src/win32/services/tray.cpp
 
 # Notifications: real module (toasts + notify-send) in quickshell/src/win32/services/notifications.cpp
 

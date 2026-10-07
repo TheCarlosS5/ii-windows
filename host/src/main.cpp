@@ -157,7 +157,7 @@ void CALLBACK onObjectShown(HWINEVENTHOOK, DWORD, HWND hwnd, LONG idObject, LONG
 
 void watchExplorer() {
 	if (showHook) UnhookWinEvent(showHook);
-	auto* tray = FindWindowW(L"Shell_TrayWnd", nullptr);
+	auto* tray = explorerTray();
 	auto pid = tray ? processIdOf(tray) : 0;
 	// Out-of-context: nothing is injected into Explorer.
 	showHook = SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, nullptr, onObjectShown, pid, 0, WINEVENT_OUTOFCONTEXT);
@@ -238,9 +238,14 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			applyAll();
 		}
 		return 0;
-	case WM_QUERYENDSESSION: return TRUE;
+	case WM_QUERYENDSESSION:
+		// Put Windows' UI back before Explorer saves its settings for the logoff.
+		log(L"session ending, restoring");
+		restoreAll(false);
+		return TRUE;
 	case WM_ENDSESSION:
 		if (wParam) shutdown(0);
+		else applyAll(); // logoff cancelled
 		return 0;
 	case WM_CLOSE: shutdown(0); return 0;
 	default: return DefWindowProcW(hwnd, msg, wParam, lParam);

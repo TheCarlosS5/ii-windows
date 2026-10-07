@@ -28,6 +28,9 @@ void set(const wchar_t* key, int value);
 
 std::vector<HWND> findTopLevel(const wchar_t* className);
 DWORD processIdOf(HWND hwnd);
+bool isExplorerWindow(HWND hwnd);
+// Explorer's taskbar. The shell owns a Shell_TrayWnd too (its tray), so never FindWindow it.
+HWND explorerTray();
 
 namespace taskbar {
 void hide();          // records the original autohide state, then hides every taskbar

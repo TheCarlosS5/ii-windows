@@ -96,6 +96,28 @@ DWORD processIdOf(HWND hwnd) {
 	return pid;
 }
 
+bool isExplorerWindow(HWND hwnd) {
+	bool explorer = false;
+	if (auto* process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processIdOf(hwnd))) {
+		wchar_t path[MAX_PATH];
+		DWORD size = MAX_PATH;
+		if (QueryFullProcessImageNameW(process, 0, path, &size)) {
+			std::wstring name(path, size);
+			name = name.substr(name.find_last_of(L'\\') + 1);
+			explorer = _wcsicmp(name.c_str(), L"explorer.exe") == 0;
+		}
+		CloseHandle(process);
+	}
+	return explorer;
+}
+
+HWND explorerTray() {
+	for (auto* tray: findTopLevel(L"Shell_TrayWnd")) {
+		if (isExplorerWindow(tray)) return tray;
+	}
+	return nullptr;
+}
+
 HWND findShellSink() { return FindWindowW(SHELL_SINK_CLASS, nullptr); }
 
 } // namespace ii

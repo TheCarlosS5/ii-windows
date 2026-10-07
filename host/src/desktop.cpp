@@ -64,7 +64,7 @@ void restoreAll(bool restartExplorer) {
 	if (!restartExplorer) return;
 
 	// A clean Explorer restart also drops any appbar space left behind by a crashed shell.
-	for (auto* tray: findTopLevel(L"Shell_TrayWnd")) {
+	if (auto* tray = explorerTray()) {
 		auto pid = processIdOf(tray);
 		if (auto* proc = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, pid)) {
 			TerminateProcess(proc, 1);
@@ -74,7 +74,7 @@ void restoreAll(bool restartExplorer) {
 	}
 
 	Sleep(1500);
-	if (!FindWindowW(L"Shell_TrayWnd", nullptr)) {
+	if (!explorerTray()) {
 		wchar_t windir[MAX_PATH];
 		GetWindowsDirectoryW(windir, MAX_PATH);
 		auto exe = std::wstring(windir) + L"\\explorer.exe";
