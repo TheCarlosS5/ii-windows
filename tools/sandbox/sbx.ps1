@@ -6,10 +6,13 @@ param([Parameter(Mandatory, Position = 0)][string]$Action, [Parameter(Position =
 $x = 'C:\Users\Calos\sbx-xchg'
 $wsb = 'C:\Users\Calos\Desktop\ii-windows\tools\sandbox\ii-test.wsb'
 
-function Test-Agent {
+function Test-Agent([int]$MaxAge = 900) {
+    # The agent refreshes the heartbeat between scripts, so a long script makes it look stale;
+    # also require the sandbox client to be running.
     $hb = Join-Path $x 'outbox\_heartbeat.txt'
     if (-not (Test-Path $hb)) { return $false }
-    return ((Get-Date) - (Get-Item $hb).LastWriteTime).TotalSeconds -lt 5
+    if (-not (Get-Process WindowsSandboxRemoteSession, WindowsSandboxClient -ErrorAction SilentlyContinue)) { return $false }
+    return ((Get-Date) - (Get-Item $hb).LastWriteTime).TotalSeconds -lt $MaxAge
 }
 
 switch ($Action) {
@@ -38,6 +41,7 @@ switch ($Action) {
     }
     'stop' {
         Get-Process WindowsSandbox, WindowsSandboxClient, WindowsSandboxRemoteSession -ErrorAction SilentlyContinue | Stop-Process -Force
+        Remove-Item (Join-Path $x 'outbox\_heartbeat.txt') -ErrorAction SilentlyContinue
         'stopped'
     }
 }

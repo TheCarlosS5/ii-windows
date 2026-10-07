@@ -7,8 +7,28 @@ param(
     [string]$Shot = 'qs',
     [string]$Extra = '',
     [int]$Tail = 80,
-    [switch]$Host2   # also start ii-host (taskbar hidden, shortcuts) before the shell
+    [switch]$Host2,  # also start ii-host (taskbar hidden, shortcuts) before the shell
+    [switch]$Seed    # put build\seed\colors.json + wallpaper in place before starting
 )
+$seedScript = @'
+$state = "$env:LOCALAPPDATA\quickshell\State\user\generated"
+New-Item -ItemType Directory -Force $state | Out-Null
+Copy-Item C:\ii\build\seed\colors.json "$state\colors.json" -Force
+$pics = "$env:USERPROFILE\Pictures"
+New-Item -ItemType Directory -Force $pics | Out-Null
+Copy-Item C:\ii\build\seed\wallpaper.jpg "$pics\ii-wallpaper.jpg" -Force
+$cfgPath = "$env:LOCALAPPDATA\quickshell\illogical-impulse\config.json"
+if (Test-Path $cfgPath) {
+    $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+    $cfg.background.wallpaperPath = ("$pics\ii-wallpaper.jpg" -replace '\\', '/')
+    $cfg | ConvertTo-Json -Depth 32 | Set-Content -Encoding utf8 $cfgPath
+    'seeded config wallpaperPath=' + $cfg.background.wallpaperPath
+} else {
+    New-Item -ItemType Directory -Force (Split-Path $cfgPath) | Out-Null
+    @{ background = @{ wallpaperPath = ("$pics\ii-wallpaper.jpg" -replace '\\', '/') } } | ConvertTo-Json | Set-Content -Encoding utf8 $cfgPath
+    'seeded minimal config'
+}
+'@
 $script = Join-Path $env:TEMP 'sbx-qs-run.ps1'
 @"
 `$ErrorActionPreference = 'Continue'
@@ -18,6 +38,7 @@ Remove-Item "`$env:TEMP\quickshell" -Recurse -Force -ErrorAction SilentlyContinu
 # mapped folders are slow to scan; run from the sandbox's own disk
 `$local = "`$env:USERPROFILE\qs-config"
 robocopy "$Config" `$local /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+$(if ($Seed) { $seedScript })
 $(if ($Host2) { "Start-Process C:\ii\host\build\ii-host.exe; Start-Sleep 2" })
 `$psi = New-Object System.Diagnostics.ProcessStartInfo 'C:\ii\dist\quickshell\quickshell.exe'
 `$psi.Arguments = '-p "' + `$local + '" $Extra'
