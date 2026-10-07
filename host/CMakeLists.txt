@@ -16,3 +16,8 @@ add_executable(ii-host WIN32
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(ii-host PRIVATE user32 shell32 ole32)
+
+# Console multi-call binary: Windows stand-ins for small Linux commands ii calls.
+add_executable(ii-shim src/shim.cpp)
+target_compile_definitions(ii-shim PRIVATE UNICODE _UNICODE)
+target_link_libraries(ii-shim PRIVATE user32 shell32 ole32 powrprof)

@@ -17,6 +17,13 @@ public static class K {
       SendInput(2, a, Marshal.SizeOf(typeof(IN))); System.Threading.Thread.Sleep(40);
     }
   }
+  public static void Math(string text) {
+    foreach (var ch in text) {
+      ushort vk = ch == '*' ? (ushort)0x6A : ch == '+' ? (ushort)0x6B : ch == '-' ? (ushort)0x6D : ch == '/' ? (ushort)0x6F : (ushort)(0x60 + (ch - '0'));
+      var a = new IN[2]; a[0].type = 1; a[0].ki.vk = vk; a[0].ki.scan = (ushort)MapVirtualKey(vk, 0); a[1] = a[0]; a[1].ki.flags = 2;
+      SendInput(2, a, Marshal.SizeOf(typeof(IN))); System.Threading.Thread.Sleep(40);
+    }
+  }
   public static void Key(ushort vk) { var a = new IN[2]; a[0].type = 1; a[0].ki.vk = vk; a[1] = a[0]; a[1].ki.flags = 2; SendInput(2, a, Marshal.SizeOf(typeof(IN))); }
   public static void Click(int x, int y) {
     SetCursorPos(x, y); System.Threading.Thread.Sleep(200);
@@ -49,10 +56,10 @@ Start-Sleep 1.5
 & "$dev\screenshot.ps1" -Out "$out\launcher-calc.png" | Out-Null
 
 # same again, but click into the field first like a user would
-[K]::Click(730, 78)
-[K]::Vk('term')
+foreach ($i in 1..4) { [K]::Key(8); Start-Sleep -Milliseconds 30 }
+[K]::Math('12*3+4')
 Start-Sleep 1.5
-& "$dev\screenshot.ps1" -Out "$out\launcher-term.png" | Out-Null
+& "$dev\screenshot.ps1" -Out "$out\launcher-math.png" | Out-Null
 
 Stop-Process -Id $p.Id -Force
 $log = Get-ChildItem "$env:TEMP\quickshell\by-id\*\log.log" | Sort-Object LastWriteTime | Select-Object -Last 1
