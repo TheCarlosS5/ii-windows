@@ -96,73 +96,7 @@ module('Quickshell.Services.UPower', [
     'UPowerDeviceType.qml': enum_singleton(['Unknown', 'LinePower', 'Battery', 'Ups', 'Monitor', 'Mouse', 'Keyboard']),
 })
 
-# --- Mpris ---------------------------------------------------------------------------------
-module('Quickshell.Services.Mpris', [
-    'singleton Mpris 0.1 Mpris.qml',
-    'singleton MprisPlaybackState 0.1 MprisPlaybackState.qml',
-    'singleton MprisLoopState 0.1 MprisLoopState.qml',
-    'MprisPlayer 0.1 MprisPlayer.qml',
-], {
-    'Mpris.qml': f'''
-    pragma Singleton
-    import QtQuick
-
-    QtObject {{
-        readonly property var players: {model()}
-    }}
-    ''',
-    'MprisPlaybackState.qml': enum_singleton(['Stopped', 'Playing', 'Paused']),
-    'MprisLoopState.qml': enum_singleton(['None', 'Track', 'Playlist']),
-    'MprisPlayer.qml': '''
-    import QtQuick
-
-    QtObject {
-        property bool canControl: false
-        property bool canPlay: false
-        property bool canPause: false
-        property bool canTogglePlaying: false
-        property bool canSeek: false
-        property bool canGoNext: false
-        property bool canGoPrevious: false
-        property bool canQuit: false
-        property bool canRaise: false
-        property string identity: ""
-        property string desktopEntry: ""
-        property string dbusName: ""
-        property real position: 0
-        property bool positionSupported: false
-        property real length: 0
-        property bool lengthSupported: false
-        property real volume: 1
-        property bool volumeSupported: false
-        property var metadata: ({})
-        property int uniqueId: 0
-        property string trackTitle: ""
-        property string trackArtist: ""
-        property string trackArtists: ""
-        property string trackAlbum: ""
-        property string trackAlbumArtist: ""
-        property string trackArtUrl: ""
-        property int playbackState: 0
-        property bool isPlaying: false
-        property int loopState: 0
-        property bool loopSupported: false
-        property real rate: 1
-        property bool shuffle: false
-        property bool shuffleSupported: false
-        signal postTrackChanged()
-        function raise() {}
-        function quit() {}
-        function next() {}
-        function previous() {}
-        function seek(offset) {}
-        function play() {}
-        function pause() {}
-        function stop() {}
-        function togglePlaying() {}
-    }
-    ''',
-})
+# Mpris: real module (GSMTC) in quickshell/src/win32/services/mpris.cpp
 
 # --- SystemTray ----------------------------------------------------------------------------
 module('Quickshell.Services.SystemTray', [
