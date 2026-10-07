@@ -25,6 +25,7 @@ struct Shortcut {
 };
 
 // Names are illogical-impulse GlobalShortcut names (see its Hyprland keybinds).
+// The cheatsheet lists these from overlay/ii/services/HyprlandKeybinds.qml: keep it in sync.
 constexpr std::array SHORTCUTS = {
     Shortcut {true, false, false, false, VK_TAB, L"overviewWorkspacesToggle"},
     Shortcut {true, false, false, false, 'V', L"overviewClipboardToggle"},
