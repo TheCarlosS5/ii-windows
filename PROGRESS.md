@@ -184,12 +184,18 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 ### Arreglo de seguridad: autoocultar de la barra de tareas
 - Se encontró en el Sandbox: Windows guarda tarde el estado de la barra, y un reinicio de Explorer podía dejarla en "ocultar automáticamente" aunque ya se hubiera restaurado. Ahora se guarda también en el registro al restaurar y antes de cerrar sesión. Probado con autoocultar apagado y encendido (tu caso): 14/14.
 
-## En curso: pulido tras usarlo en tu PC (2026-10-08 tarde)
+## Pulido tras usarlo en tu PC (2026-10-08 tarde)
 Lo que reportaste, y quién lo hace:
 - [x] **Al minimizar una app desaparecen la barra y el dock** hasta abrir otra app (Claude).
 - [x] **La tecla Windows y Win+Tab** deben abrir la búsqueda / vista general por encima de cualquier app, como en Linux (Claude).
 - [x] **Configuración de ii**: quitar los botones de Windows (minimizar, maximizar, cerrar) y dejar solo la X propia de ii, sin perder poder moverla y cambiarle el tamaño (Claude).
-- [ ] **Escritorios de Windows como espacios de trabajo** (EN CURSO, Claude: servicio nativo, barra y HyprlandData hechos y compilan, SIN probar; falta la tira de escritorios en la vista general y probar en Sandbox. Codex quedó bloqueado por un error de su entorno: "setup refresh had errors"): los puntitos de la barra muestran tus escritorios reales; Win+Tab muestra la vista general con los escritorios y "Nuevo escritorio", como la Vista de tareas de Windows (Codex).
+- [x] **Escritorios de Windows como espacios de trabajo** (Claude; revisión de código de Codex):
+  - Los puntitos de la barra son tus escritorios reales; el punto se marca si ese escritorio tiene ventanas. Sin ventanas, la barra dice "Escritorio 2" (o el nombre que le pusiste en la Vista de tareas).
+  - Win+Tab: la vista general muestra las ventanas del escritorio actual y, debajo, una tira con todos tus escritorios (fondo de ii + iconos de sus apps) y **Nuevo escritorio**. Clic cambia de escritorio sin cerrar la vista; la × (o clic central) cierra uno y te deja donde estabas.
+  - Win+Ctrl+D / Win+Ctrl+Flechas / Win+Ctrl+F4 de Windows siguen funcionando con ii-host.
+  - Cómo: qué escritorio tiene cada ventana, con la API documentada (`IVirtualDesktopManager`); la lista de escritorios, leída (solo lectura) del registro donde Explorer la guarda; cambiar/crear/cerrar, con los atajos de Windows enviados de uno en uno y esperando a que Windows confirme cada paso (si una app con permisos de administrador está delante y Windows los bloquea, ii desiste a los 1,5 s). Nada se envía mientras tienes Win/Ctrl/Alt/Mayús pulsadas.
+  - Límite: mover una ventana de otra app a otro escritorio no tiene API pública, así que arrastrar ventanas entre escritorios sigue desactivado (en Windows: clic derecho en la ventana dentro de la Vista de tareas).
+  - Probado en Sandbox (`tests\ii-desktops.ps1`): crear, cambiar y cerrar con teclado y con clics, cerrar otro escritorio y volver, sin teclas pegadas ni Inicio abierto; `ii-overview-dock.ps1` sigue pasando.
 - [x] **Widget de música** como el de ii en Linux: sin música, el icono de nota con el aro que cambia de forma; con música, la carátula y su fondo (Claude, portando el del dotfile).
 - [x] **Bandeja con iconos ocultos**: los que Windows tiene ocultos van detrás de una flechita, como en la barra de Windows (Claude).
 - [x] **Dock: destello hacia la derecha** al pasar el ratón rápido por las apps abiertas (Claude).

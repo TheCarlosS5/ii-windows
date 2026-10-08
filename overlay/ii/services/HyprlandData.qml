@@ -158,6 +158,15 @@ Singleton {
         target: Hyprland.workspaces
         function onValuesChanged() { rebuildSoon.restart(); }
     }
+    // A window moved to another desktop (or desktops closed / reordered under it).
+    Instantiator {
+        model: ToplevelManager.toplevels
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onDesktopChanged() { rebuildSoon.restart(); }
+        }
+    }
     Timer {
         id: rebuildSoon
         interval: 30

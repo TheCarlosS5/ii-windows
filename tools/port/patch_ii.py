@@ -288,7 +288,8 @@ edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
     readonly property var gridLayout: {
         const mon = root.monitorData;
         if (!mon) return ({});
-        const wins = root.windows.filter(w => w.monitor === mon.id && w.size[0] > 0 && w.size[1] > 0);
+        const wins = root.windows.filter(w => w.monitor === mon.id && w.size[0] > 0 && w.size[1] > 0
+            && w.workspace.id === root.effectiveActiveWorkspaceId);
         const n = wins.length;
         if (n === 0) return ({});
         const areaX = mon.x + mon.reserved[0];
@@ -325,6 +326,29 @@ edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
      '''                    windowData: root.gridLayout[address] ?? windowByAddress[address]'''),
     ('''                        drag.target: parent''',
      '''                        drag.target: null // ii-windows: one workspace, nowhere to move windows to'''),
+])
+# Under the overview, a strip with Windows' virtual desktops and "New desktop", like Task View
+# (overlay modules/ii/overview/DesktopStrip.qml).
+edit(path('modules', 'ii', 'overview', 'Overview.qml'), [
+    ('''                sourceComponent: OverviewWidget {
+                    screen: panelWindow.screen
+                    visible: (panelWindow.searchingText == "")
+                }
+            }''',
+     '''                sourceComponent: OverviewWidget {
+                    screen: panelWindow.screen
+                    visible: (panelWindow.searchingText == "")
+                }
+            }
+
+            Loader {
+                anchors.horizontalCenter: parent.horizontalCenter
+                active: overviewLoader.active
+                visible: panelWindow.searchingText == ""
+                sourceComponent: DesktopStrip {
+                    screen: panelWindow.screen
+                }
+            }'''),
 ])
 edit(path('modules', 'ii', 'overview', 'OverviewWindow.qml'), [
     ('        captureSource: GlobalStates.overviewOpen ? root.toplevel : null',
@@ -427,6 +451,13 @@ edit(path('modules', 'common', 'models', 'WorkspaceModel.qml'), [
      '    readonly property int shownCount: Math.max(1, Hyprland.workspaces.values.length)'),
     ('            return Hyprland.workspaces.values.some(ws => ws.id === thisWorkspaceId);',
      '            return HyprlandData.windowList.some(w => w.workspace.id === thisWorkspaceId);'),
+    ('''    onGroupChanged: {
+        updateWorkspaceOccupied();
+    }''',
+     '''    onGroupChanged: {
+        updateWorkspaceOccupied();
+    }
+    onShownCountChanged: updateWorkspaceOccupied()'''),
     ('''    Connections {
         target: Hyprland
         function onFocusedWorkspaceChanged() {
@@ -445,6 +476,23 @@ edit(path('modules', 'common', 'models', 'WorkspaceModel.qml'), [
             root.updateWorkspaceOccupied();
         }
     }'''),
+])
+
+# With no window, the bar names the virtual desktop as Windows does ("Escritorio 2", or the
+# name given in Task View) instead of "Workspace 2".
+edit(path('modules', 'ii', 'bar', 'ActiveWindow.qml'), [
+    ('(root.biggestWindow?.title) ?? `${Translation.tr("Workspace")} ${monitor?.activeWorkspace?.id ?? 1}`',
+     '(root.biggestWindow?.title) ?? ((monitor?.activeWorkspace?.name ?? "1") === `${monitor?.activeWorkspace?.id ?? 1}` ? Translation.tr("Desktop %1").arg(monitor?.activeWorkspace?.id ?? 1) : monitor.activeWorkspace.name)'),
+])
+
+# The number of dots follows the desktops: for a moment a new dot has no "occupied" entry yet.
+edit(path('modules', 'ii', 'bar', 'Workspaces.qml'), [
+    ('property bool currentOccupied: wsModel.occupied[index] && wsId != wsModel.fakeWorkspace',
+     'property bool currentOccupied: !!wsModel.occupied[index] && wsId != wsModel.fakeWorkspace'),
+    ('property bool previousOccupied: index > 0 && wsModel.occupied[index - 1] && (wsId - 1) != wsModel.fakeWorkspace',
+     'property bool previousOccupied: index > 0 && !!wsModel.occupied[index - 1] && (wsId - 1) != wsModel.fakeWorkspace'),
+    ('property bool nextOccupied: index < wsModel.shownCount - 1 && wsModel.occupied[index + 1] && (wsId + 1) != wsModel.fakeWorkspace',
+     'property bool nextOccupied: index < wsModel.shownCount - 1 && !!wsModel.occupied[index + 1] && (wsId + 1) != wsModel.fakeWorkspace'),
 ])
 
 # Tray: the icons Windows keeps behind the arrow (not "promoted" in Settings > Taskbar) go to
@@ -517,6 +565,9 @@ PORT_STRINGS_ES = {
     "Unpin from dock": "Desanclar del dock",
     "Close window": "Cerrar ventana",
     "Close all windows": "Cerrar todas las ventanas",
+    "Desktop %1": "Escritorio %1",
+    "New desktop": "Nuevo escritorio",
+    "Close desktop": "Cerrar escritorio",
     "From": "Desde",
     "To": "Hasta",
     "Gamma": "Gamma",
