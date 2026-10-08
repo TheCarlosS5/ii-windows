@@ -420,6 +420,16 @@ edit(path('services', 'Translation.qml'), [
         return shipped.find(code => code.split("_")[0] === name.split("_")[0]) ?? name;'''),
 ])
 
+# Tray: the icons Windows keeps behind the arrow (not "promoted" in Settings > Taskbar) go to
+# ii's overflow menu as well, so many background apps don't crowd the bar.
+edit(path('services', 'TrayService.qml'), [
+    ('''    property list<var> pinnedItems: invertPins ? itemsNotInUserList : itemsInUserList
+    property list<var> unpinnedItems: invertPins ? itemsInUserList : itemsNotInUserList''',
+     '''    property list<var> pinnedItems: (invertPins ? itemsNotInUserList : itemsInUserList).filter(i => i.promoted !== false)
+    property list<var> unpinnedItems: (invertPins ? itemsInUserList : itemsNotInUserList)
+        .concat((invertPins ? itemsNotInUserList : itemsInUserList).filter(i => i.promoted === false))'''),
+])
+
 # ii's settings app is a plain Qt window: Windows would add its own caption and buttons next to
 # ii's title bar and close button. Keep only ii's: no Windows caption (frame, shadow and resizable
 # edges stay), ii's title bar moves the window and a double click maximizes, as Windows' does.
