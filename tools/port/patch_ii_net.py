@@ -9,7 +9,8 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from edit import edit  # noqa: E402
 
-ROOT = os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'ii')
+# II_STAGE_DIR: stage somewhere else (a second, private staging while another one is in use).
+ROOT = os.environ.get('II_STAGE_DIR') or os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'ii')
 
 
 def path(*parts):

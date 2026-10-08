@@ -10,7 +10,8 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from edit import edit  # noqa: E402
 
-ROOT = os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'ii')
+# II_STAGE_DIR: stage somewhere else (a second, private staging while another one is in use).
+ROOT = os.environ.get('II_STAGE_DIR') or os.path.join(os.path.dirname(__file__), '..', '..', 'build', 'ii')
 
 
 def path(*parts):
@@ -256,6 +257,93 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
                     shown: Config.options.background.widgets.folder.enable'''),
 ])
 
+# Overview: Windows has one set of windows (no Hyprland workspaces to move them to) and its
+# windows overlap or are maximized, so drawing each at its real position hides most of them.
+# One large workspace, windows laid out in a grid (most recently used first), no dragging;
+# click focuses, middle click closes, as in ii.
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property real scale: 0.18 // Relative to screen size
+                property real rows: 2
+                property real columns: 5''',
+     '''                property real scale: 0.55 // Relative to screen size
+                property real rows: 1
+                property real columns: 1'''),
+])
+edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
+    ('''    property real scale: Config.options.overview.scale''',
+     '''    property real scale: Config.options.overview.scale
+
+    // ii-windows: grid positions for this monitor's windows, in monitor pixels, with the shape
+    // of hyprctl's window objects so OverviewWindow scales them like real positions.
+    readonly property var gridLayout: {
+        const mon = root.monitorData;
+        if (!mon) return ({});
+        const wins = root.windows.filter(w => w.monitor === mon.id && w.size[0] > 0 && w.size[1] > 0);
+        const n = wins.length;
+        if (n === 0) return ({});
+        const areaX = mon.x + mon.reserved[0];
+        const areaY = mon.y + mon.reserved[1];
+        const areaW = mon.width / mon.scale - mon.reserved[0] - mon.reserved[2];
+        const areaH = mon.height / mon.scale - mon.reserved[1] - mon.reserved[3];
+        // Windows are roughly screen-shaped: a square-ish grid of screen-shaped cells.
+        const cols = Math.ceil(Math.sqrt(n));
+        const rows = Math.ceil(n / cols);
+        const cellW = areaW / cols;
+        const cellH = areaH / rows;
+        const gap = Math.min(cellW, cellH) * 0.06;
+        const result = {};
+        wins.forEach((w, i) => {
+            const row = Math.floor(i / cols);
+            const inRow = row === rows - 1 ? n - row * cols : cols;
+            const col = i % cols;
+            const s = Math.min((cellW - gap * 2) / w.size[0], (cellH - gap * 2) / w.size[1], 1);
+            const width = w.size[0] * s;
+            const height = w.size[1] * s;
+            // Center a shorter last row.
+            const rowOffset = (cols - inRow) * cellW / 2;
+            result[w.address] = Object.assign({}, w, {
+                at: [areaX + rowOffset + col * cellW + (cellW - width) / 2, areaY + row * cellH + (cellH - height) / 2],
+                size: [width, height],
+            });
+        });
+        return result;
+    }'''),
+    ('''                    windowData: windowByAddress[address]''',
+     '''                    windowData: root.gridLayout[address] ?? windowByAddress[address]'''),
+    ('''                        drag.target: parent''',
+     '''                        drag.target: null // ii-windows: one workspace, nowhere to move windows to'''),
+])
+# Dock: right click opens a menu like the Windows taskbar's (DockContextMenu.qml: new window,
+# pin/unpin, close window(s)) instead of silently toggling the pin.
+edit(path('modules', 'ii', 'dock', 'DockAppButton.qml'), [
+    ('''    altAction: () => {
+        TaskbarApps.togglePin(appToplevel.appId);
+    }''',
+     '''    altAction: () => {
+        appListRoot.openContextMenu(root);
+    }'''),
+])
+edit(path('modules', 'ii', 'dock', 'DockApps.qml'), [
+    ('    property bool requestDockShow: previewPopup.show',
+     '    property bool requestDockShow: previewPopup.show || contextMenu.shown'),
+    ('        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0',
+     '        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0 && !contextMenu.shown'),
+    ('''    PopupWindow {
+        id: previewPopup''',
+     '''    function openContextMenu(button) {
+        previewPopup.show = false;
+        contextMenu.open(button);
+    }
+
+    DockContextMenu {
+        id: contextMenu
+        dockApps: root
+    }
+
+    PopupWindow {
+        id: previewPopup'''),
+])
+
 # Bar: Windows app ids are AppUserModelIDs (Microsoft.WindowsTerminal_8wekyb3d8bbwe!App) or exe
 # names; show the app's name from the Start menu instead, as a Linux class name would read.
 edit(path('modules', 'ii', 'bar', 'ActiveWindow.qml'), [
@@ -341,6 +429,11 @@ PORT_STRINGS_ES = {
     "Reset size": "Restablecer tamaño",
     "Open image": "Abrir imagen",
     "Remove from desktop": "Quitar del escritorio",
+    "New window": "Nueva ventana",
+    "Pin to dock": "Anclar al dock",
+    "Unpin from dock": "Desanclar del dock",
+    "Close window": "Cerrar ventana",
+    "Close all windows": "Cerrar todas las ventanas",
 }
 
 
