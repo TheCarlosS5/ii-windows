@@ -13,4 +13,7 @@ if (Test-Path $overlay) {
     robocopy $overlay $dest /E /NFL /NDL /NJH /NJS /NP | Out-Null
     $n = (Get-ChildItem $overlay -Recurse -File).Count
 } else { $n = 0 }
+# Small exact-match edits (Windows defaults); fails loudly if upstream moved the code.
+& python -I "$root\tools\port\patch_ii.py" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "patch_ii.py failed" }
 "staged ii -> $dest ($n overlay files)"

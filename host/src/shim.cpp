@@ -178,6 +178,34 @@ int xdgOpen(const Args& args) {
 	return r > 32 ? 0 : 1;
 }
 
+// bash -c "<command>": ii runs its configurable app commands this way (Config.options.apps.*).
+// Deliberately NOT a shell: only a single URI (ms-settings:..., http(s)://...) or a single
+// program name is opened. Everything else, including ii's own Linux pipelines, gets 127
+// ("command not found") and is never handed to cmd.exe, where it could do something else.
+int bash(const Args& args) {
+	if (args.size() < 2 || args[0] != L"-c") return 127;
+	auto command = args[1];
+	auto first = command.find_first_not_of(L" \t\r\n");
+	auto last = command.find_last_not_of(L" \t\r\n");
+	if (first == std::wstring::npos) return 127;
+	command = command.substr(first, last - first + 1);
+
+	auto isUri = (command.rfind(L"ms-settings:", 0) == 0 || command.rfind(L"https://", 0) == 0
+	              || command.rfind(L"http://", 0) == 0)
+	          && command.find_first_of(L" \t\"'`|&;<>$\\") == std::wstring::npos;
+	auto isProgram = command.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+	              == std::wstring::npos;
+	if (!isUri && !isProgram) return 127;
+
+	SHELLEXECUTEINFOW info {};
+	info.cbSize = sizeof(info);
+	info.fMask = SEE_MASK_FLAG_NO_UI; // a missing program is a quiet 127, not an error dialog
+	info.lpVerb = L"open";
+	info.lpFile = command.c_str();
+	info.nShow = SW_SHOWNORMAL;
+	return ShellExecuteExW(&info) ? 0 : 127;
+}
+
 void sendKey(WORD vk) {
 	INPUT in[2] = {};
 	in[0].type = INPUT_KEYBOARD;
@@ -328,6 +356,7 @@ int wmain(int argc, wchar_t** argv) {
 
 	if (command == L"qalc") return qalc(args);
 	if (command == L"xdg-open") return xdgOpen(args);
+	if (command == L"bash") return bash(args);
 	if (command == L"notify-send") return notifySend(args);
 	if (command == L"playerctl") return playerctl(args);
 	if (command == L"wpctl") return wpctl(args);
