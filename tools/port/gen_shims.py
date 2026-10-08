@@ -36,65 +36,7 @@ def enum_singleton(values, extra=''):
     }}
     '''
 
-# --- UPower --------------------------------------------------------------------------------
-module('Quickshell.Services.UPower', [
-    'singleton UPower 0.1 UPower.qml',
-    'singleton PowerProfiles 0.1 PowerProfiles.qml',
-    'singleton PowerProfile 0.1 PowerProfile.qml',
-    'singleton PerformanceDegradationReason 0.1 PerformanceDegradationReason.qml',
-    'singleton UPowerDeviceState 0.1 UPowerDeviceState.qml',
-    'singleton UPowerDeviceType 0.1 UPowerDeviceType.qml',
-    'UPowerDevice 0.1 UPowerDevice.qml',
-], {
-    'UPower.qml': f'''
-    pragma Singleton
-    import QtQuick
-
-    QtObject {{
-        readonly property UPowerDevice displayDevice: UPowerDevice {{}}
-        readonly property var devices: {model()}
-        readonly property bool onBattery: false
-    }}
-    ''',
-    'UPowerDevice.qml': '''
-    import QtQuick
-
-    QtObject {
-        property int type: 0
-        property bool powerSupply: false
-        property real energy: 0
-        property real energyCapacity: 0
-        property real changeRate: 0
-        property real timeToEmpty: 0
-        property real timeToFull: 0
-        property real percentage: 0
-        property bool isPresent: false
-        property int state: 0
-        property real healthPercentage: 0
-        property bool healthSupported: false
-        property string iconName: ""
-        property bool isLaptopBattery: false
-        property string nativePath: ""
-        property string model: ""
-        property bool ready: true
-    }
-    ''',
-    'PowerProfiles.qml': '''
-    pragma Singleton
-    import QtQuick
-
-    QtObject {
-        property int profile: 1
-        readonly property bool hasPerformanceProfile: false
-        readonly property int degradationReason: 0
-        readonly property var holds: []
-    }
-    ''',
-    'PowerProfile.qml': enum_singleton(['PowerSaver', 'Balanced', 'Performance']),
-    'PerformanceDegradationReason.qml': enum_singleton(['None', 'LapDetected', 'HighTemperature']),
-    'UPowerDeviceState.qml': enum_singleton(['Unknown', 'Charging', 'Discharging', 'Empty', 'FullyCharged', 'PendingCharge', 'PendingDischarge']),
-    'UPowerDeviceType.qml': enum_singleton(['Unknown', 'LinePower', 'Battery', 'Ups', 'Monitor', 'Mouse', 'Keyboard']),
-})
+# UPower: native Windows battery + documented power schemes.
 
 # Mpris: real module (GSMTC) in quickshell/src/win32/services/mpris.cpp
 
@@ -102,65 +44,7 @@ module('Quickshell.Services.UPower', [
 
 # Notifications: real module (toasts + notify-send) in quickshell/src/win32/services/notifications.cpp
 
-# --- Bluetooth -----------------------------------------------------------------------------
-module('Quickshell.Bluetooth', [
-    'singleton Bluetooth 0.1 Bluetooth.qml',
-    'singleton BluetoothAdapterState 0.1 BluetoothAdapterState.qml',
-    'singleton BluetoothDeviceState 0.1 BluetoothDeviceState.qml',
-    'BluetoothAdapter 0.1 BluetoothAdapter.qml',
-    'BluetoothDevice 0.1 BluetoothDevice.qml',
-], {
-    'Bluetooth.qml': f'''
-    pragma Singleton
-    import QtQuick
-
-    QtObject {{
-        readonly property var defaultAdapter: null
-        readonly property var adapters: {model()}
-        readonly property var devices: {model()}
-    }}
-    ''',
-    'BluetoothAdapterState.qml': enum_singleton(['Disabled', 'Enabled', 'Enabling', 'Disabling', 'Blocked']),
-    'BluetoothDeviceState.qml': enum_singleton(['Disconnected', 'Connected', 'Disconnecting', 'Connecting']),
-    'BluetoothAdapter.qml': f'''
-    import QtQuick
-
-    QtObject {{
-        property string name: ""
-        property string adapterId: ""
-        property bool enabled: false
-        property int state: 0
-        property bool discoverable: false
-        property bool discovering: false
-        property bool pairable: false
-        readonly property var devices: {model()}
-    }}
-    ''',
-    'BluetoothDevice.qml': '''
-    import QtQuick
-
-    QtObject {
-        property string address: ""
-        property string deviceName: ""
-        property string name: ""
-        property string icon: ""
-        property bool connected: false
-        property bool paired: false
-        property bool bonded: false
-        property bool trusted: false
-        property bool blocked: false
-        property bool pairing: false
-        property bool batteryAvailable: false
-        property real battery: 0
-        property int state: 0
-        function connect() {}
-        function disconnect() {}
-        function pair() {}
-        function cancelPair() {}
-        function forget() {}
-    }
-    ''',
-})
+# Bluetooth: native Windows radio/device watchers.
 
 # --- Polkit / Pam: Windows uses UAC and its own lock screen --------------------------------
 module('Quickshell.Services.Polkit', ['PolkitAgent 0.1 PolkitAgent.qml'], {

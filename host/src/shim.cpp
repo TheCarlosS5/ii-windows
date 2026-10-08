@@ -463,6 +463,8 @@ int switchwall(const std::vector<std::wstring>& args);
 int thumbnail(const std::vector<std::wstring>& args);
 int magick(const std::vector<std::wstring>& args);
 
+int brightnessCommand(const std::wstring& command, const std::vector<std::wstring>& args);
+
 int wmain(int argc, wchar_t** argv) {
 	auto command = baseName(argv[0]);
 	Args args(argv + 1, argv + argc);
@@ -473,6 +475,7 @@ int wmain(int argc, wchar_t** argv) {
 	}
 
 	if (command == L"qalc") return qalc(args);
+	if (command == L"ddcutil" || command == L"brightnessctl" || command == L"brightness-win" || command == L"_brightness-worker") return brightnessCommand(command, args);
 	if (command == L"xdg-open") return xdgOpen(args);
 	if (command == L"reveal") return reveal(args);
 	if (command == L"bash") return bash(args);

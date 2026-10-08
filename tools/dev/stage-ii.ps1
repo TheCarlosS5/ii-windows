@@ -32,4 +32,5 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
     & python -I "$root\tools\port\patch_ii_sidebar.py" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "patch_ii_sidebar.py failed" }
 }
+& python -I "$root\tools\port\patch_ii_brightness.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_brightness.py failed" }
 "staged ii -> $dest ($n overlay files)"

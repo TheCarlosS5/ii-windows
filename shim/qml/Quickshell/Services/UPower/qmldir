@@ -1,8 +1,0 @@
-module Quickshell.Services.UPower
-singleton UPower 0.1 UPower.qml
-singleton PowerProfiles 0.1 PowerProfiles.qml
-singleton PowerProfile 0.1 PowerProfile.qml
-singleton PerformanceDegradationReason 0.1 PerformanceDegradationReason.qml
-singleton UPowerDeviceState 0.1 UPowerDeviceState.qml
-singleton UPowerDeviceType 0.1 UPowerDeviceType.qml
-UPowerDevice 0.1 UPowerDevice.qml

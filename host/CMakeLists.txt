@@ -32,7 +32,7 @@ if(NOT MCU_SOURCES)
 	message(FATAL_ERROR "material-color-utilities missing: run tools/dev/fetch_mcu.ps1")
 endif()
 
-add_executable(ii-shim src/shim.cpp src/capture.cpp src/switchwall.cpp src/randomwall.cpp
+add_executable(ii-shim src/shim.cpp src/brightness.cpp src/capture.cpp src/switchwall.cpp src/randomwall.cpp
 	src/http.h src/http.cpp src/weather.cpp src/sidebar.cpp src/nightlight_core.cpp ${MCU_SOURCES})
 target_include_directories(ii-shim PRIVATE ${MCU_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/compat)
 # M_PI, and the C99 compound literals it uses (build with clang-cl, as Quickshell).
@@ -41,7 +41,7 @@ set_source_files_properties(${MCU_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wno-ever
 target_compile_definitions(ii-shim PRIVATE UNICODE _UNICODE)
 # capture.cpp uses C++/WinRT for Windows' OCR.
 target_compile_options(ii-shim PRIVATE /EHsc)
-target_link_libraries(ii-shim PRIVATE user32 gdi32 shell32 ole32 powrprof windowscodecs windowsapp winhttp advapi32)
+target_link_libraries(ii-shim PRIVATE user32 gdi32 shell32 ole32 oleaut32 wbemuuid dxva2 powrprof windowscodecs windowsapp winhttp advapi32)
 
 # Console-only safety tests with fake displays. Never calls a display or power setter.
 add_executable(ii-sidebar-test src/nightlight_test.cpp src/nightlight_core.cpp)
