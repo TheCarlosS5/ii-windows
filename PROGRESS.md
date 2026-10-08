@@ -134,6 +134,15 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Barra: muestra el nombre de la app ("Terminal") en vez de su ID técnico.
 - Pruebas en Sandbox: `ii-desktop-menu.ps1`, `ii-photo.ps1` (menú, foto, rueda, selector de archivos), `ii-net-widgets.ps1` (clima, música, overlay).
 
+### Vista general (tecla Windows) y dock (instalado en tu PC 2026-10-08 07:38)
+- El problema: ii dibuja cada ventana en su posición real dentro de 10 escritorios en miniatura. En Hyprland las ventanas no se tapan; en Windows se solapan o están maximizadas, así que la de encima ocultaba al resto. Además, arrastrar a otro escritorio no hacía nada: Windows no tiene los workspaces de Hyprland, y los escritorios virtuales de Windows solo se pueden mover con APIs no documentadas.
+- Ahora: un solo panel grande (55 % de la pantalla) con todas las ventanas en cuadrícula, la más reciente primero. Clic la trae al frente, clic central la cierra. Sin arrastrar.
+- ii actual usa la sintaxis nueva de Hyprland (`hl.dsp.focus(...)`) y el port solo entendía la vieja: por eso el clic en una ventana de la vista general no hacía nada. Arreglado.
+- Pausa al abrir: 26 ms en tu PC; la primera apertura en Sandbox, ~100 ms (Windows crea la ventana).
+- Dock: la vista previa al pasar el ratón ya se ve (título, × para cerrar y la ventana en vivo). Clic derecho abre un menú como el de la barra de Windows: la app, nueva ventana, anclar/desanclar, cerrar ventana(s). Las ventanas del Explorador se agrupan con su icono anclado.
+- Pruebas en Sandbox: `ii-overview-dock.ps1`, `ii-overview-perf.ps1`.
+- Pendiente: las ventanas minimizadas salen pequeñas y en negro en la vista general (DWM no da imagen de una ventana minimizada).
+
 ### Instalador
 - Paquete: `out\ii-windows-<versión>.zip` (88 MB), creado con `tools\package\make-package.ps1`. Dentro, `install.cmd`: doble clic, pregunta antes de cada paso, solo tu usuario. Detalles en D18.
 - Hace: punto de restauración opcional, copia `.reg` de lo que toca, archivos en `%LOCALAPPDATA%\Programs\ii-windows`, cursor Bibata, inicio con Windows, menú Inicio (Iniciar, Rescate, Desinstalar) y entrada en Configuración > Aplicaciones.
