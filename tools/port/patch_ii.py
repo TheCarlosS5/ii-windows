@@ -72,3 +72,38 @@ edit(path('modules', 'ii', 'overlay', 'recorder', 'Recorder.qml'), [
 edit(path('modules', 'ii', 'overlay', 'OverlayContext.qml'), [
     ('        { identifier: "fpsLimiter", materialSymbol: "animation" },\n', ''),
 ])
+
+# Windows desktop entries use the real personal and shared Desktop folders. Keep the
+# original background/clock intact and place the icons outside the parallax canvas.
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject background: JsonObject {
+                property JsonObject widgets: JsonObject {''',
+     '''            property JsonObject background: JsonObject {
+                property JsonObject widgets: JsonObject {
+                    property JsonObject desktopIcons: JsonObject {
+                        property bool enable: true
+                        property int iconSize: 48
+                    }'''),
+])
+edit(path('modules', 'ii', 'background', 'Background.qml'), [
+    ('import qs.modules.ii.background.widgets.clock',
+     'import qs.modules.ii.background.widgets.desktop\nimport qs.modules.ii.background.widgets.clock'),
+    ('''            WidgetCanvas {
+                id: widgetCanvas''',
+     '''            Loader {
+                anchors.fill: parent
+                active: Config.options.background.widgets.desktopIcons.enable && !GlobalStates.screenLocked
+                // Menus must receive clicks above clock/weather; lower icons again on close.
+                z: item?.menuOpen ? 1 : 0
+                sourceComponent: DesktopIcons {}
+            }
+
+            WidgetCanvas {
+                id: widgetCanvas'''),
+])
+
+# The upstream canvas is an otherwise empty full-screen MouseArea. It must not eat
+# clicks intended for desktop icons beneath it; clock/weather keep their own handlers.
+edit(path('modules', 'common', 'widgets', 'widgetCanvas', 'WidgetCanvas.qml'), [
+    ('    id: root', '    id: root\n    acceptedButtons: Qt.NoButton'),
+])

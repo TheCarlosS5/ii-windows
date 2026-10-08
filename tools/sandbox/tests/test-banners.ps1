@@ -1,6 +1,9 @@
 # INSIDE the sandbox: Windows' notification banners are off while ii-host runs and come back
 # exactly as they were on clean exit, on a host crash (guard) and with the rescue script.
 $ErrorActionPreference = 'Continue'
+if ($env:USERNAME -ne 'WDAGUtilityAccount' -or -not (Test-Path -LiteralPath 'C:\ii\host\build\ii-host.exe')) {
+    throw 'This test must run inside the ii Windows Sandbox.'
+}
 $out = 'C:\xchg\outbox'
 $hostExe = 'C:\ii\host\build\ii-host.exe'
 $data = "$env:LOCALAPPDATA\ii-windows"
@@ -13,7 +16,15 @@ function Check($name, $ok) { if ($ok) { "PASS $name" } else { "FAIL $name"; $scr
 function Banner($key) { (Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue).ShowBanner }
 
 Get-Process ii-host, quickshell -ErrorAction SilentlyContinue | Stop-Process -Force
-Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue
+$resolvedData = [IO.Path]::GetFullPath($data)
+if (-not $resolvedData.StartsWith($env:USERPROFILE + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Unsafe test state path: $resolvedData"
+}
+Remove-Item -LiteralPath $resolvedData -Recurse -Force -ErrorAction SilentlyContinue
+# A fresh Sandbox has no PowerShell notification registration until its first toast.
+# Seed the existing-app case explicitly; $fresh below still tests late registration.
+New-Item -Path $ps -Force | Out-Null
+Set-ItemProperty -LiteralPath $ps -Name LastNotificationAddedTime -Value 1 -Type QWord
 Remove-ItemProperty -LiteralPath $ps -Name ShowBanner -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $fresh -ErrorAction SilentlyContinue
 if (-not (Test-Path -LiteralPath $other)) { New-Item $other | Out-Null }
@@ -69,9 +80,12 @@ Check 'guard: backup file gone' (-not (Test-Path "$data\banners.txt"))
 
 # --- 4. rescue script (host and guard gone, backup left behind)
 StartHost
+# Stop the guard first so it cannot recover before the rescue script is tested.
+Get-CimInstance Win32_Process -Filter "Name='ii-host.exe'" | Where-Object { $_.CommandLine -match '--guard' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Get-Process ii-host, quickshell -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 1
-if ((Banner $ps) -ne 0) { "note: guard was faster than the kill; forcing the leftover state" }
+Check 'rescue fixture: backup remains and banners are off' ((Test-Path "$data\banners.txt") -and (Banner $ps) -eq 0)
 & powershell -NoProfile -ExecutionPolicy Bypass -File C:\ii\tools\rescue\ii-rescue.ps1 | Out-Null
 Check 'rescue: powershell value removed' ($null -eq (Banner $ps))
 Check 'rescue: user-disabled app still off' ((Banner $other) -eq 0)
@@ -79,3 +93,4 @@ Check 'rescue: backup file gone' (-not (Test-Path "$data\banners.txt"))
 
 Remove-Item -LiteralPath $other, $fresh -ErrorAction SilentlyContinue
 "fails: $script:fails"
+if ($script:fails -gt 0) { exit 1 }

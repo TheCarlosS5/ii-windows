@@ -4,6 +4,7 @@ import QtCore
 import Qt.labs.folderlistmodel
 import Quickshell
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -20,9 +21,10 @@ Item {
     property int cellWidth: iconSize + 44
     property int cellHeight: iconSize + 52
     property string selectedPath: ""
+    readonly property bool menuOpen: contextMenu.visible
 
-    readonly property string userDesktop: FileUtils.trimFileProtocol(StandardPaths.writableLocation(StandardPaths.DesktopLocation))
-    readonly property string publicDesktop: (Quickshell.env("PUBLIC") ?? "C:/Users/Public").replace(/\\/g, "/") + "/Desktop"
+    readonly property string userDesktop: decodeURIComponent(FileUtils.trimFileProtocol(StandardPaths.writableLocation(StandardPaths.DesktopLocation))).replace(/^\/(?=[A-Za-z]:\/)/, "")
+    readonly property string publicDesktop: (Quickshell.env("PUBLIC") || "C:/Users/Public").replace(/\\/g, "/") + "/Desktop"
 
     function displayName(fileName) {
         // Windows hides the extension of shortcuts.
@@ -39,7 +41,9 @@ Item {
     }
 
     function open(path) {
-        Qt.openUrlExternally("file:///" + path);
+        // ShellExecute receives a literal path: '#' and '%' are file-name characters,
+        // not a URL fragment or escape sequence. No shell command string is involved.
+        Quickshell.execDetached(["xdg-open", root.nativePath(path)]);
     }
 
     MouseArea {
@@ -63,7 +67,7 @@ Item {
 
         Repeater {
             model: FolderListModel {
-                folder: "file:///" + root.userDesktop
+                folder: StandardPaths.writableLocation(StandardPaths.DesktopLocation)
                 showDirsFirst: true
                 showDotAndDotDot: false
                 showHidden: false
@@ -172,7 +176,8 @@ Item {
         width: 220
         height: menuColumn.implicitHeight + 12
         radius: Appearance.rounding.normal
-        color: Appearance.colors.colLayer1
+        // Layer1 is a translucent overlay intended to sit on Layer0, not wallpaper.
+        color: Appearance.colors.colLayer0
 
         StyledDropShadow {
             target: contextMenu
@@ -188,7 +193,7 @@ Item {
                 model: [
                     { icon: "open_in_new", text: Translation.tr("Open"), action: () => root.open(contextMenu.target) },
                     { icon: "folder_open", text: Translation.tr("Show in folder"),
-                      action: () => Quickshell.execDetached(["explorer.exe", "/select," + root.nativePath(contextMenu.target)]) },
+                      action: () => Quickshell.execDetached(["ii-shim", "reveal", root.nativePath(contextMenu.target)]) },
                     { icon: "content_copy", text: Translation.tr("Copy path"),
                       action: () => Quickshell.clipboardText = root.nativePath(contextMenu.target) },
                 ]

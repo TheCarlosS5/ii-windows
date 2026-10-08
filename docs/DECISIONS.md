@@ -77,3 +77,12 @@ Formato: fecha · decisión · por qué · alternativas descartadas.
 - `ABM_SETSTATE` solo cambia el estado en memoria de Explorer, que lo guarda en `StuckRects3` cuando quiere. En el Sandbox quedó guardado "autoocultar" aunque el estado restaurado era "normal", y un reinicio de Explorer lo trajo de vuelta.
 - **Decisión:** al restaurar, `ii-host` y `ii-rescue` también escriben ese bit en `StuckRects3`. Además, `ii-host` restaura en `WM_QUERYENDSESSION`, antes de que Explorer guarde al cerrar sesión, y vuelve a ocultar si se cancela.
 - **Probado:** `tests\test-persist.ps1`, 7/7 con autoocultar apagado y 7/7 con autoocultar encendido (tu configuración).
+
+## D15 · 2026-10-07 · Escritorio real, rutas literales e iconos de Windows
+- **Decisión:** terminar `DesktopIcons.qml` iniciado por Claude. El overlay lee el Escritorio personal mediante `StandardPaths.DesktopLocation` y el compartido mediante `%PUBLIC%\Desktop`; se conecta al fondo con parches exactos, fuera del parallax.
+- **Rutas:** pasar el `QUrl` de `StandardPaths` directamente a `FolderListModel`. Abrir mediante `xdg-open`/`ShellExecute` con argumentos separados y rutas literales: convertirlas sin escapar a `file:///` perdía `#` y `%` en nombres reales.
+- **Mostrar en carpeta:** `ii-shim reveal` resuelve un PIDL y llama a [SHOpenFolderAndSelectItems](https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/nf-shlobj_core-shopenfolderandselectitems). En Sandbox se comprobó el archivo realmente seleccionado en Explorer, no solo que apareciera una ventana.
+- **Iconos:** conservar los píxeles BGRA premultiplicados del bitmap Shell mediante `GetDIBits`, con liberación de DC y bitmap. En esta compilación, `QImage::fromHBITMAP` seguido de `reinterpretAsFormat` seguía volviendo opacas las esquinas; la captura del icono real comprueba alpha cero y la miniatura comprueba los píxeles del archivo.
+- **Entrada:** el canvas vacío deja pasar clics; reloj y clima conservan sus manejadores. Solo mientras el menú está abierto se eleva el loader de iconos por encima de esos widgets. Un clic fuera cierra el menú.
+- **Superficie del menú:** `colLayer1` es un overlay translúcido destinado a otra superficie; sobre el wallpaper dejaba pasar el reloj. Se usa `colLayer0`, igual que el dock, respetando la opción de transparencia de ii.
+- **Pruebas:** la inspección QML se inyecta únicamente en la copia de Sandbox. La configuración de producción no incluye IPC de pruebas ni modifica las carpetas del usuario.

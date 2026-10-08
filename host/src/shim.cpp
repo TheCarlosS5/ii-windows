@@ -4,6 +4,7 @@
 //
 //   qalc [-t] <expr>                     evaluate arithmetic, print the result
 //   xdg-open <url|path>                  open with the default handler
+//   ii-shim reveal <path>               open Explorer and select the exact item
 //   notify-send [opts] <summary> [body]  forward a notification to the shell
 //   playerctl play-pause|next|previous|play|pause|stop   media keys
 //   wpctl set-mute @DEFAULT_SOURCE@|@DEFAULT_SINK@ toggle|1|0
@@ -30,6 +31,7 @@
 #include <mmdeviceapi.h>
 #include <powrprof.h>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <tlhelp32.h>
 // clang-format on
 
@@ -207,6 +209,21 @@ int xdgOpen(const Args& args) {
 	if (target.size() > 3 && target[0] == L'/' && target[2] == L':') target = target.substr(1);
 	auto r = reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", target.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
 	return r > 32 ? 0 : 1;
+}
+
+int reveal(const Args& args) {
+	if (args.size() != 1 || args[0].empty()) return 1;
+	if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) return 1;
+	PIDLIST_ABSOLUTE item = nullptr;
+	auto result = SHParseDisplayName(args[0].c_str(), nullptr, &item, 0, nullptr);
+	if (SUCCEEDED(result)) {
+		// With zero child items, this PIDL identifies the item to select in its parent.
+		// No Explorer command-line parsing or URL escaping is involved.
+		result = SHOpenFolderAndSelectItems(item, 0, nullptr, 0);
+	}
+	CoTaskMemFree(item);
+	CoUninitialize();
+	return SUCCEEDED(result) ? 0 : 1;
 }
 
 // bash -c "<command>": ii runs its configurable app commands this way (Config.options.apps.*).
@@ -392,6 +409,7 @@ int wmain(int argc, wchar_t** argv) {
 
 	if (command == L"qalc") return qalc(args);
 	if (command == L"xdg-open") return xdgOpen(args);
+	if (command == L"reveal") return reveal(args);
 	if (command == L"bash") return bash(args);
 	if (command == L"qs") return qs(args);
 	if (command == L"screenshot") return screenshot(args);

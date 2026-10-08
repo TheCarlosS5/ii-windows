@@ -1,4 +1,7 @@
 # INSIDE the sandbox: ii's dock (enabled by default on Windows) with pinned and open apps.
+if ($env:USERNAME -ne 'WDAGUtilityAccount' -or -not (Test-Path -LiteralPath 'C:\ii\build\ii')) {
+    throw 'This test must run inside the ii Windows Sandbox.'
+}
 $out = 'C:\xchg\outbox'
 $dev = 'C:\ii\tools\dev'
 Get-Process quickshell -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -13,7 +16,9 @@ if (Test-Path $cfg) {
     if ($json.dock) { $json.PSObject.Properties.Remove('dock') }
     $json | ConvertTo-Json -Depth 32 | Set-Content $cfg -Encoding UTF8
 }
-Start-Process notepad
+# Notepad is not installed in a fresh Sandbox. Explorer is present and pinned.
+$previousWindows = @((New-Object -ComObject Shell.Application).Windows() | ForEach-Object { $_.HWND })
+Start-Process explorer.exe -ArgumentList "/n,$env:WINDIR"
 Start-Sleep 2
 $psi = New-Object System.Diagnostics.ProcessStartInfo "$dist\quickshell.exe"
 $psi.Arguments = '-p "' + $local + '"'
@@ -26,6 +31,8 @@ Add-Type -Namespace DK -Name M -MemberDefinition '[DllImport("user32.dll")] publ
 Start-Sleep 2
 & "$dev\screenshot.ps1" -Out "$out\dock.png" | Out-Null
 Stop-Process -Id $p.Id -Force
-Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force
+foreach ($window in @((New-Object -ComObject Shell.Application).Windows())) {
+    if ($previousWindows -notcontains $window.HWND) { try { $window.Quit() } catch { } }
+}
 $log = Get-ChildItem "$env:TEMP\quickshell\by-id\*\log.log" | Sort-Object LastWriteTime | Select-Object -Last 1
 Get-Content $log.FullName | Where-Object { $_ -match 'ock' } | Select-Object -Last 12

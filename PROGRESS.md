@@ -1,9 +1,9 @@
 # PROGRESS
 
 Port de la interfaz de [Illogical Impulse](https://github.com/end-4/dots-hyprland) (end-4) a Windows 11.
-Documentos: [Viabilidad](docs/FEASIBILITY.md) · [Decisiones](docs/DECISIONS.md)
+Documentos: [Viabilidad](docs/FEASIBILITY.md) · [Decisiones](docs/DECISIONS.md) · [Relevo y checkpoint](docs/RELEVO-CODEX.md)
 
-## Estado (2026-10-07, 19:00)
+## Estado (2026-10-07, relevo a Codex)
 - ✅ **Hito 1, viabilidad:** prototipos hechos y ruta elegida.
 - ✅ **Hito 2, cimientos:** `ii-host`, rescate y atajo de pánico. Probado en Windows Sandbox con 28/28 comprobaciones.
 - 🟡 **Hito 3, ii funcionando:** el QML original de ii corre en Windows (en Sandbox) con datos reales:
@@ -16,8 +16,10 @@ Documentos: [Viabilidad](docs/FEASIBILITY.md) · [Decisiones](docs/DECISIONS.md)
   - la bandeja del sistema (Discord, Steam…) dentro de la barra de ii, con el menú propio de cada app
   - el estado de la red (cable o Wi-Fi) y su nombre
   - las tipografías, iconos y colores Material
+  - dock con apps fijadas y ventanas abiertas, menú de sesión, cheatsheet y overlay de widgets
+  - archivos, carpetas y accesos directos de los Escritorios personal y público, con iconos y miniaturas de Windows
 
-  Faltan Bluetooth, batería y brillo, y las prioridades: dock, overlays y widgets.
+  Faltan Bluetooth, batería y brillo, completar las funciones de escritorio, tematización y empaquetado. El port completo sigue en desarrollo.
 
 Todo lo de esta etapa se ha probado **solo dentro de Windows Sandbox**. En tu sesión real no se ha instalado ni cambiado nada, salvo las herramientas de desarrollo del Hito 1.
 
@@ -25,7 +27,7 @@ Todo lo de esta etapa se ha probado **solo dentro de Windows Sandbox**. En tu se
 
 ### Hito 1: viabilidad
 - [x] Inventario del dotfile, licencias (GPL-3 para ii, LGPL-3 para Quickshell) y comparación de rutas.
-- [x] Quickshell compilado para Windows (fork en `quickshell/`, rama `windows`).
+- [x] Quickshell compilado para Windows (fork en `quickshell/`; avance actual en `codex/desktop-widgets`, checkpoint original en `windows`).
 
 ### Hito 2: cimientos (`host/`, `tools/rescue/`)
 - [x] `ii-host.exe` (C++, sin dependencias):
@@ -65,13 +67,41 @@ Todo lo de esta etapa se ha probado **solo dentro de Windows Sandbox**. En tu se
 - [x] Tipografías del dotfile, cargadas solo para la shell, sin instalarse en el sistema.
 - [x] Colores Material 3 desde el wallpaper (`tools/colors/gen_colors.py`, mismo algoritmo que ii).
 
+### Relevo e integración del escritorio (Codex)
+- [x] Leída la sesión importada **Port Illogical Impulse a Windows 11** y conservado el trabajo sin commit de Claude antes de modificarlo.
+- [x] Checkpoint local: proyecto `a2cae01`; Quickshell `891e288`. Ambos repositorios tienen la etiqueta `checkpoint/claude-before-codex-2026-10-07` y el desarrollo continúa en `codex/desktop-widgets`.
+- [x] `DesktopIcons.qml` conectado al fondo y a `background.widgets.desktopIcons` (`enable`, `iconSize`). El reloj y el clima mantienen sus manejadores; el menú de archivos recibe clics por encima de ellos.
+- [x] Escritorio personal obtenido de Windows, incluido un Escritorio redirigido; Escritorio compartido desde `%PUBLIC%\Desktop`. Carpetas primero, archivos ocultos omitidos, actualización al añadir/eliminar archivos.
+- [x] Iconos y miniaturas desde Shell, con transparencia conservada. Abrir y copiar nombres con espacios, acentos, `&`, `#` y `%`; ejecutar accesos `.lnk` con sus argumentos; mostrar en carpeta selecciona el archivo real mediante `ii-shim reveal`.
+- [x] Prueba `tools/sandbox/tests/ii-desktop.ps1`, con inspección inyectada solo en Sandbox, archivos reales, clics de ratón y capturas del icono/miniatura. Resultados finales abajo.
+- [x] Corregida la preparación de `test-banners.ps1`: una Sandbox nueva todavía no registra PowerShell como app de notificaciones. Se prepara ese caso y se comprueba que el rescate actúe con el guardián detenido; el test devuelve error si falla.
+- [x] Prueba visual del dock preparada con Explorer: Notepad no está instalado en esta Sandbox. No se cambia el código del dock por esa ausencia.
+
+### Verificación de Codex (2026-10-07)
+
+Fuentes de Quickshell: `a2b7875073a6634c95238b3b0f1d4c4f25a1cce5`. Todo el comportamiento se probó dentro de Windows Sandbox.
+
+| Comprobación | Resultado | Alcance |
+| --- | --- | --- |
+| Compilación de host y Quickshell | Código 0 | Binarios compilados; última comprobación `ninja: no work to do` en ambos |
+| `stage-ii.ps1` | Código 0 | Overlay y parches exactos reproducibles, sin editar upstream |
+| `ii-desktop.ps1` | 27/27 | Archivos personales/públicos, alpha, miniatura, clics, menú, ruta literal, `.lnk`, cambios en vivo, activar/desactivar |
+| `ii-desktop-host.ps1` | 32/32 | Lo anterior con host; Win+D desde arranque limpio minimiza/restaura Explorer y conserva los píxeles de la miniatura en pantalla |
+| `test-host.ps1` | 28/28 | Ocultación, atajos, reinicio de Explorer, guardián, pánico y rescate |
+| `test-banners.ps1` | 15/15 | Apps existentes/nuevas, salida limpia, guardián y rescate con backup todavía pendiente |
+| `ii-panels.ps1`, dock y overlay | Capturas revisadas | Apertura de búsqueda, menú de sesión, cheatsheet, sidebar derecho y overlay; dock muestra Explorer abierto. No acredita todas las acciones de cada panel |
+
+La prueba del menú detectó primero clics interceptados por el reloj y alpha de fondo 0.1. Tras corregir capas y usar la superficie `colLayer0`, los clics pasan y el alpha es 1 con transparencia desactivada. La prueba de iconos detectó antes esquinas opacas; ahora comprueba alpha 0 en la esquina del icono de carpeta y los píxeles exactos de una miniatura verde.
+
+Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estados JSON y capturas; archivos generados, fuera de Git). El driver `sbx.ps1` imprime el resultado pero no propaga siempre el código de salida del test: revisar también `FAIL`, `desktop failures=0` y `fails: 0`.
+
 ### Notificaciones (cómo funciona)
 - La shell lee las notificaciones de Windows con la API oficial `UserNotificationListener`, sin permisos de administrador.
 - Si cierras una en ii, también desaparece del centro de notificaciones de Windows.
 - Para que no salgan dos popups (el de Windows y el de ii), `ii-host` apaga el interruptor "Mostrar banners de notificación" de cada app (en `HKCU`, por usuario) mientras ii está corriendo.
   - Antes de tocar nada guarda el valor original en `%LOCALAPPDATA%\ii-windows\banners.txt`.
   - Al salir, con el atajo de pánico, si `ii-host` muere (guardián) o con `ii-rescue`, deja cada app como estaba. Las apps donde tú ya los tenías apagados siguen apagadas.
-  - Comprobado en Sandbox: 14/14 (`tests\test-banners.ps1`).
+  - Repetido por Codex en Sandbox: 15/15 (`tools\sandbox\tests\test-banners.ps1`), incluida la preparación efectiva del caso de rescate.
   - Si prefieres ver también los banners de Windows: `ii-host --keep-banners`.
 
 ### Bandeja del sistema (cómo funciona)
@@ -88,8 +118,8 @@ Todo lo de esta etapa se ha probado **solo dentro de Windows Sandbox**. En tu se
    - batería y modos de energía
    - brillo: DDC/CI
    - El Wi-Fi está programado (lista, conectar, contraseña, encender/apagar), pero solo se ha probado la parte de cable.
-2. Menú de sesión (no apareció en la prueba) y cheatsheet con los atajos de Windows.
-3. Tus prioridades: dock, overlays y widgets de escritorio con accesos directos y carpetas reales.
+2. Completar tus prioridades: menú de escritorio más amplio, manejo de muchos iconos, arrastre y navegación con teclado; profundizar las acciones del dock y overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
+3. Validar Escritorio redirigido/OneDrive, carpetas UNC y varias pantallas con usuarios reales; la prueba de Sandbox usa carpetas locales. La clasificación nativa ya reconoce rutas absolutas UNC, pero no se ha validado un recurso de red extremo a extremo.
 4. Generador de colores en C++ (sin Python), selector de wallpaper (`Imágenes\Wallpapers`), cursor Bibata, colores en Windows y Terminal.
 5. Instalador y desinstalador, multimonitor/DPI, reinicio de Explorer y sleep/resume.
 6. Optimizar la RAM.
@@ -110,7 +140,9 @@ pwsh -File C:\Users\Calos\Desktop\ii-windows\tools\dev\stage-ii.ps1    # ii orig
 cd C:\Users\Calos\Desktop\ii-windows\tools\sandbox
 pwsh -File sbx.ps1 start                                    # abre el Sandbox con el agente
 pwsh -File sbx.ps1 run tests\test-host.ps1                  # Hito 2: 28 comprobaciones PASS/FAIL
-pwsh -File sbx.ps1 run tests\test-banners.ps1               # banners de Windows: 14 comprobaciones
+pwsh -File sbx.ps1 run tests\test-banners.ps1               # banners de Windows: 15 comprobaciones
+pwsh -File sbx.ps1 run tests\ii-desktop.ps1 -Timeout 240    # archivos reales, iconos, menú y apertura
+pwsh -File sbx.ps1 run tests\ii-desktop-host.ps1 -Timeout 240 # lo anterior + host y Win+D
 pwsh -File qs.ps1 -Seed -Seconds 10                         # pone colores y wallpaper de prueba
 pwsh -File sbx.ps1 run tests\ii-scene.ps1                   # ii + ii-host + app + Win+D → capturas
 pwsh -File sbx.ps1 run tests\ii-panels.ps1                  # abre cada panel por su atajo → capturas
@@ -136,3 +168,6 @@ Las capturas quedan en `C:\Users\Calos\sbx-xchg\outbox\`.
 - **Bandeja:** el menú de ii para fijar/desfijar iconos se cambió por el menú nativo de cada app. Los iconos propios de Explorer (volumen, quitar USB) también aparecen.
 - **Sin `ii-host`:** tras reiniciar Explorer, el fondo de ii puede quedar por encima de la barra de Windows. Con `ii-host` (el uso normal) la barra está oculta y no se nota.
 - **Python temporal:** los colores se generan con Python (`materialyoucolor`) hasta portarlo a C++.
+- **Escritorio:** todavía no ofrece arrastrar, renombrar, borrar, navegación de teclado ni el menú completo de Explorer. Muchos iconos pueden quedar fuera del ancho disponible; falta paginación. Una miniatura de un archivo editado sin cambiar su ruta puede conservarse en la caché hasta reiniciar la shell. `%PUBLIC%\Desktop` supone la ubicación pública habitual.
+- **Avisos QML heredados:** aparecen valores inicialmente indefinidos en `SystemInfo`, `NotificationPopup`, `WorkspaceModel`, `ConflictKiller`, `BarContent` y `ToolbarTabBar`; faltan traducciones `es_CO` y comandos de Linux. `Qt.btoa(string)` conserva el código heredado y emite aviso de deprecación. La shell sigue funcionando, pero no se considera libre de avisos.
+- **Apps en Sandbox:** no están instaladas todas las apps fijadas por defecto (Edge/Terminal); pueden aparecer iconos de respaldo. La prueba del dock usa Explorer, disponible en ese entorno.

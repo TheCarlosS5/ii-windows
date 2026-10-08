@@ -37,6 +37,18 @@ Primer bloque: terminar la integración del escritorio que Claude inició, mante
 
 Luego seguir las prioridades ya elegidas: dock, overlays y widgets; tematización e instalador después. Un commit de avance no significa que el port completo esté terminado.
 
+## Resultado del primer bloque (2026-10-07)
+
+Integrado el escritorio iniciado por Claude. Corregidos el QUrl del Escritorio personal, el import de traducción, la transparencia de los iconos, las rutas literales con caracteres especiales, la selección en Explorer y la interacción del menú con el reloj. Los cambios de configuración/fondo se generan desde `tools/port/patch_ii.py`; `upstream/` sigue intacto.
+
+- Quickshell: avance nativo en `a2b7875073a6634c95238b3b0f1d4c4f25a1cce5`.
+- Ambas ramas de desarrollo: `codex/desktop-widgets`. Las etiquetas del checkpoint siguen apuntando al estado previo a Codex.
+- Verificado en Sandbox: escritorio 27/27 sin host y 32/32 con host/Win+D; recuperación del host 28/28 y banners 15/15. Compilación y staging con código 0. Revisión independiente del código y capturas del menú, dock, overlay, sesión y cheatsheet.
+- El test de banners prepara explícitamente una app ya registrada y detiene primero al guardián para demostrar que el script de rescate restaure el backup pendiente. El test del dock utiliza Explorer porque falta Notepad en esta Sandbox.
+- Estado vigente y límites: [PROGRESS.md](../PROGRESS.md). Falta completar la interacción de escritorio, hardware ausente, tematización, instalador y validación de varias pantallas/DPI; no se da por terminado el port completo.
+
+Los resultados anteriores descritos en el apartado «Qué he comprobado en el checkpoint» son históricos: allí se documentó lo comprobado **antes** de empezar las modificaciones.
+
 ## Reglas que se mantienen
 
 - Quickshell real + Qt + QML de ii; Windows mantiene el manejo de sus ventanas.
