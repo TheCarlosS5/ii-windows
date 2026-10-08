@@ -13,6 +13,7 @@ MouseArea {
     id: root
     required property SystemTrayItem item
     property bool targetMenuOpen: false
+    property real lastLeftPress: 0
 
     signal menuOpened(qsWindow: var)
     signal menuClosed()
@@ -24,7 +25,15 @@ MouseArea {
     onPressed: (event) => {
         switch (event.button) {
         case Qt.LeftButton:
-            item.activate();
+            // ii-windows: like Explorer, the second press of a double click is a double click
+            // (two single clicks would make apps that toggle their window open and close it).
+            if (Date.now() - root.lastLeftPress < Qt.styleHints.mouseDoubleClickInterval) {
+                root.lastLeftPress = 0;
+                item.secondaryActivate();
+            } else {
+                root.lastLeftPress = Date.now();
+                item.activate();
+            }
             break;
         case Qt.RightButton:
             if (item.hasMenu)
@@ -35,8 +44,8 @@ MouseArea {
             else // ii-windows: Windows apps show their own context menu
                 item.display(root.QsWindow.window, event.x, event.y);
             break;
-        case Qt.MiddleButton: // ii-windows: double click, for apps that only open on one
-            item.secondaryActivate();
+        case Qt.MiddleButton: // ii-windows: move between the bar and the overflow menu
+            TrayService.toggleInBar(item);
             break;
         }
         event.accepted = true;

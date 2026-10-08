@@ -200,6 +200,21 @@ Lo que reportaste, y quién lo hace:
 - [x] **Bandeja con iconos ocultos**: los que Windows tiene ocultos van detrás de una flechita, como en la barra de Windows (Claude).
 - [x] **Dock: destello hacia la derecha** al pasar el ratón rápido por las apps abiertas (Claude).
 
+## Segunda ronda de pulido (2026-10-08 noche)
+Lo que reportaste, y qué se hizo:
+- [x] **Iconos de Windows repetidos en la bandeja** (audio, red, "aplicaciones usando tu ubicación"): son iconos del propio Explorer. ii ya tiene los suyos, así que se ocultan; solo queda "Quitar hardware de forma segura".
+- [x] **Iconos de la bandeja que desaparecían**: Explorer vuelve a poner su barra por encima de la de ii cada vez que cambias de app. ii la recuperaba avisando a *todas* las apps de "barra nueva" cada ~10 s, y cada aviso hacía que todas volvieran a registrar sus iconos. Ahora ii recupera su sitio en silencio, justo después de cada cambio de app, y solo avisa al arrancar.
+- [x] **Doble clic en un icono de la bandeja** que abría y cerraba la app: ii mandaba dos clics simples. Ahora manda un doble clic de verdad, como Explorer.
+- [x] **Elegir qué iconos van en la barra y cuáles detrás de la flecha**: clic con la rueda en un icono lo cambia de sitio (el tooltip lo dice). Por defecto sigue lo que diga Windows.
+- [x] **Panel derecho**: la cabecera mostraba cuadritos blancos (tooltips siempre visibles) y escondía el tiempo encendido. Ahora dice "Encendido 3h, 5m" como ii; "Windows 11 Pro" sale al pasar el ratón.
+- [x] **La barra de tareas de Windows se veía al cambiar de escritorio**: ii-host la ocultaba solo *después* de que Windows la mostraba. Ahora además le deja una región vacía: aunque Windows la muestre, no se ve ni se puede pulsar. Se guarda la región original de cada barra en `state.ini` y la restauran la salida, el guardián, el pánico, `--rescue` y `ii-rescue.ps1` (probado en Sandbox, `tests\ii-taskbar-region.ps1`).
+- [x] **Dock**: clic en la app que está delante la minimiza; otro clic la devuelve (`tests\ii-dock-minimize.ps1`).
+- [x] **Widgets nuevos** (clic derecho en el escritorio > Widgets): Calendario, Tareas y Temporizador (los paneles de ii, los mismos datos que la barra lateral), Recursos (CPU, RAM, swap), Nota (se guarda sola) y Reloj japonés (hora y fecha en kanji, vertical u horizontal). Todos con opciones en Configuración > Fondo.
+- [x] **Modo edición del escritorio** (clic derecho > Editar escritorio): cuadrícula de puntos, los widgets se arrastran desde cualquier parte y encajan en la cuadrícula, − / + (o la rueda) cambian su tamaño, el ojo los oculta, "Listo" sale. El tamaño también está en Configuración.
+- [x] **Foto gigante**: ahora su tamaño se cambia con − / + en el modo edición o en Configuración.
+- [x] **Espectro del widget de música**: `cava` para Windows en `ii-shim` (Codex: captura WASAPI loopback, FFT, 60 fps, ~0,2 % de CPU). Solo corre mientras suena música y el escritorio está visible.
+- Nota: el "modo edición con mosaico" y el widget de letras japonesas que recordabas no están en este dotfile de ii; se hicieron nuevos al estilo de ii.
+
 ## Pendiente (en este orden)
 1. Instalar en tu PC la versión con el escritorio nuevo y usarlo a diario.
 2. Probar con hardware real lo que ya está programado: Bluetooth (al conectar tu adaptador), batería (portátil), brillo (monitor con DDC/CI o portátil) y Wi-Fi (solo se ha probado la parte de cable).

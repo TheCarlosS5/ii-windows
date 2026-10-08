@@ -364,6 +364,18 @@ edit(path('modules', 'ii', 'dock', 'DockAppButton.qml'), [
         appListRoot.openContextMenu(root);
     }'''),
 ])
+# Dock, like the Windows taskbar: clicking the app whose window is in front minimizes it.
+edit(path('modules', 'ii', 'dock', 'DockAppButton.qml'), [
+    ('''        lastFocused = (lastFocused + 1) % appToplevel.toplevels.length
+        appToplevel.toplevels[lastFocused].activate()''',
+     '''        const windows = appToplevel.toplevels;
+        if (windows.length === 1 && windows[0].activated && !windows[0].minimized) {
+            windows[0].minimized = true;
+            return;
+        }
+        lastFocused = (lastFocused + 1) % windows.length
+        windows[lastFocused].activate()'''),
+])
 edit(path('modules', 'ii', 'dock', 'DockApps.qml'), [
     ('    property bool requestDockShow: previewPopup.show',
      '    property bool requestDockShow: previewPopup.show || contextMenu.shown'),
@@ -500,9 +512,33 @@ edit(path('modules', 'ii', 'bar', 'Workspaces.qml'), [
 edit(path('services', 'TrayService.qml'), [
     ('''    property list<var> pinnedItems: invertPins ? itemsNotInUserList : itemsInUserList
     property list<var> unpinnedItems: invertPins ? itemsInUserList : itemsNotInUserList''',
-     '''    property list<var> pinnedItems: (invertPins ? itemsNotInUserList : itemsInUserList).filter(i => i.promoted !== false)
-    property list<var> unpinnedItems: (invertPins ? itemsInUserList : itemsNotInUserList)
-        .concat((invertPins ? itemsNotInUserList : itemsInUserList).filter(i => i.promoted === false))'''),
+     '''    // ii-windows: Windows decides by default (Settings > Taskbar > Other system tray icons);
+    // a middle click on an icon moves it between the bar and the overflow menu (shownItems /
+    // hiddenItems), as ii's pins do on Linux through the icon's own menu, which Windows apps lack.
+    readonly property list<var> trayItems: SystemTray.items.values.filter(i => !smartTray || i.status !== Status.Passive)
+    function inBar(item) {
+        if ((Config.options.tray.hiddenItems ?? []).includes(item.id)) return false;
+        if ((Config.options.tray.shownItems ?? []).includes(item.id)) return true;
+        return item.promoted !== false;
+    }
+    function toggleInBar(item) {
+        const tray = Config.options.tray;
+        const show = !root.inBar(item);
+        tray.hiddenItems = (tray.hiddenItems ?? []).filter(id => id !== item.id).concat(show ? [] : [item.id]);
+        tray.shownItems = (tray.shownItems ?? []).filter(id => id !== item.id).concat(show ? [item.id] : []);
+    }
+    property list<var> pinnedItems: trayItems.filter(i => root.inBar(i))
+    property list<var> unpinnedItems: trayItems.filter(i => !root.inBar(i))'''),
+    (r'''        if (Config.options.tray.showItemId) result += "\n[" + item.id + "]";''',
+     r'''        if (Config.options.tray.showItemId) result += "\n[" + item.id + "]";
+        result += "\n" + (root.inBar(item) ? Translation.tr("Middle click: hide behind the arrow")
+                                           : Translation.tr("Middle click: show on the bar"));'''),
+])
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property list<var> pinnedItems: [ "Fcitx" ]''',
+     '''                property list<var> pinnedItems: [ "Fcitx" ]
+                property list<var> shownItems: [] // ii-windows: forced onto the bar
+                property list<var> hiddenItems: [] // ii-windows: forced behind the arrow'''),
 ])
 
 # ii's settings app is a plain Qt window: Windows would add its own caption and buttons next to
@@ -568,6 +604,8 @@ PORT_STRINGS_ES = {
     "Desktop %1": "Escritorio %1",
     "New desktop": "Nuevo escritorio",
     "Close desktop": "Cerrar escritorio",
+    "Middle click: hide behind the arrow": "Clic con la rueda: ocultar detrás de la flecha",
+    "Middle click: show on the bar": "Clic con la rueda: mostrar en la barra",
     "From": "Desde",
     "To": "Hasta",
     "Gamma": "Gamma",

@@ -285,12 +285,17 @@ edit(path('modules', 'ii', 'sidebarRight', 'SidebarRightContent.qml'), [
                     iconSize: 25
                     text: "desktop_windows"
                     color: Appearance.colors.colOnLayer0
-                    StyledToolTip { text: SystemInfo.distroName }
                 }'''),
-    ('                    text: Translation.tr("Up %1").arg(DateTime.uptime)', '''                    text: SystemInfo.distroName
-                    elide: Text.ElideRight
-                    width: Math.max(50, root.width - systemButtonsRow.width - 70)
-                    StyledToolTip { text: Translation.tr("Up %1").arg(DateTime.uptime) }'''),
+    # Uptime stays in sight, as in ii; the Windows edition shows on hover. (StyledToolTip
+    # follows its parent's `hovered`: icons and texts have none, so it needs a HoverHandler or
+    # it is always shown.)
+    ('                    text: Translation.tr("Up %1").arg(DateTime.uptime)', '''                    text: Translation.tr("Up %1").arg(DateTime.uptime)
+                    HoverHandler { id: uptimeHover }
+                    StyledToolTip {
+                        extraVisibleCondition: false
+                        alternativeVisibleCondition: uptimeHover.hovered
+                        text: SystemInfo.distroName
+                    }'''),
     ('                    Quickshell.execDetached(["hyprctl", "reload"])\n', ''),
     ('Translation.tr("Reload Hyprland & Quickshell")', 'Translation.tr("Reload Quickshell")'),
     ('                root.showWifiDialog = false;', '                root.showNightLightDialog = false;\n                root.showWifiDialog = false;'),

@@ -33,4 +33,6 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
     if ($LASTEXITCODE -ne 0) { throw "patch_ii_sidebar.py failed" }
 }
 & python -I "$root\tools\port\patch_ii_brightness.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_brightness.py failed" }
+# Desktop widgets: more widgets, edit mode, sizes, spectrum, their settings.
+& python -I "$root\tools\port\patch_ii_widgets.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_widgets.py failed" }
 "staged ii -> $dest ($n overlay files)"

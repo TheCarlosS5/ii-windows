@@ -1,10 +1,13 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Mpris
 import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import qs.modules.ii.background.widgets
 import qs.modules.ii.mediaControls
 
@@ -22,6 +25,22 @@ AbstractBackgroundWidget {
     implicitHeight: playing ? Appearance.sizes.mediaControlsHeight : idle.implicitHeight
     opacity: (GlobalStates.screenLocked && !visibleWhenLocked) ? 0 : 1
 
+    // The spectrum behind the card, as ii's media popup draws it: cava (ii-shim's, WASAPI
+    // loopback on Windows) only while music plays and the desktop is on screen.
+    property list<real> visualizerPoints: []
+    Process {
+        id: cava
+        running: root.playing && (root.player?.isPlaying ?? false) && (root.configEntry.spectrum ?? true)
+            && root.visible && !GlobalStates.screenLocked && ((QsWindow.window as QsWindow)?.visible ?? false)
+        command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
+        onRunningChanged: if (!running) root.visualizerPoints = []
+        stdout: SplitParser {
+            onRead: data => {
+                root.visualizerPoints = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+            }
+        }
+    }
+
     Loader {
         anchors.fill: parent
         active: root.playing
@@ -31,6 +50,7 @@ AbstractBackgroundWidget {
         }
         sourceComponent: PlayerControl {
             player: root.player
+            visualizerPoints: root.visualizerPoints
             radius: Appearance.rounding.windowRounding
         }
     }

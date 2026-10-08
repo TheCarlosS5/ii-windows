@@ -43,6 +43,7 @@
 int switchwall(const std::vector<std::wstring>& args); // switchwall.cpp
 int randomwall(const std::vector<std::wstring>& args); // randomwall.cpp
 int weather(const std::vector<std::wstring>& args); // weather.cpp
+int cava(const std::vector<std::wstring>& args); // cava.cpp
 int nightlightCommand(const std::vector<std::wstring>& args); // sidebar.cpp
 int powerCommand(const std::vector<std::wstring>& args);
 int systemInfoCommand(const std::vector<std::wstring>& args);
@@ -490,6 +491,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"randomwall") return randomwall(args);
 	if (command == L"fetch") return fetch(args);
 	if (command == L"weather") return weather(args);
+	if (command == L"cava") return cava(args);
 	if (command == L"nightlight") return nightlightCommand(args);
 	if (command == L"power") return powerCommand(args);
 	if (command == L"system-info") return systemInfoCommand(args);

@@ -158,7 +158,7 @@ void shutdown(int code) {
 
 void CALLBACK onObjectShown(HWINEVENTHOOK, DWORD, HWND hwnd, LONG idObject, LONG, DWORD, DWORD) {
 	if (shuttingDown || idObject != OBJID_WINDOW || !hwnd) return;
-	if (options.taskbar && taskbar::isTaskbarWindow(hwnd)) ShowWindow(hwnd, SW_HIDE);
+	if (options.taskbar && taskbar::isTaskbarWindow(hwnd)) taskbar::conceal(hwnd);
 }
 
 void watchExplorer() {

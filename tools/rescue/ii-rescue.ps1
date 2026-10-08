@@ -21,6 +21,11 @@ Add-Type -Namespace IiRescue -Name Win -MemberDefinition @'
 [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern System.IntPtr FindWindowEx(System.IntPtr parent, System.IntPtr after, string cls, string title);
 [DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int cmd);
 [DllImport("user32.dll")] public static extern bool IsWindowVisible(System.IntPtr h);
+[DllImport("user32.dll")] public static extern int SetWindowRgn(System.IntPtr h, System.IntPtr rgn, bool redraw);
+[DllImport("user32.dll")] public static extern int GetWindowRgnBox(System.IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern bool GetWindowRect(System.IntPtr h, out RECT r);
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(System.IntPtr h, out uint pid);
+[DllImport("gdi32.dll")] public static extern System.IntPtr CreateRectRgn(int l, int t, int r, int b);
 [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 [StructLayout(LayoutKind.Sequential)] public struct APPBARDATA { public int cbSize; public System.IntPtr hWnd; public uint msg; public uint edge; public RECT rc; public System.IntPtr lParam; }
 [DllImport("shell32.dll")] public static extern System.UIntPtr SHAppBarMessage(uint msg, ref APPBARDATA data);
@@ -134,6 +139,25 @@ namespace IiRescue {
     else { Log 'gamma restore incomplete; original backup retained for another rescue (disconnected display/driver)' }
 }
 
+# Explorer's bars' original window regions (ii-host empties them): recorded in state.ini per bar,
+# bars ordered by position (taskbar.cpp). Not recorded but empty: no region (Windows' default).
+$bars = @(Find-All 'Shell_TrayWnd') + @(Find-All 'Shell_SecondaryTrayWnd') | Where-Object {
+    $barPid = [uint32]0; [IiRescue.Win]::GetWindowThreadProcessId($_, [ref]$barPid) | Out-Null
+    (Get-Process -Id $barPid -ErrorAction SilentlyContinue).ProcessName -eq 'explorer'
+} | Sort-Object { $r = New-Object IiRescue.Win+RECT; [IiRescue.Win]::GetWindowRect($_, [ref]$r) | Out-Null; $r.L }, { $r = New-Object IiRescue.Win+RECT; [IiRescue.Win]::GetWindowRect($_, [ref]$r) | Out-Null; $r.T }
+$i = 0
+foreach ($h in $bars) {
+    $type = Read-State "taskbarRgn${i}Type" -1
+    $box = New-Object IiRescue.Win+RECT
+    if ($type -eq 2) {
+        $rgn = [IiRescue.Win]::CreateRectRgn((Read-State "taskbarRgn${i}L" 0), (Read-State "taskbarRgn${i}T" 0), (Read-State "taskbarRgn${i}R" 0), (Read-State "taskbarRgn${i}B" 0))
+        [IiRescue.Win]::SetWindowRgn($h, $rgn, $true) | Out-Null
+    } elseif ($type -eq 0 -or [IiRescue.Win]::GetWindowRgnBox($h, [ref]$box) -eq 1) {
+        [IiRescue.Win]::SetWindowRgn($h, [IntPtr]::Zero, $true) | Out-Null
+    }
+    Write-State "taskbarRgn${i}Type" -1
+    $i++
+}
 foreach ($h in @(Find-All 'Shell_TrayWnd') + @(Find-All 'Shell_SecondaryTrayWnd')) {
     [IiRescue.Win]::ShowWindow($h, 8) | Out-Null   # SW_SHOWNA
 }

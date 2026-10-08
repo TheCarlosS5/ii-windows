@@ -37,6 +37,7 @@ void hide();          // records the original autohide state, then hides every t
 void reapply();       // hides taskbars again (cheap, safe to call often)
 void restore();       // shows taskbars and restores the recorded autohide state
 bool isTaskbarWindow(HWND hwnd);
+void conceal(HWND bar); // empty region + hidden (see taskbar.cpp)
 } // namespace taskbar
 
 namespace desktop {
