@@ -15,27 +15,36 @@ para Windows debajo.
 
 - **Barra** de ii con bandeja del sistema (iconos reales de tus apps, menús nativos), red, audio,
   multimedia, reloj y recursos. Las ventanas maximizadas respetan el espacio de la barra.
-- **Lanzador y vista general** (tecla Windows): búsqueda de apps, calculadora, emojis y todas tus
-  ventanas en cuadrícula con vista previa en vivo.
+- **Lanzador y vista general** (tecla Windows / Win+Tab): búsqueda de apps, calculadora, emojis y
+  las ventanas del escritorio actual con vista previa en vivo.
+- **Escritorios virtuales de Windows** como los espacios de trabajo de ii: los puntitos de la barra
+  son tus escritorios, y la vista general tiene una tira con todos ellos y *Nuevo escritorio*.
 - **Dock** con vista previa de ventanas al pasar el ratón, botón de cerrar y menú de clic derecho.
 - **Paneles laterales**: ajustes rápidos, notificaciones de Windows, calendario, tareas, pomodoro,
   mezclador de volumen, Wi-Fi, luz nocturna, planes de energía.
-- **Escritorio de ii**: tus iconos reales, reloj, música, foto, clima, archivos recientes y un menú
-  de clic derecho para activar widgets y cambiar el fondo.
+- **Escritorio de ii**: tus iconos reales (arrastrar, renombrar, copiar, papelera, menú de
+  Explorer) y widgets: reloj, música con espectro, foto, clima, archivos recientes, calendario,
+  tareas, temporizador, recursos, nota y reloj japonés. **Modo edición** (clic derecho > Editar
+  escritorio): cuadrícula, arrastrar y cambiar el tamaño desde la esquina sin deformar.
 - **Colores Material 3 desde el fondo** (la biblioteca oficial de Google), selector de fondos,
   fondo aleatorio. Windows sigue los colores de ii: modo oscuro/claro, color de acento y un esquema
   para Windows Terminal.
 - **Notificaciones**, overlay (Super+G), recortes de pantalla con OCR, menú de sesión, cheatsheet.
-- Fuentes, iconos y el cursor **Bibata** del dotfile.
+- Fuentes, iconos y el cursor **Bibata** del dotfile. **Sonidos de la interfaz** propios.
 - Se aparta de los juegos a pantalla completa.
+- **Arranque**: al entrar en Windows ii carga con prioridad alta y tu fondo de ii aparece al
+  momento (no se ve el fondo ni la barra de Explorer); luego vuelve a prioridad normal.
 
 Lo que **no** hace: no gestiona ventanas (sin tiling), no emula Hyprland ni sus workspaces.
 Windows sigue siendo Windows.
 
 ## Seguridad primero
 
-Todo es por usuario y reversible. No toca el arranque, no inyecta nada en Explorer, no cambia
-`Winlogon\Shell`, no escribe en `HKLM` ni modifica archivos del sistema.
+Todo es por usuario y reversible. No inyecta nada en Explorer, no cambia `Winlogon\Shell`, no
+escribe en `HKLM` ni modifica archivos del sistema. Lo único que pide permiso de administrador (una
+vez, al instalar) es la **tarea programada "ii-windows"** que lo inicia al entrar; la tarea ejecuta
+ii como tu usuario normal, sin permisos de administrador (la guarda el Programador de tareas de Windows; el desinstalador la quita). Si dices que no, se usa la clave `Run`
+de tu usuario (arranca unos segundos más tarde).
 
 - El instalador ofrece crear un **punto de restauración** y exporta a `.reg` cada clave que va a tocar.
 - **Atajo de pánico: `Ctrl+Alt+Shift+R`**: cierra ii y devuelve la barra de tareas, los iconos y
@@ -47,8 +56,8 @@ Todo es por usuario y reversible. No toca el arranque, no inyecta nada en Explor
 ## Instalar
 
 1. Descarga el `.zip` de la última versión en *Releases* y descomprímelo.
-2. Doble clic en `install.cmd`. Pregunta antes de cada paso; no pide administrador salvo para el
-   punto de restauración opcional.
+2. Doble clic en `install.cmd`. Pregunta antes de cada paso; pide administrador solo para el
+   punto de restauración opcional y para crear la tarea de inicio.
 3. ii arranca con Windows. Para quitarlo: *Desinstalar ii-windows*.
 
 Requisitos: Windows 11 (probado en 24H2/25H2), x64.

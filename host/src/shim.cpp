@@ -44,6 +44,9 @@ int switchwall(const std::vector<std::wstring>& args); // switchwall.cpp
 int randomwall(const std::vector<std::wstring>& args); // randomwall.cpp
 int weather(const std::vector<std::wstring>& args); // weather.cpp
 int cava(const std::vector<std::wstring>& args); // cava.cpp
+int ydotool(const std::vector<std::wstring>& args); // ydotool.cpp
+int secretTool(const std::vector<std::wstring>& args); // secrettool.cpp
+int cliphist(const std::vector<std::wstring>& args); // cliphist.cpp
 int nightlightCommand(const std::vector<std::wstring>& args); // sidebar.cpp
 int powerCommand(const std::vector<std::wstring>& args);
 int systemInfoCommand(const std::vector<std::wstring>& args);
@@ -504,6 +507,9 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"playerctl") return playerctl(args);
 	if (command == L"wpctl") return wpctl(args);
 	if (command == L"pidof") return pidof(args);
+	if (command == L"ydotool") return ydotool(args);
+	if (command == L"secret-tool") return secretTool(args);
+	if (command == L"cliphist") return cliphist(args);
 	if (command == L"killall" || command == L"pkill") return killall(args);
 	if (command == L"lock" || (command == L"loginctl" && !args.empty() && args[0] == L"lock-session")) {
 		return LockWorkStation() ? 0 : 1;
