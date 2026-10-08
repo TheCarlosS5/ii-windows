@@ -140,6 +140,7 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 ### Compilar
 ```powershell
 . C:\Users\Calos\Desktop\ii-windows\tools\dev\vsenv.ps1
+pwsh -File C:\Users\Calos\Desktop\ii-windows\tools\dev\fetch_mcu.ps1   # una vez: biblioteca de colores de Google (commit fijo)
 cmake --build C:\Users\Calos\Desktop\ii-windows\quickshell\build
 cmake --build C:\Users\Calos\Desktop\ii-windows\host\build
 pwsh -File C:\Users\Calos\Desktop\ii-windows\tools\dev\deploy.ps1      # quickshell + Qt + fuentes → dist\
