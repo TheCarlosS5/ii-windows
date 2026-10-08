@@ -345,6 +345,11 @@ std::wstring baseName(const std::wstring& path) {
 
 } // namespace
 
+// capture.cpp
+int screenshot(const std::vector<std::wstring>& args);
+int crop(const std::vector<std::wstring>& args);
+int ocrFile(const std::vector<std::wstring>& args);
+
 int wmain(int argc, wchar_t** argv) {
 	auto command = baseName(argv[0]);
 	Args args(argv + 1, argv + argc);
@@ -357,6 +362,9 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"qalc") return qalc(args);
 	if (command == L"xdg-open") return xdgOpen(args);
 	if (command == L"bash") return bash(args);
+	if (command == L"screenshot") return screenshot(args);
+	if (command == L"crop") return crop(args);
+	if (command == L"ocr") return ocrFile(args);
 	if (command == L"notify-send") return notifySend(args);
 	if (command == L"playerctl") return playerctl(args);
 	if (command == L"wpctl") return wpctl(args);

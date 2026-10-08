@@ -48,3 +48,14 @@ edit(path('modules', 'common', 'Config.qml'), [
      '''                property list<string> pinnedApps: [ // IDs of pinned entries
                     "Microsoft.Windows.Explorer", "MSEdge", "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App",]'''),
 ])
+
+# /tmp would be C:\tmp on Windows (a new folder at the drive root): use the user's temp folder.
+WIN_TMP = 'FileUtils.trimFileProtocol(StandardPaths.writableLocation(StandardPaths.TempLocation))'
+edit(path('modules', 'common', 'Directories.qml'), [
+    ('property string tempImages: "/tmp/quickshell/media/images"',
+     'property string tempImages: `${' + WIN_TMP + '}/quickshell/media/images`'),
+    ('property string cliphistDecode: FileUtils.trimFileProtocol(`/tmp/quickshell/media/cliphist`)',
+     'property string cliphistDecode: `${' + WIN_TMP + '}/quickshell/media/cliphist`'),
+    ('property string screenshotTemp: "/tmp/quickshell/media/screenshot"',
+     'property string screenshotTemp: `${' + WIN_TMP + '}/quickshell/media/screenshot`'),
+])

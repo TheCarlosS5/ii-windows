@@ -20,6 +20,8 @@ target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN 
 target_link_libraries(ii-host PRIVATE user32 shell32 ole32 dwmapi advapi32)
 
 # Console multi-call binary: Windows stand-ins for small Linux commands ii calls.
-add_executable(ii-shim src/shim.cpp)
+add_executable(ii-shim src/shim.cpp src/capture.cpp)
 target_compile_definitions(ii-shim PRIVATE UNICODE _UNICODE)
-target_link_libraries(ii-shim PRIVATE user32 shell32 ole32 powrprof)
+# capture.cpp uses C++/WinRT for Windows' OCR.
+target_compile_options(ii-shim PRIVATE /EHsc)
+target_link_libraries(ii-shim PRIVATE user32 gdi32 shell32 ole32 powrprof windowscodecs windowsapp)
