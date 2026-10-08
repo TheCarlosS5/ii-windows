@@ -66,3 +66,9 @@ edit(path('modules', 'ii', 'overlay', 'recorder', 'Recorder.qml'), [
     ('Quickshell.execDetached(["bash", "-c", "grim - | wl-copy"]);',
      'Quickshell.execDetached(["ii-shim", "screenshot", "--copy", "--delay", "400"]);'),
 ])
+
+# Overlay: the FPS limiter drives MangoHud (Linux only); on Windows it would claim success and do
+# nothing, so it isn't offered.
+edit(path('modules', 'ii', 'overlay', 'OverlayContext.qml'), [
+    ('        { identifier: "fpsLimiter", materialSymbol: "animation" },\n', ''),
+])
