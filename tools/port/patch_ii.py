@@ -296,9 +296,12 @@ edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
             const row = Math.floor(i / cols);
             const inRow = row === rows - 1 ? n - row * cols : cols;
             const col = i % cols;
-            const s = Math.min((cellW - gap * 2) / w.size[0], (cellH - gap * 2) / w.size[1], 1);
-            const width = w.size[0] * s;
-            const height = w.size[1] * s;
+            // Minimized windows have no live image (DWM keeps none): a screen-shaped card with
+            // the app's icon (OverviewWindow shows it when there is no preview).
+            const size = w.hidden ? [areaW * 0.6, areaH * 0.6] : w.size;
+            const s = Math.min((cellW - gap * 2) / size[0], (cellH - gap * 2) / size[1], 1);
+            const width = size[0] * s;
+            const height = size[1] * s;
             // Center a shorter last row.
             const rowOffset = (cols - inRow) * cellW / 2;
             result[w.address] = Object.assign({}, w, {
@@ -312,6 +315,10 @@ edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
      '''                    windowData: root.gridLayout[address] ?? windowByAddress[address]'''),
     ('''                        drag.target: parent''',
      '''                        drag.target: null // ii-windows: one workspace, nowhere to move windows to'''),
+])
+edit(path('modules', 'ii', 'overview', 'OverviewWindow.qml'), [
+    ('        captureSource: GlobalStates.overviewOpen ? root.toplevel : null',
+     '        captureSource: GlobalStates.overviewOpen && !root.windowData?.hidden ? root.toplevel : null'),
 ])
 # Dock: right click opens a menu like the Windows taskbar's (DockContextMenu.qml: new window,
 # pin/unpin, close window(s)) instead of silently toggling the pin.

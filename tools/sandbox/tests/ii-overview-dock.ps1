@@ -46,6 +46,11 @@ Start-Process cmd.exe; Start-Sleep 1
 Start-Process powershell.exe -ArgumentList '-NoExit', '-Command', '$host.UI.RawUI.WindowTitle = \"ii test\"'
 Start-Sleep 5
 $qs = Get-Process quickshell | Select-Object -First 1
+# One minimized window: the overview shows it as a card with its icon.
+Add-Type -Namespace MW -Name W -MemberDefinition '[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr h, int c);'
+$cmdWindow = (Get-Process cmd | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1).MainWindowHandle
+if ($cmdWindow) { [void][MW.W]::ShowWindow($cmdWindow, 6) }
+Start-Sleep 1
 
 & "$dev\send-shortcut.ps1" -Name overviewWorkspacesToggle | Out-Null
 "overview open, worst UI stall: $([OD]::Probe($qs.Id, 1500))"
