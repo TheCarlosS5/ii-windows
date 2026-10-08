@@ -183,6 +183,12 @@ void dispatchShortcut(WPARAM pressed, LPARAM index) {
 	auto* name = keyboard::shortcutName(index);
 	if (name && name[0] == L'@') {
 		if (pressed && wcscmp(name, L"@showDesktop") == 0) desktop::toggleShowDesktop();
+		if (pressed && wcscmp(name, L"@restartShell") == 0) {
+			// ii's "reload widgets" (Ctrl+Super+R on Linux): a fresh shell process.
+			log(L"shell: restart requested");
+			stopShell();
+			startShell();
+		}
 		return;
 	}
 	auto* sink = findShellSink();

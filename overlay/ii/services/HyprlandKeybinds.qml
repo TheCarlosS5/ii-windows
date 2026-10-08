@@ -33,6 +33,7 @@ Singleton {
         bind(superKey, "K", "Shell: On-screen keyboard"),
         bind(superKey, "Slash", "Shell: This cheatsheet"),
         bind(superKey, "D", "Shell: Show desktop (again to restore)"),
+        bind(superKey | ctrl, "R", "Shell: Restart ii"),
         bind(superKey | ctrl, "T", "Shell: Wallpaper selector"),
         bind(superKey | ctrl | alt, "T", "Shell: Random wallpaper"),
         bind(superKey | ctrl | shift, "D", "Shell: Toggle light/dark"),

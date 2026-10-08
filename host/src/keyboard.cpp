@@ -43,6 +43,7 @@ constexpr std::array SHORTCUTS = {
     // Handled by ii-host itself ('@' prefix): Windows' own Win+D raises its desktop over
     // ii's wallpaper and widgets.
     Shortcut {true, false, false, false, 'D', L"@showDesktop"},
+    Shortcut {true, true, false, false, 'R', L"@restartShell"},
     // Ctrl+Alt+Del is the secure attention sequence on Windows; Ctrl+Alt+End is the
     // remote-desktop stand-in for it, so the session menu goes there.
     Shortcut {false, true, true, false, VK_END, L"sessionToggle"},
