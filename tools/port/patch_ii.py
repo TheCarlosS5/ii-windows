@@ -46,7 +46,9 @@ edit(path('modules', 'common', 'Config.qml'), [
     ('''                property list<string> pinnedApps: [ // IDs of pinned entries
                     "org.kde.dolphin", "kitty",]''',
      '''                property list<string> pinnedApps: [ // IDs of pinned entries
-                    "Microsoft.Windows.Explorer", "MSEdge", "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App",]'''),
+                    "Microsoft.Windows.Explorer", "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App",]'''),
+    ('''                property list<string> pinnedApps: [ "org.kde.dolphin", "kitty", "cmake-gui"]''',
+     '''                property list<string> pinnedApps: [ "Microsoft.Windows.Explorer", "Microsoft.WindowsTerminal_8wekyb3d8bbwe!App"]'''),
 ])
 
 # /tmp would be C:\tmp on Windows (a new folder at the drive root): use the user's temp folder.

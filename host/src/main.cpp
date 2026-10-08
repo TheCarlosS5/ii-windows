@@ -211,6 +211,12 @@ void onShellExited() {
 
 LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	if (msg == taskbarCreatedMsg && taskbarCreatedMsg != 0) {
+		// ii's own tray also broadcasts this so apps re-announce their icons: only a new
+		// Explorer taskbar window means Explorer really restarted.
+		static HWND knownTray = nullptr;
+		auto* tray = explorerTray();
+		if (tray && tray == knownTray) return 0;
+		knownTray = tray;
 		log(L"explorer (re)started, reapplying");
 		SetTimer(hwnd, TIMER_AFTER_EXPLORER, 1500, nullptr);
 		return 0;
