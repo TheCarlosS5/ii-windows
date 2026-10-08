@@ -111,7 +111,7 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Todo se restaura al salir (y con pánico, guardián o `ii-rescue`): probado 8/8 en Sandbox (`tests	est-theme.ps1`). Detalles en D17.
 
 ### Instalado en tu PC real (2026-10-08)
-- Instalado con el paquete `db033f3` + punto de restauración ("Antes de instalar ii-windows") + copias `.reg` en `%LOCALAPPDATA%\ii-windowsackup61008-050918`.
+- Instalado con el paquete `db033f3` + punto de restauración ("Antes de instalar ii-windows") + copias `.reg` en `%LOCALAPPDATA%\ii-windows\backup\20261008-050918`.
 - Rescate probado en tu PC: restauró barra (autoocultar como lo tenías), iconos, 23 banners y 7 valores de color; Windows quedó igual que antes.
 - Arreglado al verlo en tu escritorio:
   - Dock: Windows Terminal salía con un icono "!" y separado de su anclaje (Terminal no marca sus ventanas con su ID de app; ahora se lee del proceso). El anclaje de Edge mostraba el icono de Git (tu PC no tiene Edge en Inicio): anclajes por defecto ahora Explorador y Terminal.
