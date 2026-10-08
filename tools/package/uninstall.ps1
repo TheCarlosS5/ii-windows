@@ -89,6 +89,16 @@ if (Test-Path $cursorBackup) {
 
 # 3. autostart, uninstall entry, shortcuts
 Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'ii-windows' -ErrorAction SilentlyContinue
+# The logon task: removing it may need administrator rights (it was created with them).
+if (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue) {
+    try { Unregister-ScheduledTask -TaskName 'ii-windows' -Confirm:$false -ErrorAction Stop }
+    catch {
+        Say 'Windows pedira permiso de administrador para quitar la tarea de inicio.'
+        $taskScript = Join-Path $installDir 'autostart-task.ps1'
+        try { Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$taskScript`" -Remove" -Verb RunAs -WindowStyle Hidden -Wait } catch {}
+    }
+    if (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue) { Say 'No se pudo quitar la tarea "ii-windows": borrala en el Programador de tareas.' }
+}
 Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows' -Recurse -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows') -Recurse -Force -ErrorAction SilentlyContinue
 Say 'Inicio automatico, entrada de Aplicaciones y accesos quitados.'

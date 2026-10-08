@@ -44,7 +44,9 @@ Check 'files installed' (Test-Path "$dir\quickshell\quickshell.exe")
 Check 'ii-host running from the install folder' ([bool](Get-Process ii-host -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dir*" }))
 Check 'quickshell running' ([bool](Get-Process quickshell -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dir*" }))
 Check 'taskbar hidden while running' (-not (TaskbarVisible))
-Check 'autostart entry' ([bool](Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).'ii-windows')
+$task = Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue
+Check 'autostart: logon task with --boot' ($task -and $task.Actions[0].Arguments -like '--boot --shell "*quickshell.exe" --config "*\ii"' -and $task.Principal.RunLevel -eq 'Limited') "($($task.Actions[0].Arguments))"
+Check 'autostart: no Run entry when the task exists' (-not (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).'ii-windows')
 Check 'Bibata cursor applied' ((Get-ItemProperty 'HKCU:\Control Panel\Cursors').Arrow -like "*Bibata*")
 Check 'Apps & features entry' (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows')
 Check 'Start menu shortcuts' ((Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ii-windows" -Filter *.lnk).Count -eq 3)
@@ -58,6 +60,7 @@ Check 'manifest written' (Test-Path "$env:LOCALAPPDATA\ii-windows\install.json")
 Start-Sleep 20
 Check 'processes stopped' (-not (Get-Process ii-host, quickshell -ErrorAction SilentlyContinue))
 Check 'install folder removed' (-not (Test-Path $dir))
+Check 'logon task removed' (-not (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue))
 Check 'shortcuts removed' (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ii-windows"))
 Check 'Apps & features entry removed' (-not (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'))
 $after = Snapshot

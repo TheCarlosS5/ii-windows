@@ -21,7 +21,14 @@ MouseArea {
     preventStealing: true
     drag.target: widget
     cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+    onPressed: root.bringToFront()
     onReleased: widget.saveDrop()
+
+    // The widget being arranged goes above the others (each sits in its own loader).
+    function bringToFront() {
+        GlobalStates.desktopEditTop += 1;
+        if (root.widget.parent) root.widget.parent.z = GlobalStates.desktopEditTop;
+    }
     onWheel: event => {
         widget.resizeBy(event.angleDelta.y > 0 ? 0.1 : -0.1);
         event.accepted = true;
@@ -75,6 +82,54 @@ MouseArea {
                 symbol: "visibility_off"
                 tip: Translation.tr("Hide")
                 onClicked: root.widget.configEntry.enable = false
+            }
+        }
+    }
+
+    // Bottom-right corner: drag to resize, keeping the widget's proportions (like a window
+    // resized from its corner, without distorting it).
+    MouseArea {
+        id: resizeHandle
+        anchors {
+            right: parent.right
+            bottom: parent.bottom
+            margins: -8 * root.counterScale
+        }
+        width: 30 * root.counterScale
+        height: 30 * root.counterScale
+        hoverEnabled: true
+        preventStealing: true
+        cursorShape: Qt.SizeFDiagCursor
+        property point start
+        property real startFactor: 1
+        property real startWidth: 1
+        property real startHeight: 1
+        onPressed: mouse => {
+            root.bringToFront();
+            start = mapToItem(root.widget.parent, mouse.x, mouse.y);
+            startFactor = root.widget.sizeFactor;
+            startWidth = Math.max(1, root.widget.width * root.widget.scale);
+            startHeight = Math.max(1, root.widget.height * root.widget.scale);
+        }
+        onPositionChanged: mouse => {
+            if (!pressed) return;
+            const p = mapToItem(root.widget.parent, mouse.x, mouse.y);
+            const factor = Math.max((startWidth + p.x - start.x) / startWidth, (startHeight + p.y - start.y) / startHeight);
+            root.widget.setSize(startFactor * factor);
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 26 * root.counterScale
+            height: width
+            radius: width / 2
+            color: resizeHandle.containsMouse || resizeHandle.pressed ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary
+            MaterialSymbol {
+                anchors.centerIn: parent
+                text: "open_in_full"
+                rotation: 90
+                iconSize: 16 * root.counterScale
+                color: Appearance.colors.colOnPrimary
             }
         }
     }

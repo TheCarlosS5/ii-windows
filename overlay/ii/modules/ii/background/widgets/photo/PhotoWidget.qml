@@ -23,7 +23,7 @@ AbstractBackgroundWidget {
 
     readonly property string imageSource: configEntry.source
     readonly property string imageSourceUrl: imageUrl(imageSource)
-    readonly property real scaleFactor: Math.max(0.3, Math.min(3, configEntry.scale))
+    readonly property real scaleFactor: Math.max(0.3, Math.min(4, configEntry.scale))
     readonly property int imageWidth: animatedImage.sourceSize.width
     readonly property int imageHeight: animatedImage.sourceSize.height
     readonly property bool imageReady: animatedImage.status === Image.Ready && imageWidth > 0 && imageHeight > 0
@@ -71,7 +71,7 @@ AbstractBackgroundWidget {
     }
 
     function nextScale(value, delta) {
-        return Math.max(0.3, Math.min(3, Math.round((value + delta) * 10) / 10));
+        return Math.max(0.3, Math.min(4, Math.round((value + delta) * 10) / 10));
     }
 
     function imageFactor(width, height, sizeScale, availableWidth, availableHeight) {

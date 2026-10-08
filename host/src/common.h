@@ -54,6 +54,13 @@ void apply();   // re-apply if the palette changed (cheap to call often)
 void restore(); // puts every recorded value back
 } // namespace theme
 
+namespace splash {
+void show();               // ii's wallpaper over Explorer's while the shell loads (--boot)
+void setShellPid(DWORD pid);
+void watch();              // fades out once the shell's wallpaper is up (polled by its own timer)
+void close();
+} // namespace splash
+
 namespace banners {
 void hide();    // records, then turns off Windows' own notification banners per app (cheap to repeat)
 void restore(); // puts every recorded ShowBanner value back

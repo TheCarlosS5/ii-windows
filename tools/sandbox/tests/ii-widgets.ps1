@@ -1,6 +1,6 @@
 # INSIDE the sandbox: the desktop widgets (new ones on, a big photo), the right-click menu, edit
 # mode (grid, frames, − / +), the right sidebar header, ii's settings page for widgets.
-#   -Clicks "x,y[,Button];..."  clicks after the first captures, each followed by a capture
+#   -Clicks "x,y[,Button];drag,x1,y1,x2,y2;..."  clicks/drags after the first captures, each followed by a capture
 param([string]$Clicks = '')
 $out = 'C:\xchg\outbox'
 $dev = 'C:\ii\tools\dev'
@@ -57,16 +57,17 @@ Start-Sleep 1
 $n = 4
 foreach ($c in ($Clicks.Split(';') | Where-Object { $_ })) {
     $xy = $c.Split(',')
-    & "$dev\click.ps1" -X ([int]$xy[0]) -Y ([int]$xy[1]) -Button ($(if ($xy.Count -gt 2) { $xy[2] } else { 'Left' }))
+    if ($xy[0] -eq 'drag') { & "$dev\drag.ps1" -X1 ([int]$xy[1]) -Y1 ([int]$xy[2]) -X2 ([int]$xy[3]) -Y2 ([int]$xy[4]) -Steps 25 }
+    else { & "$dev\click.ps1" -X ([int]$xy[0]) -Y ([int]$xy[1]) -Button ($(if ($xy.Count -gt 2) { $xy[2] } else { 'Left' })) }
     Start-Sleep 2
     & "$dev\screenshot.ps1" -Out "$out\w-$n-click.png" | Out-Null
     $n++
 }
 
 $log = Get-ChildItem "$env:TEMP\quickshell\by-id\*\log.log" | Sort-Object LastWriteTime | Select-Object -Last 1
-Get-Content $log.FullName | Select-String 'TypeError|ReferenceError|is not a type|not installed|Cannot assign|Unable to assign|binding loop|qml:|Widget|Card|Edit' |
+Get-Content $log.FullName | Select-String 'TypeError|ReferenceError|is not a type|not installed|Cannot assign|Unable to assign|binding loop|qml:|Widget|Card|Edit|uisound|UiSound' |
     Where-Object { $_.Line -notmatch 'cliphist|checkupdates|hyprctl|"ls"' } |
     ForEach-Object { $_.Line.Substring([Math]::Min(11, $_.Line.Length)) } | Select-Object -Last 30
-Get-Content "$cfgDir\config.json" -Raw | Select-String -Pattern '"widgetScale":[0-9.]+|"scale":[0-9.]+' -AllMatches | ForEach-Object { $_.Matches.Value }
+Get-Content "$cfgDir\config.json" -Raw | Select-String -Pattern '"widgetScale":\s*[0-9.]+|"scale":\s*[0-9.]+' -AllMatches | ForEach-Object { $_.Matches.Value }
 & "$hostDir\ii-host.exe" --rescue
 'done'

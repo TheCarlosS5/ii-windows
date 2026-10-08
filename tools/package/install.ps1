@@ -52,7 +52,7 @@ Say 'Se va a:'
 Say "  - copiar la shell a $installDir"
 Say '  - exportar antes a archivos .reg las claves de tu usuario (HKCU) que se tocan'
 if (-not $NoCursor) { Say '  - poner el cursor Bibata (guardando el actual para el desinstalador)' }
-if (-not $NoAutostart) { Say '  - iniciar ii con Windows (solo tu usuario)' }
+if (-not $NoAutostart) { Say '  - iniciar ii con Windows (solo tu usuario; una tarea al entrar, pide permiso de administrador una vez)' }
 Say '  - crear accesos en el menu Inicio: rescate y desinstalar'
 Say 'Mientras ii corre: oculta la barra de tareas y los iconos del escritorio, y Windows sigue sus colores.'
 Say 'Todo se deshace al salir de ii, con Ctrl+Alt+Shift+R, con el rescate o desinstalando.'
@@ -113,6 +113,7 @@ New-Item -ItemType Directory -Force $installDir | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "No se pudieron copiar los archivos (robocopy $LASTEXITCODE)" }
 Copy-Item (Join-Path $here 'uninstall.ps1') $installDir -Force
 Copy-Item (Join-Path $here 'uninstall.cmd') $installDir -Force
+Copy-Item (Join-Path $here 'autostart-task.ps1') $installDir -Force
 Say "Copiado a $installDir"
 
 # --- 4. cursor ---------------------------------------------------------------------------------
@@ -158,9 +159,30 @@ $hostExe = Join-Path $installDir 'ii-host.exe'
 $command = "`"$hostExe`" --shell `"$installDir\quickshell\quickshell.exe`" --config `"$installDir\ii`""
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 if (-not $NoAutostart -and (Ask 'Iniciar ii automaticamente al entrar en Windows?' $true)) {
-    Set-ItemProperty $runKey -Name 'ii-windows' -Value $command
-    $manifest.registry += 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ii-windows'
-    Say 'Se iniciara con Windows.'
+    # Best: a logon task. Windows starts it right away (the Run key waits several seconds, while
+    # Explorer's wallpaper and taskbar show). Creating it needs administrator rights once; ii
+    # itself still runs as you, without them. --boot: high priority and ii's wallpaper at once
+    # while it loads.
+    $bootArgs = "--boot --shell `"$installDir\quickshell\quickshell.exe`" --config `"$installDir\ii`""
+    $user = "$env:USERDOMAIN\$env:USERNAME"
+    $taskScript = Join-Path $installDir 'autostart-task.ps1'
+    $taskOk = $false
+    Say 'Windows pedira permiso de administrador para crear la tarea de inicio (solo esta vez).'
+    try {
+        $taskArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$taskScript`" -Create -User `"$user`" -HostExe `"$hostExe`" -Arguments `"$($bootArgs.Replace('"', '\"'))`""
+        $proc = Start-Process powershell.exe -ArgumentList $taskArgs -Verb RunAs -WindowStyle Hidden -Wait -PassThru
+        $taskOk = $proc.ExitCode -eq 0 -and $null -ne (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue)
+    } catch { $taskOk = $false }
+    if ($taskOk) {
+        Remove-ItemProperty $runKey -Name 'ii-windows' -ErrorAction SilentlyContinue
+        $manifest.task = 'ii-windows'
+        Say 'Se iniciara con Windows (tarea "ii-windows", al entrar).'
+    } else {
+        # Without administrator rights: the Run key (starts some seconds later).
+        Set-ItemProperty $runKey -Name 'ii-windows' -Value "`"$hostExe`" $bootArgs"
+        $manifest.registry += 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ii-windows'
+        Say 'Se iniciara con Windows (sin la tarea: unos segundos despues de entrar).'
+    }
 }
 
 $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows'

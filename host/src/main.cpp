@@ -1,7 +1,9 @@
 // ii-host: keeps the Windows shell UI out of the way while ii runs, and always puts it back.
 //
 //   ii-host.exe [--shell <quickshell.exe> --config <dir|shell.qml>] [--no-taskbar] [--no-icons] [--no-hook]
-//                [--keep-banners] [--no-theme] [--no-nightlight]
+//                [--keep-banners] [--no-theme] [--no-nightlight] [--boot]
+//   --boot: started at logon. High priority while the shell loads, taskbar checked every 200 ms,
+//           and a cover with ii's wallpaper until the shell's own is up (Explorer's never shows).
 //   ii-host.exe --rescue [--restart-explorer]   undo everything, from anywhere, any time
 //   ii-host.exe --guard <pid>                   (internal) restores if <pid> dies uncleanly
 //
@@ -22,6 +24,11 @@ namespace {
 constexpr UINT_PTR TIMER_REAPPLY = 1;
 constexpr UINT_PTR TIMER_RESTART_SHELL = 2;
 constexpr UINT_PTR TIMER_AFTER_EXPLORER = 3;
+constexpr UINT_PTR TIMER_BOOT_FAST = 4;
+constexpr UINT_PTR TIMER_BOOT_END = 5;
+constexpr UINT BOOT_FAST_MS = 200;
+constexpr UINT BOOT_FAST_FOR_MS = 30000;
+constexpr UINT BOOT_HIGH_PRIORITY_MS = 60000;
 constexpr int HOTKEY_PANIC = 1;
 constexpr UINT WM_II_SHELL_EXITED = WM_APP + 2;
 
@@ -34,6 +41,7 @@ struct Options {
 	bool banners = true;
 	bool theme = true;
 	bool nightlight = true;
+	bool boot = false;
 };
 
 Options options;
@@ -45,6 +53,7 @@ HANDLE shellProcess = nullptr;
 HANDLE shellWait = nullptr;
 bool shuttingDown = false;
 bool guardReady = false;
+bool booting = false;
 HANDLE guardProcess = nullptr;
 ULONGLONG crashTimes[3] = {};
 int crashIndex = 0;
@@ -94,7 +103,7 @@ bool startShell() {
 	        nullptr,
 	        nullptr,
 	        FALSE,
-	        CREATE_NO_WINDOW | CREATE_SUSPENDED,
+	        CREATE_NO_WINDOW | CREATE_SUSPENDED | (booting ? HIGH_PRIORITY_CLASS : 0),
 	        nullptr,
 	        dir.c_str(),
 	        &si,
@@ -118,6 +127,7 @@ bool startShell() {
 	CloseHandle(pi.hThread);
 
 	shellProcess = pi.hProcess;
+	splash::setShellPid(pi.dwProcessId);
 	RegisterWaitForSingleObject(&shellWait, shellProcess, onShellExit, nullptr, INFINITE, WT_EXECUTEONLYONCE);
 	log(L"shell: started pid %lu: %s", pi.dwProcessId, cmd.c_str());
 	return true;
@@ -260,6 +270,19 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		} else if (wParam == TIMER_RESTART_SHELL) {
 			KillTimer(hwnd, TIMER_RESTART_SHELL);
 			startShell();
+		} else if (wParam == TIMER_BOOT_FAST) {
+			// Explorer is still starting: hide its taskbar (and icons) as soon as they appear.
+			if (options.taskbar) taskbar::reapply();
+			if (options.icons) desktop::reapplyIcons();
+			static ULONGLONG fastUntil = GetTickCount64() + BOOT_FAST_FOR_MS;
+			if (GetTickCount64() > fastUntil) KillTimer(hwnd, TIMER_BOOT_FAST);
+		} else if (wParam == TIMER_BOOT_END) {
+			KillTimer(hwnd, TIMER_BOOT_END);
+			booting = false;
+			// Back to normal: games must not compete with the shell.
+			SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
+			if (shellProcess) SetPriorityClass(shellProcess, NORMAL_PRIORITY_CLASS);
+			log(L"boot: priority back to normal");
 		} else if (wParam == TIMER_AFTER_EXPLORER) {
 			KillTimer(hwnd, TIMER_AFTER_EXPLORER);
 			watchExplorer();
@@ -327,6 +350,15 @@ int runHost() {
 		log(L"panic hotkey Ctrl+Alt+Shift+R unavailable (%lu)", GetLastError());
 	}
 
+	if (options.boot) {
+		booting = true;
+		SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+		splash::show();
+		SetTimer(hostWindow, TIMER_BOOT_FAST, BOOT_FAST_MS, nullptr);
+		SetTimer(hostWindow, TIMER_BOOT_END, BOOT_HIGH_PRIORITY_MS, nullptr);
+		log(L"boot: high priority, fast taskbar checks, splash");
+	}
+
 	applyAll();
 	watchExplorer();
 	SetTimer(hostWindow, TIMER_REAPPLY, 2000, nullptr);
@@ -392,6 +424,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		else if (a == L"--keep-banners") options.banners = false;
 		else if (a == L"--no-theme") options.theme = false;
 		else if (a == L"--no-nightlight") options.nightlight = false;
+		else if (a == L"--boot") options.boot = true;
 		else if (a == L"--rescue" || a == L"--restore") rescue = true;
 		else if (a == L"--restart-explorer") restartExplorer = true;
 		else if (a == L"--guard") guardPid = static_cast<DWORD>(_wtoi(next().c_str()));

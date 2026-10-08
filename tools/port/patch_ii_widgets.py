@@ -20,7 +20,8 @@ def path(*parts):
 edit(path('GlobalStates.qml'), [
     ('    property bool wallpaperSelectorOpen: false\n',
      '    property bool wallpaperSelectorOpen: false\n'
-     '    property bool desktopEditMode: false // ii-windows: desktop widgets being arranged\n'),
+     '    property bool desktopEditMode: false // ii-windows: desktop widgets being arranged\n'
+     '    property int desktopEditTop: 0 // ii-windows: stacking of the widget last arranged\n'),
 ])
 
 # --- Every desktop widget: a size (scale from its top-left corner, kept in its config as
@@ -32,10 +33,12 @@ edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qm
     // ii-windows: size and edit mode.
     property bool handlesOwnScale: false
     readonly property real sizeFactor: handlesOwnScale ? (configEntry.scale ?? 1) : (configEntry.widgetScale ?? 1)
-    readonly property real widgetScale: handlesOwnScale ? 1 : Math.max(0.4, Math.min(3, configEntry.widgetScale ?? 1))
+    readonly property real widgetScale: handlesOwnScale ? 1 : Math.max(0.3, Math.min(4, configEntry.widgetScale ?? 1))
+    function setSize(value) {
+        configEntry[handlesOwnScale ? "scale" : "widgetScale"] = Math.max(0.3, Math.min(4, Math.round(value * 20) / 20));
+    }
     function resizeBy(delta) {
-        const key = handlesOwnScale ? "scale" : "widgetScale";
-        configEntry[key] = Math.max(0.3, Math.min(3, Math.round(((configEntry[key] ?? 1) + delta) * 10) / 10));
+        setSize(Math.round((sizeFactor + delta) * 10) / 10);
     }
     function saveDrop() {
         if (GlobalStates.desktopEditMode) {
@@ -47,6 +50,7 @@ edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qm
         root.targetY = root.y;
         configEntry.x = root.targetX;
         configEntry.y = root.targetY;
+        if (GlobalStates.desktopEditMode) UiSounds.play("snap");
     }
     WidgetEditFrame {
         widget: root
@@ -66,6 +70,67 @@ edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qm
         configEntry.y = root.targetY;
     }''',
      '''    onReleased: root.saveDrop()'''),
+])
+
+edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qml'), [
+    ('import qs.modules.common\n', 'import qs.modules.common\nimport qs.services\n'),
+])
+
+# --- Interface sounds (services/UiSounds.qml, assets/sounds/ui).
+edit(path('shell.qml'), [
+    ('        Updates.load()\n', '        Updates.load()\n        UiSounds.load() // ii-windows: interface sounds\n'),
+])
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property bool pomodoro: false
+                property string theme: "freedesktop"''',
+     '''                property bool pomodoro: false
+                property string theme: "freedesktop"
+                property bool ui: true // ii-windows: panels, desktops, edit mode
+                property real uiVolume: 0.6
+                property bool uiNotifications: false // Windows apps' notifications already ring'''),
+])
+edit(path('modules', 'settings', 'GeneralConfig.qml'), [
+    ('''            ConfigSwitch {
+                buttonIcon: "av_timer"
+                text: Translation.tr("Pomodoro")
+                checked: Config.options.sounds.pomodoro
+                onCheckedChanged: {
+                    Config.options.sounds.pomodoro = checked;
+                }
+            }
+        }''',
+     '''            ConfigSwitch {
+                buttonIcon: "av_timer"
+                text: Translation.tr("Pomodoro")
+                checked: Config.options.sounds.pomodoro
+                onCheckedChanged: {
+                    Config.options.sounds.pomodoro = checked;
+                }
+            }
+        }
+        ConfigRow {
+            uniform: true
+            ConfigSwitch {
+                buttonIcon: "music_note"
+                text: Translation.tr("Interface sounds")
+                checked: Config.options.sounds.ui
+                onCheckedChanged: Config.options.sounds.ui = checked
+            }
+            ConfigSwitch {
+                buttonIcon: "notifications_active"
+                text: Translation.tr("Notification sound")
+                checked: Config.options.sounds.uiNotifications
+                onCheckedChanged: Config.options.sounds.uiNotifications = checked
+            }
+        }
+        ConfigSlider {
+            buttonIcon: "volume_up"
+            text: Translation.tr("Interface volume")
+            from: 0
+            to: 1
+            value: Config.options.sounds.uiVolume
+            onValueChanged: Config.options.sounds.uiVolume = Math.round(value * 100) / 100
+        }'''),
 ])
 
 # The photo sizes its image itself (configEntry.scale): − / + change that.
@@ -143,6 +208,14 @@ edit(path('modules', 'common', 'Config.qml'), [
 '''),
 ])
 
+# Every widget's size (JsonAdapter only keeps declared properties). The photo has its own scale.
+edit(path('modules', 'common', 'Config.qml'), [
+    (f'                    property JsonObject {name}: JsonObject {{\n',
+     f'                    property JsonObject {name}: JsonObject {{\n'
+     '                        property real widgetScale: 1 // ii-windows: size, edit mode\n')
+    for name in ('clock', 'weather', 'media', 'folder', 'calendar', 'todo', 'timer', 'resources', 'notes', 'japaneseClock')
+])
+
 # --- The wallpaper: new widgets, the edit grid under them, the edit bar above.
 CARD = '''                FadeLoader {
                     shown: Config.options.background.widgets.%s.enable
@@ -199,9 +272,9 @@ def size_slider(key, prop='widgetScale'):
     return f'''        ConfigSlider {{
             buttonIcon: "aspect_ratio"
             text: Translation.tr("Size")
-            from: 0.4
-            to: 3
-            stopIndicatorValues: [1]
+            from: 0.3
+            to: 4
+            stopIndicatorValues: [1, 1.5, 2]
             value: Config.options.background.widgets.{key}.{prop} ?? 1
             onValueChanged: Config.options.background.widgets.{key}.{prop} = Math.round(value * 10) / 10
         }}
@@ -303,7 +376,7 @@ STRINGS_ES = {
     "Note": "Nota",
     "Japanese clock": "Reloj japonés",
     "Edit desktop": "Editar escritorio",
-    "Editing the desktop: drag widgets, use − and + to resize them": "Editando el escritorio: arrastra los widgets y usa − y + para cambiar su tamaño",
+    "Editing the desktop: drag widgets, use − and + to resize them": "Editando el escritorio: arrastra los widgets; cambia su tamaño con la esquina o con − y +",
     "Done": "Listo",
     "Smaller": "Más pequeño",
     "Bigger": "Más grande",
@@ -339,6 +412,10 @@ STRINGS_ES = {
     "Show date": "Mostrar fecha",
     "Show seconds": "Mostrar segundos",
     "Card background": "Fondo de tarjeta",
+    "Interface sounds": "Sonidos de la interfaz",
+    "Notification sound": "Sonido de notificaciones",
+    "Interface volume": "Volumen de la interfaz",
+    "Drag the corner to resize": "Arrastra la esquina para cambiar el tamaño",
 }
 file = path('translations', 'es_MX.json')
 with open(file, encoding='utf-8') as f:
