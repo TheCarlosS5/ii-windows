@@ -52,6 +52,7 @@
 #include "cpp/scheme/scheme_tonal_spot.h"
 #include "cpp/scheme/scheme_vibrant.h"
 #include "cpp/score/score.h"
+#include "cpp/utils/utils.h"
 
 using Microsoft::WRL::ComPtr;
 using Args = std::vector<std::wstring>;
@@ -336,6 +337,59 @@ bool pickColor(mcu::Argb& out) {
 	return true;
 }
 
+// --- terminal colors (ii's generate_colors_material.py, --termscheme with --blend_bg_fg) ---
+
+// ii's scripts/colors/terminal/scheme-base.json
+const char* const TERM_DARK[16] = {"282828", "CC241D", "98971A", "D79921", "458588", "B16286", "689D6A", "A89984",
+                                   "928374", "FB4934", "B8BB26", "FABD2F", "83A598", "D3869B", "8EC07C", "EBDBB2"};
+const char* const TERM_LIGHT[16] = {"FDF9F3", "FF6188", "A9DC76", "FC9867", "FFD866", "F47FD4", "78DCE8", "333034",
+                                    "121212", "FF6188", "A9DC76", "FC9867", "FFD866", "F47FD4", "78DCE8", "333034"};
+
+mcu::Argb harmonize(mcu::Argb design, mcu::Argb source, double threshold, double harmony) {
+	auto from = mcu::Hct(design);
+	auto to = mcu::Hct(source);
+	auto rotation = std::min(mcu::DiffDegrees(from.get_hue(), to.get_hue()) * harmony, threshold);
+	auto hue = mcu::SanitizeDegreesDouble(from.get_hue() + rotation * mcu::RotationDirection(from.get_hue(), to.get_hue()));
+	return mcu::Hct(hue, from.get_chroma(), from.get_tone()).ToInt();
+}
+
+mcu::Argb boost(mcu::Argb color, double chroma, double tone) {
+	auto hct = mcu::Hct(color);
+	return mcu::Hct(hct.get_hue(), hct.get_chroma() * chroma, hct.get_tone() * tone).ToInt();
+}
+
+std::vector<mcu::Argb> terminalColors(const mcu::DynamicScheme& scheme, bool dark, bool monochrome) {
+	const auto* base = dark ? TERM_DARK : TERM_LIGHT;
+	auto key = mcu::MaterialDynamicColors::PrimaryPaletteKeyColor().GetArgb(scheme);
+	std::vector<mcu::Argb> out;
+	for (int i = 0; i < 16; ++i) {
+		auto color = 0xFF000000u | static_cast<mcu::Argb>(std::strtoul(base[i], nullptr, 16));
+		if (monochrome) out.push_back(color);
+		else if (i == 0) out.push_back(boost(mcu::MaterialDynamicColors::SurfaceContainerLow().GetArgb(scheme), 1.2, 0.95));
+		else if (i == 15) out.push_back(boost(mcu::MaterialDynamicColors::OnSurface().GetArgb(scheme), 3, 1));
+		else out.push_back(boost(harmonize(color, key, 100, 0.8), 1, 1 + 0.35 * (dark ? 1 : -1)));
+	}
+	return out;
+}
+
+// A Windows Terminal fragment: adds the "ii-windows" color scheme without touching the user's
+// settings.json (pick it in Terminal's settings, per profile or for all profiles).
+void writeTerminalScheme(const mcu::DynamicScheme& scheme, const std::vector<mcu::Argb>& term) {
+	static const char* const names[16] = {"black", "red", "green", "yellow", "blue", "purple", "cyan", "white",
+	                                      "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue",
+	                                      "brightPurple", "brightCyan", "brightWhite"};
+	using M = mcu::MaterialDynamicColors;
+	auto field = [](const char* name, mcu::Argb color) { return std::string("      \"") + name + "\": \"" + hex(color) + "\""; };
+	std::string json = "{\n  \"schemes\": [\n    {\n      \"name\": \"ii-windows\",\n";
+	json += field("background", term[0]) + ",\n";
+	json += field("foreground", term[15]) + ",\n";
+	json += field("cursorColor", M::Primary().GetArgb(scheme)) + ",\n";
+	json += field("selectionBackground", M::PrimaryContainer().GetArgb(scheme));
+	for (int i = 0; i < 16; ++i) json += ",\n" + field(names[i], term[i]);
+	json += "\n    }\n  ]\n}\n";
+	writeUtf8(localAppData() + L"\\Microsoft\\Windows Terminal\\Fragments\\ii-windows\\ii-windows.json", json);
+}
+
 } // namespace
 
 int switchwall(const Args& args) {
@@ -420,6 +474,7 @@ int switchwall(const Args& args) {
 	// Config first (wallpaper path), then the palette: ii reloads each file when it changes.
 	writeUtf8(configPath(), toUtf8(std::wstring(config.Stringify())));
 	writeUtf8(sourceColorPath(), hex(source) + "\n");
+	writeTerminalScheme(*scheme, terminalColors(*scheme, dark, schemeType == "scheme-monochrome"));
 	if (!writeUtf8(colorsPath(), out)) return 1;
 	std::printf("source %s, %s, %s -> %zu colors\n", hex(source).c_str(), schemeType.c_str(), dark ? "dark" : "light", keys.size());
 	return 0;

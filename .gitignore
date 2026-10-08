@@ -16,3 +16,4 @@ prototypes/**/stderr.txt
 host/build/
 dist/
 third_party/
+out/
