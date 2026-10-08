@@ -59,3 +59,10 @@ edit(path('modules', 'common', 'Directories.qml'), [
     ('property string screenshotTemp: "/tmp/quickshell/media/screenshot"',
      'property string screenshotTemp: `${' + WIN_TMP + '}/quickshell/media/screenshot`'),
 ])
+
+# Recorder widget: a full screenshot straight to the clipboard (was grim - | wl-copy), after the
+# overlay's closing animation.
+edit(path('modules', 'ii', 'overlay', 'recorder', 'Recorder.qml'), [
+    ('Quickshell.execDetached(["bash", "-c", "grim - | wl-copy"]);',
+     'Quickshell.execDetached(["ii-shim", "screenshot", "--copy", "--delay", "400"]);'),
+])

@@ -1,6 +1,7 @@
 // Screenshots for ii's region selector, in place of grim / magick / wl-copy / tesseract:
 //
 //   ii-shim screenshot --output <DISPLAY1> <file.png>     whole monitor, physical pixels
+//   ii-shim screenshot [--output <DISPLAY1>] --copy [--delay <ms>]   ...straight to the clipboard
 //   ii-shim crop <file.png> <x> <y> <w> <h> <action> [<save dir>]
 //       action: copy | save | edit | ocr     (the source file is deleted afterwards)
 //
@@ -225,10 +226,14 @@ BOOL CALLBACK findMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM param) {
 int screenshot(const Args& args) {
 	std::wstring output;
 	std::wstring path;
+	auto toClipboard = false;
 	for (size_t i = 0; i < args.size(); ++i) {
 		if ((args[i] == L"--output" || args[i] == L"-o") && i + 1 < args.size()) output = args[++i];
+		else if (args[i] == L"--copy") toClipboard = true;
+		else if (args[i] == L"--delay" && i + 1 < args.size()) Sleep(static_cast<DWORD>(_wtoi(args[++i].c_str())));
 		else path = windowsPath(args[i]);
 	}
+	if (toClipboard && path.empty()) path = tempPng(L"screen.png");
 	if (path.empty()) return 2;
 
 	// Physical pixels, whatever the scaling.
@@ -251,6 +256,8 @@ int screenshot(const Args& args) {
 	ComPtr<IWICBitmap> wicBitmap;
 	auto ok = factory && SUCCEEDED(factory->CreateBitmapFromHBITMAP(bitmap, nullptr, WICBitmapIgnoreAlpha, &wicBitmap))
 	       && savePng(factory.Get(), wicBitmap.Get(), path);
+
+	if (ok && toClipboard) copyImage(wicBitmap.Get(), path);
 
 	DeleteObject(bitmap);
 	DeleteDC(memory);

@@ -169,6 +169,37 @@ int qalc(const Args& args) {
 
 // --- misc -------------------------------------------------------------------------------
 
+// qs ...: ii calls Quickshell by its short name (e.g. `qs -p <config> ipc call ...`). The shims
+// live in <dist>\bin, Quickshell one level up next to its Qt DLLs.
+int qs(const Args& args) {
+	wchar_t self[MAX_PATH];
+	GetModuleFileNameW(nullptr, self, MAX_PATH);
+	std::wstring dir = self;
+	dir = dir.substr(0, dir.find_last_of(L'\\'));
+	auto exe = dir.substr(0, dir.find_last_of(L'\\')) + L"\\quickshell.exe";
+
+	auto cmd = L"\"" + exe + L"\"";
+	for (const auto& a: args) {
+		std::wstring quoted = L"\"";
+		for (auto c: a) {
+			if (c == L'"') quoted += L'\\';
+			quoted += c;
+		}
+		cmd += L" " + quoted + L"\"";
+	}
+
+	STARTUPINFOW si {};
+	si.cb = sizeof(si);
+	PROCESS_INFORMATION pi {};
+	if (!CreateProcessW(exe.c_str(), cmd.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi)) return 127;
+	WaitForSingleObject(pi.hProcess, INFINITE);
+	DWORD code = 1;
+	GetExitCodeProcess(pi.hProcess, &code);
+	CloseHandle(pi.hThread);
+	CloseHandle(pi.hProcess);
+	return static_cast<int>(code);
+}
+
 int xdgOpen(const Args& args) {
 	if (args.empty()) return 1;
 	auto target = args[0];
@@ -362,6 +393,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"qalc") return qalc(args);
 	if (command == L"xdg-open") return xdgOpen(args);
 	if (command == L"bash") return bash(args);
+	if (command == L"qs") return qs(args);
 	if (command == L"screenshot") return screenshot(args);
 	if (command == L"crop") return crop(args);
 	if (command == L"ocr") return ocrFile(args);
