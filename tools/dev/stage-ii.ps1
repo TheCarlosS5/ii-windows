@@ -16,4 +16,9 @@ if (Test-Path $overlay) {
 # Small exact-match edits (Windows defaults); fails loudly if upstream moved the code.
 & python -I "$root\tools\port\patch_ii.py" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "patch_ii.py failed" }
+# Network fetches (curl/jq through bash upstream) go through ii-shim instead.
+if (Test-Path "$root\tools\port\patch_ii_net.py") {
+    & python -I "$root\tools\port\patch_ii_net.py" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "patch_ii_net.py failed" }
+}
 "staged ii -> $dest ($n overlay files)"

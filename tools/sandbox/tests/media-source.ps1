@@ -12,6 +12,9 @@ $props.Type = [Windows.Media.MediaPlaybackType]::Music
 $props.MusicProperties.Title = 'Lucid Dreams (test track)'
 $props.MusicProperties.Artist = 'ii-windows'
 $props.MusicProperties.AlbumTitle = 'Sandbox Sessions'
+# Cover art, so players show a thumbnail (ii's default wallpaper stands in for an album cover).
+[void][Windows.Storage.Streams.RandomAccessStreamReference, Windows.Storage.Streams, ContentType = WindowsRuntime]
+$props.Thumbnail = [Windows.Storage.Streams.RandomAccessStreamReference]::CreateFromUri([Uri]'file:///C:/ii/build/ii/assets/images/default_wallpaper.png')
 $item.ApplyDisplayProperties($props)
 $player = New-Object Windows.Media.Playback.MediaPlayer
 $player.Volume = 0

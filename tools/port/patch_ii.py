@@ -92,7 +92,27 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
      'import qs.modules.ii.background.widgets.desktop\nimport qs.modules.ii.background.widgets.clock'),
     ('''            WidgetCanvas {
                 id: widgetCanvas''',
-     '''            Loader {
+     '''            MouseArea {
+                id: desktopMenuArea
+                // Right click on the desktop or on a widget: ii's desktop menu (icons keep theirs).
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                enabled: !GlobalStates.screenLocked
+                onPressed: event => {
+                    // A widget under the pointer can add its own entries (photo: change, resize...).
+                    // Widgets sit in loaders at the canvas origin: test each widget itself, top first.
+                    let hit = null;
+                    const loaders = widgetCanvas.children;
+                    for (let i = loaders.length - 1; i >= 0 && !hit; i--) {
+                        const widget = loaders[i].item;
+                        if (widget?.visible && widget.contains(widget.mapFromItem(desktopMenuArea, event.x, event.y)))
+                            hit = widget;
+                    }
+                    desktopMenu.popup(event.x, event.y, hit);
+                }
+            }
+
+            Loader {
                 anchors.fill: parent
                 active: Config.options.background.widgets.desktopIcons.enable && !GlobalStates.screenLocked
                 // Menus must receive clicks above clock/weather; lower icons again on close.
@@ -102,6 +122,22 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
 
             WidgetCanvas {
                 id: widgetCanvas'''),
+    ('''                        wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
+                    }
+                }
+            }
+''',
+     '''                        wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
+                    }
+                }
+            }
+
+            DesktopMenu {
+                id: desktopMenu
+                anchors.fill: parent
+                z: 2
+            }
+'''),
 ])
 
 # The upstream canvas is an otherwise empty full-screen MouseArea. It must not eat
@@ -166,6 +202,153 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
                 FadeLoader {
                     shown: Config.options.background.widgets.weather.enable'''),
 ])
+
+# Two more desktop widgets (ii-windows additions in ii's style): the music player card under the
+# clock, and a photo (a local image or an https URL, gifs play) anywhere on the desktop. The
+# desktop's right-click menu turns any widget on or off; a widget turned on from there appears
+# where the menu was opened.
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                    property JsonObject folder: JsonObject {''',
+     '''                    property JsonObject media: JsonObject {
+                        property bool enable: true
+                        property string placementStrategy: "free"
+                        property real x: -48
+                        property real y: 330
+                    }
+                    property JsonObject photo: JsonObject {
+                        property bool enable: false
+                        property string source: "" // local image path or https URL
+                        property real scale: 1
+                        property string placementStrategy: "free"
+                        property real x: 560
+                        property real y: 140
+                    }
+                    property JsonObject folder: JsonObject {'''),
+])
+edit(path('modules', 'ii', 'background', 'Background.qml'), [
+    # Loaded by URL, not as types: if one of these fails to load (a missing Qt module, say),
+    # only that widget is missing instead of the whole desktop.
+    ('''                FadeLoader {
+                    shown: Config.options.background.widgets.folder.enable''',
+     '''                FadeLoader {
+                    shown: Config.options.background.widgets.media.enable
+                    Component.onCompleted: setSource(Qt.resolvedUrl("widgets/media/MediaWidget.qml"), {
+                        screenWidth: bgRoot.screen.width,
+                        screenHeight: bgRoot.screen.height,
+                        scaledScreenWidth: bgRoot.screen.width,
+                        scaledScreenHeight: bgRoot.screen.height,
+                        wallpaperScale: 1,
+                    })
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.photo.enable
+                    Component.onCompleted: setSource(Qt.resolvedUrl("widgets/photo/PhotoWidget.qml"), {
+                        screenWidth: bgRoot.screen.width,
+                        screenHeight: bgRoot.screen.height,
+                        scaledScreenWidth: bgRoot.screen.width,
+                        scaledScreenHeight: bgRoot.screen.height,
+                        wallpaperScale: 1,
+                    })
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.folder.enable'''),
+])
+
+# Weather: on Windows "GPS" is the Location service, which pops a system permission prompt the
+# moment the weather turns on. Off by default: wttr.in then locates by IP (or uses `city`).
+edit(path('modules', 'common', 'Config.qml'), [
+    ('property bool enableGPS: true // gps based location',
+     'property bool enableGPS: false // gps based location (Windows asks for location permission)'),
+])
+# Qt's Windows positioning backend asks for that permission as soon as a PositionSource exists,
+# started or not: create it only while GPS is on.
+edit(path('services', 'Weather.qml'), [
+    ('        positionSource.start();', '        positionLoader.item?.start();'),
+    ('''    PositionSource {
+        id: positionSource
+        updateInterval: root.fetchInterval
+''',
+     '''    Loader {
+        id: positionLoader
+        active: Config.options.bar.weather.enableGPS
+        onLoaded: item.start()
+        sourceComponent: PositionSource {
+        id: positionSource
+        updateInterval: root.fetchInterval
+'''),
+    ('''                console.error("[WeatherService] Could not aquire a valid backend plugin.");
+            }
+        }
+    }
+''',
+     '''                console.error("[WeatherService] Could not aquire a valid backend plugin.");
+            }
+        }
+    }
+    }
+'''),
+])
+
+# Windows reports regional variants (es_CO, pt_PT, de_AT...): with "auto", use the shipped
+# translation of the same language when there is no exact one, instead of falling back to English.
+edit(path('services', 'Translation.qml'), [
+    ('''        if (configLang !== "auto")
+            return configLang;
+
+        return Qt.locale().name;''',
+     '''        if (configLang !== "auto")
+            return configLang;
+
+        const name = Qt.locale().name;
+        const shipped = ["de_DE", "en_US", "es_MX", "fr_FR", "he_HE", "id_ID", "it_IT", "ja_JP", "pt_BR", "ru_RU", "tr_TR", "uk_UA", "vi_VN", "zh_CN"];
+        if (shipped.includes(name))
+            return name;
+        return shipped.find(code => code.split("_")[0] === name.split("_")[0]) ?? name;'''),
+])
+
+# Spanish for the strings this port adds (desktop menu, desktop icons, folder and photo widgets).
+# Only missing keys are added; ii's own translations win.
+PORT_STRINGS_ES = {
+    "Change wallpaper": "Cambiar fondo",
+    "Random wallpaper": "Fondo aleatorio",
+    "Clock": "Reloj",
+    "Music": "Música",
+    "Photo": "Foto",
+    "Recent files": "Archivos recientes",
+    "Desktop icons": "Iconos del escritorio",
+    "Overlay widgets": "Widgets superpuestos",
+    "Display settings": "Configuración de pantalla",
+    "Show in folder": "Mostrar en la carpeta",
+    "Nothing here yet": "Aún no hay nada aquí",
+    "Just now": "Ahora mismo",
+    "%1 min ago": "hace %1 min",
+    "%1 h ago": "hace %1 h",
+    "%1 d ago": "hace %1 d",
+    "Open folder": "Abrir carpeta",
+    "Choose a photo": "Elige una foto",
+    "Couldn't load the photo": "No se pudo cargar la foto",
+    "Choose…": "Elegir…",
+    "Change photo…": "Cambiar foto…",
+    "Reset size": "Restablecer tamaño",
+    "Open image": "Abrir imagen",
+    "Remove from desktop": "Quitar del escritorio",
+}
+
+
+def add_translations(code, strings):
+    import json
+    file = path('translations', code + '.json')
+    with open(file, encoding='utf-8') as f:
+        data = json.load(f)
+    for key, value in strings.items():
+        data.setdefault(key, value)
+    with open(file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+add_translations('es_MX', PORT_STRINGS_ES)
 
 # Wallpaper and colors: switchwall.sh (bash + matugen + Python) becomes ii-shim's native
 # `switchwall` (in <dist>\bin, found on PATH; ii also runs it as `bash -c "switchwall ..."`).

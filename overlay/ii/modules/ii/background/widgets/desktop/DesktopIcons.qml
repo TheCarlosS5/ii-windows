@@ -47,9 +47,10 @@ Item {
     }
 
     MouseArea {
-        // Clicking empty desktop clears the selection and closes the menu.
+        // Clicking empty desktop clears the selection and closes the menu. Right clicks go on
+        // to the desktop menu underneath (Background.qml).
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        acceptedButtons: Qt.LeftButton
         onPressed: {
             root.selectedPath = "";
             contextMenu.visible = false;
