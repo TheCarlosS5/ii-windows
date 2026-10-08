@@ -18,6 +18,7 @@ Documentos: [Viabilidad](docs/FEASIBILITY.md) · [Decisiones](docs/DECISIONS.md)
   - las tipografías, iconos y colores Material
   - dock con apps fijadas y ventanas abiertas, menú de sesión, cheatsheet y overlay de widgets
   - archivos, carpetas y accesos directos de los Escritorios personal y público, con iconos y miniaturas de Windows
+  - un widget de carpeta en el escritorio (Descargas por defecto) con los archivos más recientes; el reloj pasa a la esquina superior derecha para no tapar los iconos
 
   Faltan Bluetooth, batería y brillo, completar las funciones de escritorio, tematización y empaquetado. El port completo sigue en desarrollo.
 
@@ -94,6 +95,11 @@ Fuentes de Quickshell: `a2b7875073a6634c95238b3b0f1d4c4f25a1cce5`. Todo el compo
 La prueba del menú detectó primero clics interceptados por el reloj y alpha de fondo 0.1. Tras corregir capas y usar la superficie `colLayer0`, los clics pasan y el alpha es 1 con transparencia desactivada. La prueba de iconos detectó antes esquinas opacas; ahora comprueba alpha 0 en la esquina del icono de carpeta y los píxeles exactos de una miniatura verde.
 
 Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estados JSON y capturas; archivos generados, fuera de Git). El driver `sbx.ps1` imprime el resultado pero no propaga siempre el código de salida del test: revisar también `FAIL`, `desktop failures=0` y `fails: 0`.
+
+### Widget de carpeta (Claude, tras el relevo)
+- `FolderWidget.qml`: tarjeta ii arrastrable con los archivos más nuevos de una carpeta real (`background.widgets.folder.path`, vacío = Descargas; `maxItems`). Clic abre, clic derecho muestra en Explorer, el botón abre la carpeta. Se actualiza sola.
+- Los widgets del fondo aceptan coordenadas negativas (desde el borde derecho/inferior), así los valores por defecto quedan en una esquina en cualquier pantalla. Reloj: arriba a la derecha, ubicación libre (la ubicación automática de ii necesita un script de Python que Windows no tiene). Carpeta: abajo a la derecha.
+- Probado en Sandbox (`tests\ii-folder.ps1`): orden por fecha, tiempos relativos, iconos reales, nombres con acentos y `#`.
 
 ### Notificaciones (cómo funciona)
 - La shell lee las notificaciones de Windows con la API oficial `UserNotificationListener`, sin permisos de administrador.

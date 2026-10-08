@@ -107,3 +107,60 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
 edit(path('modules', 'common', 'widgets', 'widgetCanvas', 'WidgetCanvas.qml'), [
     ('    id: root', '    id: root\n    acceptedButtons: Qt.NoButton'),
 ])
+
+# Background widgets: a negative x/y counts from the right/bottom edge, so defaults can sit in
+# a corner on any screen size. Dragging still saves ordinary positive coordinates.
+edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qml'), [
+    ('    property real targetX: Math.max(0, Math.min(configEntry.x, scaledScreenWidth - width))',
+     '    property real targetX: Math.max(0, Math.min(configEntry.x < 0 ? scaledScreenWidth - width + configEntry.x : configEntry.x, scaledScreenWidth - width))'),
+    ('    property real targetY : Math.max(0, Math.min(configEntry.y, scaledScreenHeight - height))',
+     '    property real targetY: Math.max(0, Math.min(configEntry.y < 0 ? scaledScreenHeight - height + configEntry.y : configEntry.y, scaledScreenHeight - height))'),
+])
+
+# Desktop layout: icons down the left like Windows, so the clock defaults to the top right
+# ("leastBusy" placement needs ii's Python image script, which Windows doesn't have), and a
+# folder widget (Downloads unless configured) sits in the bottom right.
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                        property string placementStrategy: "leastBusy" // "free", "leastBusy", "mostBusy"
+                        property real x: 100
+                        property real y: 100
+                        property string style: "cookie"''',
+     '''                        property string placementStrategy: "free" // "free", "leastBusy", "mostBusy"
+                        property real x: -48
+                        property real y: 72
+                        property string style: "cookie"'''),
+    ('''                    property JsonObject desktopIcons: JsonObject {
+                        property bool enable: true
+                        property int iconSize: 48
+                    }''',
+     '''                    property JsonObject desktopIcons: JsonObject {
+                        property bool enable: true
+                        property int iconSize: 48
+                    }
+                    property JsonObject folder: JsonObject {
+                        property bool enable: true
+                        property string path: "" // empty: Downloads
+                        property int maxItems: 7
+                        property string placementStrategy: "free"
+                        property real x: -48
+                        property real y: -48
+                    }'''),
+])
+
+edit(path('modules', 'ii', 'background', 'Background.qml'), [
+    ('''                FadeLoader {
+                    shown: Config.options.background.widgets.weather.enable''',
+     '''                FadeLoader {
+                    shown: Config.options.background.widgets.folder.enable
+                    sourceComponent: FolderWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.weather.enable'''),
+])
