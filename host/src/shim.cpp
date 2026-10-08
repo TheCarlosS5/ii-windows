@@ -35,6 +35,8 @@
 #include <tlhelp32.h>
 // clang-format on
 
+int switchwall(const std::vector<std::wstring>& args); // switchwall.cpp
+
 namespace {
 
 using Args = std::vector<std::wstring>;
@@ -226,10 +228,23 @@ int reveal(const Args& args) {
 	return SUCCEEDED(result) ? 0 : 1;
 }
 
+// test -d|-f|-e <path>: ii checks paths this way (e.g. the wallpaper selector).
+int test(const Args& args) {
+	if (args.size() != 2) return 2;
+	auto attributes = GetFileAttributesW(args[1].c_str());
+	if (attributes == INVALID_FILE_ATTRIBUTES) return 1;
+	auto isDir = (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+	if (args[0] == L"-d") return isDir ? 0 : 1;
+	if (args[0] == L"-f") return isDir ? 1 : 0;
+	if (args[0] == L"-e") return 0;
+	return 2;
+}
+
 // bash -c "<command>": ii runs its configurable app commands this way (Config.options.apps.*).
 // Deliberately NOT a shell: only a single URI (ms-settings:..., http(s)://...) or a single
 // program name is opened. Everything else, including ii's own Linux pipelines, gets 127
 // ("command not found") and is never handed to cmd.exe, where it could do something else.
+
 int bash(const Args& args) {
 	if (args.size() < 2 || args[0] != L"-c") return 127;
 	auto command = args[1];
@@ -237,6 +252,23 @@ int bash(const Args& args) {
 	auto last = command.find_last_not_of(L" \t\r\n");
 	if (first == std::wstring::npos) return 127;
 	command = command.substr(first, last - first + 1);
+
+	// ii's light/dark toggles: `bash -c "switchwall --mode dark --noswitch"`. Run in-process,
+	// and only with plain words (flags, a #rrggbb color), never anything a shell would expand.
+	if (command.rfind(L"switchwall ", 0) == 0) {
+		if (command.find_first_not_of(L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 #_.-") != std::wstring::npos) {
+			return 127;
+		}
+		Args words;
+		size_t start = 0;
+		while ((start = command.find_first_not_of(L' ', start)) != std::wstring::npos) {
+			auto end = command.find(L' ', start);
+			words.push_back(command.substr(start, end - start));
+			start = end;
+		}
+		words.erase(words.begin());
+		return ::switchwall(words);
+	}
 
 	auto isUri = (command.rfind(L"ms-settings:", 0) == 0 || command.rfind(L"https://", 0) == 0
 	              || command.rfind(L"http://", 0) == 0)
@@ -397,6 +429,10 @@ std::wstring baseName(const std::wstring& path) {
 int screenshot(const std::vector<std::wstring>& args);
 int crop(const std::vector<std::wstring>& args);
 int ocrFile(const std::vector<std::wstring>& args);
+// switchwall.cpp
+int switchwall(const std::vector<std::wstring>& args);
+int thumbnail(const std::vector<std::wstring>& args);
+int magick(const std::vector<std::wstring>& args);
 
 int wmain(int argc, wchar_t** argv) {
 	auto command = baseName(argv[0]);
@@ -414,6 +450,10 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"qs") return qs(args);
 	if (command == L"screenshot") return screenshot(args);
 	if (command == L"crop") return crop(args);
+	if (command == L"switchwall") return switchwall(args);
+	if (command == L"test") return test(args);
+	if (command == L"thumbnail") return thumbnail(args);
+	if (command == L"magick") return magick(args);
 	if (command == L"ocr") return ocrFile(args);
 	if (command == L"notify-send") return notifySend(args);
 	if (command == L"playerctl") return playerctl(args);

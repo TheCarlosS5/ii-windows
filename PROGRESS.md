@@ -101,6 +101,11 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Los widgets del fondo aceptan coordenadas negativas (desde el borde derecho/inferior), así los valores por defecto quedan en una esquina en cualquier pantalla. Reloj: arriba a la derecha, ubicación libre (la ubicación automática de ii necesita un script de Python que Windows no tiene). Carpeta: abajo a la derecha.
 - Probado en Sandbox (`tests\ii-folder.ps1`): orden por fecha, tiempos relativos, iconos reales, nombres con acentos y `#`.
 
+### Fondo y colores sin Python
+- El selector de fondos de ii (Win+Ctrl+T) funciona: carpetas de Windows, miniaturas reales y, al elegir uno, toda la interfaz cambia a los colores Material 3 del fondo (probado en Sandbox: un fondo naranja recoloreó barra, sidebar y calendario).
+- `switchwall` nativo en `ii-shim` con la biblioteca oficial de Google (ver D16): 49 colores en ~130 ms. Los botones de modo claro/oscuro de ii también funcionan.
+- Python ya no es necesario para los colores (`tools/colors/gen_colors.py` queda solo como referencia).
+
 ### Notificaciones (cómo funciona)
 - La shell lee las notificaciones de Windows con la API oficial `UserNotificationListener`, sin permisos de administrador.
 - Si cierras una en ii, también desaparece del centro de notificaciones de Windows.
@@ -126,7 +131,7 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
    - El Wi-Fi está programado (lista, conectar, contraseña, encender/apagar), pero solo se ha probado la parte de cable.
 2. Completar tus prioridades: menú de escritorio más amplio, manejo de muchos iconos, arrastre y navegación con teclado; profundizar las acciones del dock y overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
 3. Validar Escritorio redirigido/OneDrive, carpetas UNC y varias pantallas con usuarios reales; la prueba de Sandbox usa carpetas locales. La clasificación nativa ya reconoce rutas absolutas UNC, pero no se ha validado un recurso de red extremo a extremo.
-4. Generador de colores en C++ (sin Python), selector de wallpaper (`Imágenes\Wallpapers`), cursor Bibata, colores en Windows y Terminal.
+4. Cursor Bibata, modo claro/oscuro y color de acento de Windows, colores de Windows Terminal (el generador en C++ y el selector de fondos ya están).
 5. Instalador y desinstalador, multimonitor/DPI, reinicio de Explorer y sleep/resume.
 6. Optimizar la RAM.
 
@@ -173,7 +178,6 @@ Las capturas quedan en `C:\Users\Calos\sbx-xchg\outbox\`.
 - **Sustitutos vacíos:** Bluetooth y batería aún no muestran datos.
 - **Bandeja:** el menú de ii para fijar/desfijar iconos se cambió por el menú nativo de cada app. Los iconos propios de Explorer (volumen, quitar USB) también aparecen.
 - **Sin `ii-host`:** tras reiniciar Explorer, el fondo de ii puede quedar por encima de la barra de Windows. Con `ii-host` (el uso normal) la barra está oculta y no se nota.
-- **Python temporal:** los colores se generan con Python (`materialyoucolor`) hasta portarlo a C++.
 - **Escritorio:** todavía no ofrece arrastrar, renombrar, borrar, navegación de teclado ni el menú completo de Explorer. Muchos iconos pueden quedar fuera del ancho disponible; falta paginación. Una miniatura de un archivo editado sin cambiar su ruta puede conservarse en la caché hasta reiniciar la shell. `%PUBLIC%\Desktop` supone la ubicación pública habitual.
 - **Avisos QML heredados:** aparecen valores inicialmente indefinidos en `SystemInfo`, `NotificationPopup`, `WorkspaceModel`, `ConflictKiller`, `BarContent` y `ToolbarTabBar`; faltan traducciones `es_CO` y comandos de Linux. `Qt.btoa(string)` conserva el código heredado y emite aviso de deprecación. La shell sigue funcionando, pero no se considera libre de avisos.
 - **Apps en Sandbox:** no están instaladas todas las apps fijadas por defecto (Edge/Terminal); pueden aparecer iconos de respaldo. La prueba del dock usa Explorer, disponible en ese entorno.

@@ -8,12 +8,16 @@
 // Everything uses what ships with Windows: GDI to capture, WIC to read/write PNG, the clipboard,
 // Paint for editing and Windows' own OCR (Windows.Media.Ocr, the user's display languages).
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <string>
 #include <vector>
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -370,4 +374,71 @@ int ocrFile(const Args& args) {
 	} catch (...) {
 		return 3;
 	}
+}
+
+// --- thumbnails and image size (stand-ins for ImageMagick) -----------------------------------
+
+namespace {
+
+// Scales to fit within max x max (never up) and writes a PNG.
+bool writeFitted(const std::wstring& source, UINT max, const std::wstring& target) {
+	auto factory = wic();
+	ComPtr<IWICBitmapDecoder> decoder;
+	ComPtr<IWICBitmapFrameDecode> frame;
+	ComPtr<IWICBitmapScaler> scaler;
+	if (!factory || FAILED(factory->CreateDecoderFromFilename(source.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder))
+	    || FAILED(decoder->GetFrame(0, &frame)))
+	{
+		return false;
+	}
+	UINT width = 0;
+	UINT height = 0;
+	frame->GetSize(&width, &height);
+	if (width == 0 || height == 0) return false;
+	auto scale = std::min(1.0, std::min(static_cast<double>(max) / width, static_cast<double>(max) / height));
+	auto w = std::max(1u, static_cast<UINT>(width * scale + 0.5));
+	auto h = std::max(1u, static_cast<UINT>(height * scale + 0.5));
+	factory->CreateBitmapScaler(&scaler);
+	if (FAILED(scaler->Initialize(frame.Get(), w, h, WICBitmapInterpolationModeHighQualityCubic))) return false;
+	// Write beside and move, so a half-written thumbnail is never displayed.
+	auto temp = target + L".part";
+	if (!savePng(factory.Get(), scaler.Get(), temp)) return false;
+	return MoveFileExW(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
+}
+
+} // namespace
+
+// ii-shim thumbnail <source> <max size> <thumbnail.png>: 0 = already there, 1 = generated now
+// (ii's ThumbnailImage reloads on 1), 2 = failed.
+int thumbnail(const Args& args) {
+	if (args.size() != 3) return 2;
+	auto target = windowsPath(args[2]);
+	if (GetFileAttributesW(target.c_str()) != INVALID_FILE_ATTRIBUTES) return 0;
+	CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	return writeFitted(windowsPath(args[0]), static_cast<UINT>(_wtoi(args[1].c_str())), target) ? 1 : 2;
+}
+
+// magick identify -format "%w %h" <file>   |   magick <source> -resize <N>x<N> <target>
+int magick(const Args& args) {
+	CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	if (args.size() == 4 && args[0] == L"identify" && args[1] == L"-format" && args[2] == L"%w %h") {
+		auto factory = wic();
+		ComPtr<IWICBitmapDecoder> decoder;
+		ComPtr<IWICBitmapFrameDecode> frame;
+		if (!factory || FAILED(factory->CreateDecoderFromFilename(windowsPath(args[3]).c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder))
+		    || FAILED(decoder->GetFrame(0, &frame)))
+		{
+			return 1;
+		}
+		UINT width = 0;
+		UINT height = 0;
+		frame->GetSize(&width, &height);
+		std::printf("%u %u", width, height);
+		return 0;
+	}
+	if (args.size() == 4 && args[1] == L"-resize") {
+		auto max = static_cast<UINT>(_wtoi(args[2].c_str()));
+		return writeFitted(windowsPath(args[0]), max, windowsPath(args[3])) ? 0 : 1;
+	}
+	return 1;
 }

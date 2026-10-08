@@ -86,3 +86,9 @@ Formato: fecha · decisión · por qué · alternativas descartadas.
 - **Entrada:** el canvas vacío deja pasar clics; reloj y clima conservan sus manejadores. Solo mientras el menú está abierto se eleva el loader de iconos por encima de esos widgets. Un clic fuera cierra el menú.
 - **Superficie del menú:** `colLayer1` es un overlay translúcido destinado a otra superficie; sobre el wallpaper dejaba pasar el reloj. Se usa `colLayer0`, igual que el dock, respetando la opción de transparencia de ii.
 - **Pruebas:** la inspección QML se inyecta únicamente en la copia de Sandbox. La configuración de producción no incluye IPC de pruebas ni modifica las carpetas del usuario.
+
+## D16 · 2026-10-07 · Fondo y colores sin Python: `switchwall` nativo
+- ii cambia el fondo con `switchwall.sh` (bash, matugen, Python). En Windows lo reemplaza `switchwall` de ii-shim, con las mismas opciones (`--mode`, `--image`, `--noswitch`, `--color`, `--type`, `auto`).
+- **Colores:** la biblioteca oficial de Google `material-color-utilities` (C++, Apache-2.0), descargada en un commit fijo por `tools/dev/fetch_mcu.ps1`. Es el algoritmo de matugen (Material 3 clásico); el script de Python anterior usaba una variante más nueva, por eso sus colores diferían un poco. Las dos piezas de Abseil que usa se sustituyen por cabeceras mínimas propias (`host/compat`); el código de Google no se modifica.
+- El host se compila ahora con `clang-cl` (como Quickshell): la biblioteca usa literales compuestos que `cl` no acepta. Repetidas las 28 pruebas del host: 28/28.
+- **Sustitutos de Windows:** selector de archivos de Windows en lugar de `kdialog`, selector de color de Windows en lugar de `hyprpicker`; `test`, `magick identify/-resize` y miniaturas con WIC.

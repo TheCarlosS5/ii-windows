@@ -26,7 +26,7 @@ robocopy "$root\shim\qml" "$dist\qml" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 $shim = "$root\host\build\ii-shim.exe"
 if (Test-Path $shim) {
     New-Item -ItemType Directory -Force "$dist\bin" | Out-Null
-    foreach ($name in 'ii-shim', 'qalc', 'xdg-open', 'notify-send', 'playerctl', 'wpctl', 'pidof', 'killall', 'pkill', 'loginctl', 'bash', 'qs') {
+    foreach ($name in 'ii-shim', 'qalc', 'xdg-open', 'notify-send', 'playerctl', 'wpctl', 'pidof', 'killall', 'pkill', 'loginctl', 'bash', 'qs', 'switchwall', 'test', 'magick') {
         Copy-Item $shim "$dist\bin\$name.exe" -Force
     }
 }

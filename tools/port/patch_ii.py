@@ -164,3 +164,25 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
                 FadeLoader {
                     shown: Config.options.background.widgets.weather.enable'''),
 ])
+
+# Wallpaper and colors: switchwall.sh (bash + matugen + Python) becomes ii-shim's native
+# `switchwall` (in <dist>\bin, found on PATH; ii also runs it as `bash -c "switchwall ..."`).
+edit(path('modules', 'common', 'Directories.qml'), [
+    ('property string wallpaperSwitchScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/colors/switchwall.sh`)',
+     'property string wallpaperSwitchScriptPath: "switchwall"'),
+])
+
+# Thumbnails: ii-shim makes them with WIC instead of `bash -c "[ -f ... ] || magick ..."`, with
+# the same exit codes (0 already there, 1 generated now so the image reloads).
+edit(path('modules', 'common', 'widgets', 'ThumbnailImage.qml'), [
+    ('''            return ["bash", "-c", 
+                `[ -f '${FileUtils.trimFileProtocol(root.thumbnailPath)}' ] && exit 0 || { magick '${root.sourcePath}' -resize ${maxSize}x${maxSize} '${FileUtils.trimFileProtocol(root.thumbnailPath)}' && exit 1; }`
+            ]''',
+     '''            return ["ii-shim", "thumbnail", FileUtils.trimFileProtocol(root.sourcePath), `${maxSize}`, FileUtils.trimFileProtocol(root.thumbnailPath)]'''),
+])
+
+# Wallpaper selector: ii makes the thumbnails in one batch with a bash/Python script; on Windows
+# each ThumbnailImage makes its own (same file name, computed by ThumbnailImage itself).
+edit(path('modules', 'ii', 'wallpaperSelector', 'WallpaperDirectoryItem.qml'), [
+    ('                        generateThumbnail: false\n', '                        generateThumbnail: true\n'),
+])

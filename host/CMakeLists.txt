@@ -20,7 +20,20 @@ target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN 
 target_link_libraries(ii-host PRIVATE user32 shell32 ole32 dwmapi advapi32)
 
 # Console multi-call binary: Windows stand-ins for small Linux commands ii calls.
-add_executable(ii-shim src/shim.cpp src/capture.cpp)
+# Google's material-color-utilities (Apache-2.0), fetched by tools/dev/fetch_mcu.ps1, for the
+# wallpaper palette. host/compat stands in for the two bits of Abseil it uses.
+set(MCU_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/material-color-utilities)
+file(GLOB_RECURSE MCU_SOURCES ${MCU_DIR}/cpp/*.cc)
+list(FILTER MCU_SOURCES EXCLUDE REGEX "_test\.cc$")
+if(NOT MCU_SOURCES)
+	message(FATAL_ERROR "material-color-utilities missing: run tools/dev/fetch_mcu.ps1")
+endif()
+
+add_executable(ii-shim src/shim.cpp src/capture.cpp src/switchwall.cpp ${MCU_SOURCES})
+target_include_directories(ii-shim PRIVATE ${MCU_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/compat)
+# M_PI, and the C99 compound literals it uses (build with clang-cl, as Quickshell).
+target_compile_definitions(ii-shim PRIVATE _USE_MATH_DEFINES)
+set_source_files_properties(${MCU_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wno-everything;/FIoptional")
 target_compile_definitions(ii-shim PRIVATE UNICODE _UNICODE)
 # capture.cpp uses C++/WinRT for Windows' OCR.
 target_compile_options(ii-shim PRIVATE /EHsc)
