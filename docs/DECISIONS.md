@@ -99,3 +99,13 @@ Formato: fecha · decisión · por qué · alternativas descartadas.
 - La difusión del cambio se hace en un hilo aparte: puede esperar a ventanas lentas y el hilo principal de `ii-host` también atiende el gancho de teclado, que no debe bloquearse.
 - **Probado** (`tests\test-theme.ps1`, 8/8): oscuro y acento al iniciar, cambio a claro al cambiar la paleta de ii, y los 9 valores exactamente como antes tras salida limpia, guardián y rescate.
 - Límite: el Explorador de Windows 11 dibuja su barra de título con Mica y no usa el color de acento; las apps con barra clásica sí.
+
+## D18 · 2026-10-07 · Instalador por usuario, sin administrador
+- `install.cmd` / `install.ps1` instalan en `%LOCALAPPDATA%\Programs\ii-windows`, solo para el usuario: inicio automático (`HKCU\...\Run`), menú Inicio, entrada en Configuración > Aplicaciones (`HKCU\...\Uninstall`). Funciona con Windows PowerShell 5.1, que trae todo Windows 11.
+- **Antes de cambiar nada:** punto de restauración opcional (el único paso que pide administrador, con un aviso de UAC que se puede rechazar) y exportación a `.reg` de cada clave HKCU que se toca. Todo lo instalado queda en `install.json`, que el desinstalador muestra antes de borrar.
+- **Cursor Bibata:** se usan solo sus archivos `.cur`/`.ani` (v2.0.7, SHA-256 fijado). Su `install.inf` no se usa: copia a `C:\Windows\Cursors` y escribe en HKLM. Se aplica por usuario y se guarda el esquema anterior con sus tipos exactos.
+- **Iconos:** los temas Breeze se empaquetan en un único `icons.rcc` comprimido (40 000 archivos, 204 MB → 1 archivo, 12 MB); instalar tarda segundos.
+- **Fuentes:** no se instalan en el sistema; la shell las carga solo para ella (no hace falta tocar `Fonts` del sistema ni del usuario).
+- **Windows Terminal:** un *fragment* añade el esquema de colores "ii-windows" (paleta de terminal de ii, con sus parámetros de `terminalGenerationProps`) sin modificar `settings.json`; se elige en la configuración de Terminal.
+- **Probado** (`tests\test-install.ps1`, Sandbox limpio): 15/15. ii aparece en el primer arranque y, tras desinstalar, cursor, tema, barra, inicio automático y archivos quedan exactamente como antes.
+- El primer arranque destapó dos fallos de `FileView` en Quickshell (operación olvidada al reentrar, carpetas sin vigilar si no existían): corregidos en el fork.

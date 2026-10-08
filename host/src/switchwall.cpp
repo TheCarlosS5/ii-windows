@@ -134,6 +134,14 @@ json::JsonObject child(const json::JsonObject& parent, const wchar_t* name) {
 	return created;
 }
 
+// Like child(), but read-only: a missing object is an empty one, not added to the config.
+json::JsonObject existing(const json::JsonObject& parent, const wchar_t* name) {
+	if (parent.HasKey(name) && parent.GetNamedValue(name).ValueType() == json::JsonValueType::Object) {
+		return parent.GetNamedObject(name);
+	}
+	return json::JsonObject();
+}
+
 std::wstring getString(const json::JsonObject& parent, const wchar_t* name) {
 	if (!parent.HasKey(name) || parent.GetNamedValue(name).ValueType() != json::JsonValueType::String) return {};
 	return std::wstring(parent.GetNamedString(name));
@@ -358,7 +366,13 @@ mcu::Argb boost(mcu::Argb color, double chroma, double tone) {
 	return mcu::Hct(hct.get_hue(), hct.get_chroma() * chroma, hct.get_tone() * tone).ToInt();
 }
 
-std::vector<mcu::Argb> terminalColors(const mcu::DynamicScheme& scheme, bool dark, bool monochrome) {
+struct TermProps {
+	double harmony = 0.6; // ii's defaults (appearance.wallpaperTheming.terminalGenerationProps)
+	double threshold = 100;
+	double fgBoost = 0.35;
+};
+
+std::vector<mcu::Argb> terminalColors(const mcu::DynamicScheme& scheme, bool dark, bool monochrome, const TermProps& props) {
 	const auto* base = dark ? TERM_DARK : TERM_LIGHT;
 	auto key = mcu::MaterialDynamicColors::PrimaryPaletteKeyColor().GetArgb(scheme);
 	std::vector<mcu::Argb> out;
@@ -367,7 +381,7 @@ std::vector<mcu::Argb> terminalColors(const mcu::DynamicScheme& scheme, bool dar
 		if (monochrome) out.push_back(color);
 		else if (i == 0) out.push_back(boost(mcu::MaterialDynamicColors::SurfaceContainerLow().GetArgb(scheme), 1.2, 0.95));
 		else if (i == 15) out.push_back(boost(mcu::MaterialDynamicColors::OnSurface().GetArgb(scheme), 3, 1));
-		else out.push_back(boost(harmonize(color, key, 100, 0.8), 1, 1 + 0.35 * (dark ? 1 : -1)));
+		else out.push_back(boost(harmonize(color, key, props.threshold, props.harmony), 1, 1 + props.fgBoost * (dark ? 1 : -1)));
 	}
 	return out;
 }
@@ -474,7 +488,17 @@ int switchwall(const Args& args) {
 	// Config first (wallpaper path), then the palette: ii reloads each file when it changes.
 	writeUtf8(configPath(), toUtf8(std::wstring(config.Stringify())));
 	writeUtf8(sourceColorPath(), hex(source) + "\n");
-	writeTerminalScheme(*scheme, terminalColors(*scheme, dark, schemeType == "scheme-monochrome"));
+	TermProps props;
+	auto termConfig = existing(existing(appearance, L"wallpaperTheming"), L"terminalGenerationProps");
+	auto number = [&](const wchar_t* name, double& out) {
+		if (termConfig.HasKey(name) && termConfig.GetNamedValue(name).ValueType() == json::JsonValueType::Number) {
+			out = termConfig.GetNamedNumber(name);
+		}
+	};
+	number(L"harmony", props.harmony);
+	number(L"harmonizeThreshold", props.threshold);
+	number(L"termFgBoost", props.fgBoost);
+	writeTerminalScheme(*scheme, terminalColors(*scheme, dark, schemeType == "scheme-monochrome", props));
 	if (!writeUtf8(colorsPath(), out)) return 1;
 	std::printf("source %s, %s, %s -> %zu colors\n", hex(source).c_str(), schemeType.c_str(), dark ? "dark" : "light", keys.size());
 	return 0;

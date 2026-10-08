@@ -110,6 +110,12 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Con `ii-host` corriendo, Windows pasa a modo oscuro/claro según ii y toma como color de acento el color del fondo. Al cambiar el fondo o el modo en ii, Windows cambia a los ~2 s.
 - Todo se restaura al salir (y con pánico, guardián o `ii-rescue`): probado 8/8 en Sandbox (`tests	est-theme.ps1`). Detalles en D17.
 
+### Instalador (listo para probar)
+- Paquete: `out\ii-windows-<versión>.zip` (88 MB), creado con `tools\package\make-package.ps1`. Dentro, `install.cmd`: doble clic, pregunta antes de cada paso, solo tu usuario. Detalles en D18.
+- Hace: punto de restauración opcional, copia `.reg` de lo que toca, archivos en `%LOCALAPPDATA%\Programs\ii-windows`, cursor Bibata, inicio con Windows, menú Inicio (Iniciar, Rescate, Desinstalar) y entrada en Configuración > Aplicaciones.
+- Desinstalar deja Windows exactamente como estaba (probado 15/15 en Sandbox limpio).
+- Windows Terminal: aparece el esquema de colores "ii-windows" con la paleta del fondo (elegirlo en la configuración de Terminal).
+
 ### Notificaciones (cómo funciona)
 - La shell lee las notificaciones de Windows con la API oficial `UserNotificationListener`, sin permisos de administrador.
 - Si cierras una en ii, también desaparece del centro de notificaciones de Windows.
@@ -135,8 +141,8 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
    - El Wi-Fi está programado (lista, conectar, contraseña, encender/apagar), pero solo se ha probado la parte de cable.
 2. Completar tus prioridades: menú de escritorio más amplio, manejo de muchos iconos, arrastre y navegación con teclado; profundizar las acciones del dock y overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
 3. Validar Escritorio redirigido/OneDrive, carpetas UNC y varias pantallas con usuarios reales; la prueba de Sandbox usa carpetas locales. La clasificación nativa ya reconoce rutas absolutas UNC, pero no se ha validado un recurso de red extremo a extremo.
-4. Cursor Bibata y colores de Windows Terminal (generador de colores, selector de fondos, modo oscuro/claro y acento de Windows ya están).
-5. Instalador y desinstalador, multimonitor/DPI, reinicio de Explorer y sleep/resume.
+4. Probar el instalador en tu PC real cuando decidas (todo lo anterior se probó solo en Sandbox).
+5. Multimonitor/DPI y sleep/resume (necesitan hardware real).
 6. Optimizar la RAM.
 
 ## Cómo probar
