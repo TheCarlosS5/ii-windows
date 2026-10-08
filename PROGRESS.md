@@ -108,7 +108,7 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 
 ### Windows sigue los colores de ii
 - Con `ii-host` corriendo, Windows pasa a modo oscuro/claro según ii y toma como color de acento el color del fondo. Al cambiar el fondo o el modo en ii, Windows cambia a los ~2 s.
-- Todo se restaura al salir (y con pánico, guardián o `ii-rescue`): probado 8/8 en Sandbox (`tests	est-theme.ps1`). Detalles en D17.
+- Todo se restaura al salir (y con pánico, guardián o `ii-rescue`): probado 8/8 en Sandbox (`tests\test-theme.ps1`). Detalles en D17.
 
 ### Instalado en tu PC real (2026-10-08)
 - Instalado con el paquete `db033f3` + punto de restauración ("Antes de instalar ii-windows") + copias `.reg` en `%LOCALAPPDATA%\ii-windows\backup\20261008-050918`.
@@ -116,6 +116,19 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Arreglado al verlo en tu escritorio:
   - Dock: Windows Terminal salía con un icono "!" y separado de su anclaje (Terminal no marca sus ventanas con su ID de app; ahora se lee del proceso). El anclaje de Edge mostraba el icono de Git (tu PC no tiene Edge en Inicio): anclajes por defecto ahora Explorador y Terminal.
   - `ii-host` creía que Explorer se reiniciaba cada 10-20 s (era el aviso de la bandeja de ii) y volvía a aplicar todo: ahora solo cuenta una barra de Explorer nueva de verdad.
+
+### Ventanas maximizadas debajo de la barra (arreglado 2026-10-08)
+- La barra se registraba ante Windows pero nunca reservaba su franja: Windows le entrega los datos de "reservar espacio" a la ventana de bandeja que encuentra primero, que es la de ii, y dentro del mismo proceso usa un puntero que Explorer no puede leer. Ahora la barra le habla directamente a Explorer con el mismo formato que usa cualquier otra app (capturado en `tests\appbar-capture2.ps1`), y si algo falla usa la función oficial.
+- Vigilante cada 3 s: si Explorer se reinicia o pierde la reserva, la barra se vuelve a registrar.
+- La bandeja de ii ya no hace esperar a las apps (las suelta antes de pasarle el icono a Explorer) y nunca espera más de 2 s a Explorer. Un intento con 15 s de espera colgó Explorer en tu PC (Windows lo reinició solo, 05:29); por eso se descartó.
+- Probado en Sandbox (`tests\ii-appbar.ps1`): la barra reserva 40 px, Explorer responde siempre en ≤5 ms, la reserva vuelve tras reiniciar Explorer, otra app con su propia barra sigue funcionando y el rescate libera el espacio. En tu PC: el área útil empieza en y=40.
+
+### Escritorio: menú de clic derecho y widgets nuevos (en curso)
+- Clic derecho en el escritorio (o sobre un widget) abre el menú de ii: cambiar fondo, fondo aleatorio (de tu carpeta de fondos; si está vacía, uno de Konachan), aleatorio de Konachan, activar/desactivar widgets (reloj, música, foto, archivos recientes, clima, iconos), widgets superpuestos, configuración de ii y de pantalla. Un widget activado desde el menú aparece donde hiciste clic. Los iconos conservan su propio menú.
+- Widget de música: la tarjeta del reproductor de ii en el escritorio (debajo del reloj); se oculta si no suena nada.
+- Widget de foto (Codex): una imagen tuya (o https, los gif se mueven) en cualquier parte; rueda del ratón para el tamaño, clic derecho para cambiarla o quitarla.
+- Fondo aleatorio de Konachan y osu! sin bash/curl (Codex): Konachan funciona; osu! responde 403 (Cloudflare) también en Linux.
+- ii en español: Windows dice es_CO y ii solo trae es_MX; ahora se usa el mismo idioma aunque cambie la región. Textos nuevos del port traducidos.
 
 ### Instalador
 - Paquete: `out\ii-windows-<versión>.zip` (88 MB), creado con `tools\package\make-package.ps1`. Dentro, `install.cmd`: doble clic, pregunta antes de cada paso, solo tu usuario. Detalles en D18.
