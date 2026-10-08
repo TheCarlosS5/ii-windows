@@ -1,4 +1,5 @@
 #include "common.h"
+#include "nightlight.h"
 
 #include <shellapi.h>
 
@@ -57,6 +58,7 @@ namespace ii {
 
 void restoreAll(bool restartExplorer) {
 	log(L"restoreAll(restartExplorer=%d)", restartExplorer ? 1 : 0);
+	nightlight::restore();
 	taskbar::restore();
 	desktop::restoreIcons();
 	banners::restore();

@@ -1,6 +1,6 @@
 // ii-shim: Windows stand-ins for the small Linux commands illogical-impulse calls.
 // One binary, dispatched on its own file name (copied as qalc.exe, xdg-open.exe, ...) or on its
-// first argument (ii-shim <command> ...). Nothing here touches system settings.
+// first argument (ii-shim <command> ...). Settings change only on explicit action commands.
 //
 //   qalc [-t] <expr>                     evaluate arithmetic, print the result
 //   xdg-open <url|path>                  open with the default handler
@@ -42,6 +42,10 @@
 int switchwall(const std::vector<std::wstring>& args); // switchwall.cpp
 int randomwall(const std::vector<std::wstring>& args); // randomwall.cpp
 int weather(const std::vector<std::wstring>& args); // weather.cpp
+int nightlightCommand(const std::vector<std::wstring>& args); // sidebar.cpp
+int powerCommand(const std::vector<std::wstring>& args);
+int systemInfoCommand(const std::vector<std::wstring>& args);
+int systemSoundCommand(const std::vector<std::wstring>& args);
 
 namespace {
 
@@ -479,6 +483,10 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"randomwall") return randomwall(args);
 	if (command == L"fetch") return fetch(args);
 	if (command == L"weather") return weather(args);
+	if (command == L"nightlight") return nightlightCommand(args);
+	if (command == L"power") return powerCommand(args);
+	if (command == L"system-info") return systemInfoCommand(args);
+	if (command == L"system-sound") return systemSoundCommand(args);
 	if (command == L"test") return test(args);
 	if (command == L"thumbnail") return thumbnail(args);
 	if (command == L"magick") return magick(args);

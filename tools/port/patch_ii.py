@@ -434,6 +434,13 @@ PORT_STRINGS_ES = {
     "Unpin from dock": "Desanclar del dock",
     "Close window": "Cerrar ventana",
     "Close all windows": "Cerrar todas las ventanas",
+    "From": "Desde",
+    "To": "Hasta",
+    "Gamma": "Gamma",
+    "No networks found": "No se encontraron redes",
+    "Not available": "No disponible",
+    "Reload Quickshell": "Recargar Quickshell",
+    "Windows settings": "Ajustes de Windows",
 }
 
 

@@ -1,7 +1,7 @@
 // ii-host: keeps the Windows shell UI out of the way while ii runs, and always puts it back.
 //
 //   ii-host.exe [--shell <quickshell.exe> --config <dir|shell.qml>] [--no-taskbar] [--no-icons] [--no-hook]
-//                [--keep-banners] [--no-theme]
+//                [--keep-banners] [--no-theme] [--no-nightlight]
 //   ii-host.exe --rescue [--restart-explorer]   undo everything, from anywhere, any time
 //   ii-host.exe --guard <pid>                   (internal) restores if <pid> dies uncleanly
 //
@@ -10,6 +10,7 @@
 #include <string>
 
 #include "common.h"
+#include "nightlight.h"
 
 #include <shellapi.h>
 #include <tlhelp32.h>
@@ -32,6 +33,7 @@ struct Options {
 	bool hook = true;
 	bool banners = true;
 	bool theme = true;
+	bool nightlight = true;
 };
 
 Options options;
@@ -42,6 +44,8 @@ HANDLE shellJob = nullptr;
 HANDLE shellProcess = nullptr;
 HANDLE shellWait = nullptr;
 bool shuttingDown = false;
+bool guardReady = false;
+HANDLE guardProcess = nullptr;
 ULONGLONG crashTimes[3] = {};
 int crashIndex = 0;
 
@@ -190,6 +194,8 @@ void onShellExited() {
 	shellProcess = nullptr;
 	shellWait = nullptr;
 	log(L"shell: exited with code %lu", code);
+	nightlight::restore();
+	if (options.nightlight) nightlight::start(guardReady);
 
 	if (code == 0) {
 		shutdown(0); // the shell quit on purpose
@@ -223,6 +229,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 
 	switch (msg) {
+	case WM_COPYDATA: {
+		const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
+		if (!shuttingDown && data && data->dwData == nightlight::COPYDATA)
+			return nightlight::receive(data->lpData, data->cbData);
+		return 0;
+	}
 	case keyboard::WM_II_SHORTCUT: dispatchShortcut(wParam, lParam); return 0;
 	case WM_II_SHELL_EXITED: onShellExited(); return 0;
 	case WM_HOTKEY:
@@ -233,6 +245,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		return 0;
 	case WM_TIMER:
 		if (wParam == TIMER_REAPPLY) {
+			if (guardReady && guardProcess && WaitForSingleObject(guardProcess, 0) == WAIT_OBJECT_0) {
+				guardReady = false;
+				nightlight::restore(); // no tint without a live crash-recovery process
+				log(L"nightlight disabled: guard exited");
+			}
+			nightlight::tick();
 			if (options.taskbar) taskbar::reapply();
 			if (options.icons) desktop::reapplyIcons();
 			// Apps that send their first toast get a settings key then; catch those too.
@@ -255,14 +273,17 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		return TRUE;
 	case WM_ENDSESSION:
 		if (wParam) shutdown(0);
-		else applyAll(); // logoff cancelled
+		else { // logoff cancelled
+			applyAll();
+			if (options.nightlight) nightlight::start(guardReady);
+		}
 		return 0;
 	case WM_CLOSE: shutdown(0); return 0;
 	default: return DefWindowProcW(hwnd, msg, wParam, lParam);
 	}
 }
 
-void spawnGuard() {
+bool spawnGuard() {
 	auto cmd = L"\"" + selfPath() + L"\" --guard " + std::to_wstring(GetCurrentProcessId());
 	STARTUPINFOW si {};
 	si.cb = sizeof(si);
@@ -272,11 +293,13 @@ void spawnGuard() {
 	    || CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
 	{
 		CloseHandle(pi.hThread);
-		CloseHandle(pi.hProcess);
+		guardProcess = pi.hProcess;
 		log(L"guard started (%lu)", pi.dwProcessId);
+		return true;
 	} else {
 		log(L"guard: CreateProcess failed (%lu)", GetLastError());
 	}
+	return false;
 }
 
 int runHost() {
@@ -297,7 +320,8 @@ int runHost() {
 	ChangeWindowMessageFilterEx(hostWindow, taskbarCreatedMsg, MSGFLT_ALLOW, nullptr);
 
 	state::set(L"hostClean", 0);
-	spawnGuard();
+	guardReady = spawnGuard();
+	if (options.nightlight) nightlight::start(guardReady);
 
 	if (!RegisterHotKey(hostWindow, HOTKEY_PANIC, MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, 'R')) {
 		log(L"panic hotkey Ctrl+Alt+Shift+R unavailable (%lu)", GetLastError());
@@ -367,6 +391,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		else if (a == L"--no-hook") options.hook = false;
 		else if (a == L"--keep-banners") options.banners = false;
 		else if (a == L"--no-theme") options.theme = false;
+		else if (a == L"--no-nightlight") options.nightlight = false;
 		else if (a == L"--rescue" || a == L"--restore") rescue = true;
 		else if (a == L"--restart-explorer") restartExplorer = true;
 		else if (a == L"--guard") guardPid = static_cast<DWORD>(_wtoi(next().c_str()));

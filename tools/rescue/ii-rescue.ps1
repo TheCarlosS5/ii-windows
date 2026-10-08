@@ -54,6 +54,86 @@ foreach ($name in 'ii-host', 'quickshell') {
 }
 
 # 2. taskbars visible
+# Gamma originals must survive even when the host binary is missing. Same journal/mutex as
+# ii-host; use monitor interface IDs so a display-number reassignment cannot tint another screen.
+$gammaFile = Join-Path $dataDir 'gamma.bin'
+if (Test-Path -LiteralPath $gammaFile) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Text;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Threading;
+namespace IiRescue {
+    public static class GammaRecovery {
+        [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] struct DISPLAY_DEVICE {
+            public uint cb;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string name;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst=128)] public string description;
+            public uint flags;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst=128)] public string id;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst=128)] public string key;
+        }
+        [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern bool EnumDisplayDevices(string device, uint index, ref DISPLAY_DEVICE data, uint flags);
+        [DllImport("gdi32.dll", CharSet=CharSet.Unicode)] static extern IntPtr CreateDC(string driver, string device, string output, IntPtr init);
+        [DllImport("gdi32.dll")] static extern bool DeleteDC(IntPtr dc);
+        [DllImport("gdi32.dll")] static extern bool SetDeviceGammaRamp(IntPtr dc, [In] ushort[] ramp);
+        [DllImport("gdi32.dll")] static extern bool GetDeviceGammaRamp(IntPtr dc, [Out] ushort[] ramp);
+        static Dictionary<string,string> Displays() {
+            var result = new Dictionary<string,string>();
+            var adapter = new DISPLAY_DEVICE(); adapter.cb = (uint)Marshal.SizeOf(adapter);
+            for (uint i = 0; EnumDisplayDevices(null, i, ref adapter, 0); ++i) {
+                if ((adapter.flags & 1) == 0 || (adapter.flags & 8) != 0) continue;
+                var monitor = new DISPLAY_DEVICE(); monitor.cb = (uint)Marshal.SizeOf(monitor);
+                if (EnumDisplayDevices(adapter.name, 0, ref monitor, 1) && !String.IsNullOrEmpty(monitor.id)) result[monitor.id] = adapter.name;
+            }
+            return result;
+        }
+        public static bool Restore(string file) {
+            using (var mutex = new Mutex(false, @"Local\ii-windows-nightlight")) {
+                bool held = false;
+                try {
+                    try { held = mutex.WaitOne(10000); } catch (AbandonedMutexException) { held = true; }
+                    if (!held) return false;
+                    if (!File.Exists(file)) return true; // guard already restored it
+                    var saved = new Dictionary<string,ushort[]>();
+                    using (var reader = new BinaryReader(File.OpenRead(file), Encoding.Unicode)) {
+                        if (reader.ReadUInt32() != 0x49494731) return false;
+                        uint count = reader.ReadUInt32(); if (count > 64) return false;
+                        for (uint n = 0; n < count; ++n) {
+                            uint length = reader.ReadUInt32(); if (length == 0 || length > 1024) return false;
+                            var bytes = reader.ReadBytes((int)length * 2); if (bytes.Length != length * 2) return false;
+                            string id = Encoding.Unicode.GetString(bytes); if (id.IndexOf('\0') >= 0 || saved.ContainsKey(id)) return false;
+                            var ramp = new ushort[768]; for (int i = 0; i < ramp.Length; ++i) ramp[i] = reader.ReadUInt16();
+                            saved.Add(id, ramp);
+                        }
+                        if (reader.BaseStream.Position != reader.BaseStream.Length) return false;
+                    }
+                    var displays = Displays(); bool ok = true;
+                    foreach (var entry in saved) {
+                        string name; if (!displays.TryGetValue(entry.Key, out name)) { ok = false; continue; }
+                        var dc = CreateDC("DISPLAY", name, null, IntPtr.Zero);
+                        if (dc == IntPtr.Zero) { ok = false; continue; }
+                        try {
+                            var readback = new ushort[768];
+                            if (!SetDeviceGammaRamp(dc, entry.Value) || !GetDeviceGammaRamp(dc, readback)) { ok = false; continue; }
+                            for (int i = 0; i < 768; ++i) if (Math.Abs((int)readback[i] - entry.Value[i]) > 256) { ok = false; break; }
+                        } finally { DeleteDC(dc); }
+                    }
+                    if (ok) File.Delete(file);
+                    return ok;
+                } catch { return false; }
+                finally { if (held) mutex.ReleaseMutex(); }
+            }
+        }
+    }
+}
+'@
+    if ([IiRescue.GammaRecovery]::Restore($gammaFile)) { Log 'original display gamma restored' }
+    else { Log 'gamma restore incomplete; original backup retained for another rescue (disconnected display/driver)' }
+}
+
 foreach ($h in @(Find-All 'Shell_TrayWnd') + @(Find-All 'Shell_SecondaryTrayWnd')) {
     [IiRescue.Win]::ShowWindow($h, 8) | Out-Null   # SW_SHOWNA
 }
