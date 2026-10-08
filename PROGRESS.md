@@ -147,6 +147,20 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Inventario completo en `docs/SIDEBAR-WINDOWS.md` (Codex). Cabecera con la edición de Windows; planes de energía con la API documentada; Bluetooth "no disponible" (sin hardware); los botones sin equivalente en Windows (EasyEffects, WARP, selector de color, reconocer música, anti-flashbang) se ocultan en vez de no hacer nada.
 - Luz nocturna por gamma de pantalla, con copia de las rampas originales y restauración al salir, pánico, guardián y rescate. En tu PC el driver no deja leer ni cambiar la gamma, así que ii la marca como no disponible y el botón abre la luz nocturna de Windows, que sí funciona.
 
+### Escritorio como el de Explorer (2026-10-08 tarde, probado en Sandbox; aún no instalado en tu PC)
+- **Teclado:** un clic en el escritorio le da el teclado, sin que el fondo tape las ventanas. Flechas (con Mayús para ampliar), Inicio/Fin, escribir el principio de un nombre para saltar a él, Enter abre, F2 cambia el nombre, Supr manda a la Papelera (Mayús+Supr borra con la confirmación de Windows), Ctrl+A/C/X/V, Alt+Enter propiedades, tecla Menú o Mayús+F10 abre el menú, Esc limpia.
+- **Ratón:** clic, Ctrl+clic, Mayús+clic y rectángulo de selección. Arrastrar mueve los iconos y la posición se guarda (también tras reiniciar). Soltar sobre una carpeta mete los archivos en ella. Los iconos se pueden arrastrar a Explorer, al navegador o a un chat, y se pueden soltar aquí archivos de otras apps.
+- **Renombrar en el sitio**, como en Explorer (sin la extensión seleccionada; los accesos directos conservan la suya).
+- **Menú de un icono:** Abrir, Abrir con…, Mostrar en la carpeta, Cortar, Copiar, Copiar ruta, Cambiar nombre, Eliminar, Propiedades y **Más opciones** (el menú completo de Explorer, con "Enviar a", compartir, etc.).
+- **Menú del escritorio:** Nueva carpeta (aparece donde hiciste clic, lista para escribir su nombre), Pegar, Ordenar por nombre/fecha/tipo, Más opciones (el menú de Explorer: Nuevo ▸ documento, etc.), más lo que ya tenía. Los widgets se activan ahora con botones en dos columnas, para que el menú quepa en pantallas pequeñas. El menú se ve **por encima** de las ventanas abiertas.
+- **Muchos archivos:** si no caben, la última celda muestra "+N más" y abre la carpeta del Escritorio.
+- Todo lo de archivos lo hace el propio Windows (Papelera, diálogos de conflicto, progreso, propiedades). Detalles en D20.
+- Pruebas: `tests\ii-desktop2.ps1` (41/41), y `ii-desktop`, `ii-desktop-host`, `ii-desktop-menu`, `ii-photo` siguen pasando.
+
+### Batería, Bluetooth y brillo (Codex, 2026-10-08 tarde)
+- Ya no son sustitutos vacíos: batería y modos de energía, Bluetooth (encender/apagar, buscar, emparejar, conectar) y brillo de pantalla con APIs de Windows. Detalles en `docs/HARDWARE-SERVICES.md` y D21.
+- En tu PC: sin batería ii oculta la batería; con el adaptador Bluetooth desconectado dice "No disponible"; tu monitor no permite cambiar el brillo desde Windows (DDC/CI no expuesto, comprobado), así que no aparece ese control. Probado en Sandbox que nada falla cuando no hay hardware; con hardware real aún sin probar.
+
 ### Instalador
 - Paquete: `out\ii-windows-<versión>.zip` (88 MB), creado con `tools\package\make-package.ps1`. Dentro, `install.cmd`: doble clic, pregunta antes de cada paso, solo tu usuario. Detalles en D18.
 - Hace: punto de restauración opcional, copia `.reg` de lo que toca, archivos en `%LOCALAPPDATA%\Programs\ii-windows`, cursor Bibata, inicio con Windows, menú Inicio (Iniciar, Rescate, Desinstalar) y entrada en Configuración > Aplicaciones.
@@ -171,16 +185,14 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Se encontró en el Sandbox: Windows guarda tarde el estado de la barra, y un reinicio de Explorer podía dejarla en "ocultar automáticamente" aunque ya se hubiera restaurado. Ahora se guarda también en el registro al restaurar y antes de cerrar sesión. Probado con autoocultar apagado y encendido (tu caso): 14/14.
 
 ## Pendiente (en este orden)
-1. Servicios que faltan (no se pueden probar ahora: tu adaptador Bluetooth no está conectado y tu PC no tiene batería ni Wi-Fi):
-   - Bluetooth
-   - batería y modos de energía
-   - brillo: DDC/CI
-   - El Wi-Fi está programado (lista, conectar, contraseña, encender/apagar), pero solo se ha probado la parte de cable.
-2. Completar tus prioridades: menú de escritorio más amplio, manejo de muchos iconos, arrastre y navegación con teclado; profundizar las acciones del dock y overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
-3. Validar Escritorio redirigido/OneDrive, carpetas UNC y varias pantallas con usuarios reales; la prueba de Sandbox usa carpetas locales. La clasificación nativa ya reconoce rutas absolutas UNC, pero no se ha validado un recurso de red extremo a extremo.
-4. Uso diario en tu PC real: anotar lo que falle (instalado el 2026-10-08).
-5. Multimonitor/DPI y sleep/resume (necesitan hardware real).
-6. Optimizar la RAM.
+1. Instalar en tu PC la versión con el escritorio nuevo y usarlo a diario.
+2. Probar con hardware real lo que ya está programado: Bluetooth (al conectar tu adaptador), batería (portátil), brillo (monitor con DDC/CI o portátil) y Wi-Fi (solo se ha probado la parte de cable).
+3. Profundizar las acciones del dock y del overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
+4. Validar Escritorio redirigido/OneDrive, carpetas UNC y varias pantallas con usuarios reales; la prueba de Sandbox usa carpetas locales. La clasificación nativa ya reconoce rutas absolutas UNC, pero no se ha validado un recurso de red extremo a extremo.
+5. Uso diario en tu PC real: anotar lo que falle (instalado el 2026-10-08).
+6. Multimonitor/DPI y sleep/resume (necesitan hardware real).
+7. Optimizar la RAM.
+8. Publicar en GitHub (los dos repositorios y el paquete), cuando tú los crees.
 
 ## Cómo probar
 
@@ -223,9 +235,9 @@ Las capturas quedan en `C:\Users\Calos\sbx-xchg\outbox\`.
 ## Problemas conocidos
 - **RAM:** ~500–600 MB en el Sandbox (wallpaper 3840×2400, ~15 ventanas Qt y fuentes de 15 MB). Pendiente de optimizar: reducir el wallpaper al tamaño de la pantalla y cargar en diferido los paneles cerrados.
 - **Notificaciones:** los botones propios de cada notificación de Windows (p. ej. "Responder") no se pueden pulsar desde fuera; ii muestra un botón "Open" que abre la app. La primera notificación de una app nueva puede salir también como banner de Windows (una sola vez).
-- **Sustitutos vacíos:** Bluetooth y batería aún no muestran datos.
+- **Hardware sin probar:** Bluetooth, batería y brillo están programados pero solo se han probado sin hardware (ver D21).
 - **Bandeja:** el menú de ii para fijar/desfijar iconos se cambió por el menú nativo de cada app. Los iconos propios de Explorer (volumen, quitar USB) también aparecen.
 - **Sin `ii-host`:** tras reiniciar Explorer, el fondo de ii puede quedar por encima de la barra de Windows. Con `ii-host` (el uso normal) la barra está oculta y no se nota.
-- **Escritorio:** todavía no ofrece arrastrar, renombrar, borrar, navegación de teclado ni el menú completo de Explorer. Muchos iconos pueden quedar fuera del ancho disponible; falta paginación. Una miniatura de un archivo editado sin cambiar su ruta puede conservarse en la caché hasta reiniciar la shell. `%PUBLIC%\Desktop` supone la ubicación pública habitual.
+- **Escritorio:** los iconos de varias pantallas comparten la carpeta pero no se reparten entre pantallas. Los archivos cortados no se ven atenuados (Windows no lo informa). Una miniatura de un archivo editado sin cambiar su ruta puede conservarse en la caché hasta reiniciar la shell. `%PUBLIC%\Desktop` supone la ubicación pública habitual.
 - **Avisos QML heredados:** aparecen valores inicialmente indefinidos en `SystemInfo`, `NotificationPopup`, `WorkspaceModel`, `ConflictKiller`, `BarContent` y `ToolbarTabBar`; faltan traducciones `es_CO` y comandos de Linux. `Qt.btoa(string)` conserva el código heredado y emite aviso de deprecación. La shell sigue funcionando, pero no se considera libre de avisos.
 - **Apps en Sandbox:** no están instaladas todas las apps fijadas por defecto (Edge/Terminal); pueden aparecer iconos de respaldo. La prueba del dock usa Explorer, disponible en ese entorno.

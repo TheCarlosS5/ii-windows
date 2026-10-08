@@ -120,10 +120,14 @@ function Snapshot {
     $psi.StandardOutputEncoding = [Text.Encoding]::UTF8
     $psi.StandardErrorEncoding = [Text.Encoding]::UTF8
     $process = [Diagnostics.Process]::Start($psi)
+    $outTask = $process.StandardOutput.ReadToEndAsync()
     if (-not $process.WaitForExit(8000)) { $process.Kill(); throw 'Desktop IPC timed out' }
-    $text = $process.StandardOutput.ReadToEnd()
+    $text = $outTask.Result
     if ($process.ExitCode -ne 0) { throw "Desktop IPC failed: $($process.StandardError.ReadToEnd())" }
     return ($text | ConvertFrom-Json)
+}
+function MenuEntry($snapshot, [string[]]$texts) {
+    return ($snapshot.menu.entries | Where-Object { $texts -contains $_.text } | Select-Object -First 1)
 }
 function FileEntry($snapshot, [string]$name) {
     return ($snapshot.files | Where-Object name -eq $name | Select-Object -First 1)
@@ -216,14 +220,16 @@ try {
     $s | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath "$out\desktop-menu-state.json" -Encoding UTF8
     & C:\ii\tools\dev\screenshot.ps1 -Out "$out\desktop-menu.png" | Out-Null
     [System.Windows.Forms.Clipboard]::Clear()
-    [DesktopMouse]::Click(($s.menu.x + 100), ($s.menu.y + 6 + 2 * 42 + 20), $false)
+    $copyPath = MenuEntry $s @('Copy path', 'Copiar ruta')
+    [DesktopMouse]::Click($copyPath.x, $copyPath.y, $false)
     Start-Sleep -Milliseconds 500
     Check ([System.Windows.Forms.Clipboard]::GetText() -eq $fixture) 'copy path preserves accents and reserved characters'
     Check (-not (Snapshot).menu.visible) 'menu closes after an action'
     [DesktopMouse]::Click($entry.x, $entry.y, $true)
     Start-Sleep -Milliseconds 350
     $s = Snapshot
-    [DesktopMouse]::Click(($s.menu.x + 100), ($s.menu.y + 6 + 42 + 20), $false)
+    $reveal = MenuEntry $s @('Show in folder', 'Mostrar en la carpeta')
+    [DesktopMouse]::Click($reveal.x, $reveal.y, $false)
     Start-Sleep 3
     $explorerWindows = @((New-Object -ComObject Shell.Application).Windows())
     $selectedWindow = $null

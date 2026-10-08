@@ -14,6 +14,7 @@
 //   killall <name>                       end the user's processes with that name
 //   ii-shim fetch <https-url> [opts]      HTTPS bytes to stdout or an atomic cache file
 //   ii-shim weather <place|lat,long>      wttr.in weather as ii's three-object JSON
+//   ii-shim files <action> ...            desktop file actions through the shell (fileops.cpp)
 
 #include "http.h"
 
@@ -462,6 +463,8 @@ int ocrFile(const std::vector<std::wstring>& args);
 int switchwall(const std::vector<std::wstring>& args);
 int thumbnail(const std::vector<std::wstring>& args);
 int magick(const std::vector<std::wstring>& args);
+// fileops.cpp
+int filesCommand(const std::vector<std::wstring>& args);
 
 int brightnessCommand(const std::wstring& command, const std::vector<std::wstring>& args);
 
@@ -478,6 +481,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"ddcutil" || command == L"brightnessctl" || command == L"brightness-win" || command == L"_brightness-worker") return brightnessCommand(command, args);
 	if (command == L"xdg-open") return xdgOpen(args);
 	if (command == L"reveal") return reveal(args);
+	if (command == L"files") return filesCommand(args);
 	if (command == L"bash") return bash(args);
 	if (command == L"qs") return qs(args);
 	if (command == L"screenshot") return screenshot(args);

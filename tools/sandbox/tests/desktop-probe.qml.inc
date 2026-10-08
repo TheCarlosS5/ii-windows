@@ -7,10 +7,19 @@
             visit(object);
             if (object.contentItem) walk(object.contentItem, visit, seen);
             if (object.active === true && object.item) walk(object.item, visit, seen);
-            for (const list of [object.children, object.instances]) {
+            // resources: windows declared inside items (the desktop menu's own window).
+            for (const list of [object.children, object.instances, object.resources]) {
                 if (!list || list.length === undefined) continue;
                 for (let i = 0; i < list.length; ++i) walk(list[i], visit, seen);
             }
+        }
+
+        function menu() {
+            let found = null;
+            walk(bgRoot.contentItem, object => {
+                if (object.toString().indexOf("DesktopMenu_QMLTYPE") === 0) found = object;
+            }, []);
+            return found;
         }
 
         function desktop() {
@@ -29,7 +38,7 @@
             const widget = desktopInspection.desktop();
             const result = { present: !!widget, files: [], menu: null };
             if (!widget) return JSON.stringify(result);
-            result.selectedPath = widget.selectedPath;
+            result.selectedPath = widget.selectedPaths()[0] ?? "";
             result.iconSize = widget.iconSize;
             result.userDesktop = widget.userDesktop;
             result.publicDesktop = widget.publicDesktop;
@@ -41,17 +50,24 @@
                     const entry = { path: object.filePath, name: object.fileName, x: point.x, y: point.y,
                         selected: object.selected, iconStatus: -1, label: "" };
                     for (const child of object.children) {
-                        if (child.source !== undefined && child.status !== undefined) entry.iconStatus = child.status;
+                        if (child.fillMode !== undefined && child.status !== undefined) entry.iconStatus = child.status;
                         if (typeof child.text === "string") entry.label = child.text;
                     }
                     result.files.push(entry);
                 }
-                if (typeof object.target === "string" && object.visible !== undefined && object.width === 220) {
-                    const point = object.mapToItem(null, 0, 0);
-                    result.menu = { visible: object.visible, target: object.target, x: point.x, y: point.y,
-                        width: object.width, height: object.height, backgroundAlpha: object.color.a };
-                }
             }, []);
+            const menu = desktopInspection.menu();
+            if (menu) {
+                result.menu = { visible: menu.menuOpen, target: result.selectedPath, entries: [], backgroundAlpha: 0 };
+                desktopInspection.walk(menu, object => {
+                    if (object.modelData?.text !== undefined && object.isWidget !== undefined) {
+                        const point = object.mapToItem(null, 60, object.height / 2);
+                        result.menu.entries.push({ text: object.modelData.text, x: point.x, y: point.y });
+                    }
+                    if (object.radius !== undefined && object.color !== undefined && object.shown !== undefined)
+                        result.menu.backgroundAlpha = object.color.a;
+                }, []);
+            }
             return JSON.stringify(result);
         }
 
@@ -63,7 +79,7 @@
             desktopInspection.walk(desktopInspection.desktop(), object => {
                 if (object.fileName !== name) return;
                 for (const child of object.children) {
-                    if (child.source !== undefined && child.status !== undefined)
+                    if (child.fillMode !== undefined && child.status !== undefined)
                         child.grabToImage(result => result.saveToFile(path));
                 }
             }, []);

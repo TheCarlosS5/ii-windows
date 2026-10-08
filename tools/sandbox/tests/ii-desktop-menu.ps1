@@ -20,19 +20,20 @@ Start-Process "$hostDir\ii-host.exe" -ArgumentList '--shell', "`"$dist\quickshel
 Start-Sleep 32
 & "$dev\screenshot.ps1" -Out "$out\menu-0-desktop.png" | Out-Null
 
-& "$dev\click.ps1" -X 700 -Y 300 -Button Right
+& "$dev\click.ps1" -X 700 -Y 150 -Button Right
 Start-Sleep 1
 & "$dev\screenshot.ps1" -Out "$out\menu-1-open.png" | Out-Null
 
-# Entries are 36 px tall from y+6 (menu opens at the pointer): Photo is the 8th row after a
-# separator and a header (3 rows, 9 px, 28 px, then clock, music, photo).
-$photoY = 300 + 6 + 3 * 38 + 11 + 30 + 2 * 38 + 18
+# Entries are 36 px tall (+2 spacing) from y+6, the menu opens at the pointer: the desktop
+# icons' 4 rows, a separator (9 px), 3 wallpaper rows, a separator, the "Widgets" header (28 px),
+# then two columns of 34 px toggles: clock | music, photo | recent files...
+$photoY = 150 + 6 + 4 * 38 + 11 + 3 * 38 + 11 + 30 + 36 + 17
 & "$dev\click.ps1" -X 760 -Y $photoY -Button Left
 Start-Sleep 2
 & "$dev\screenshot.ps1" -Out "$out\menu-2-photo-on.png" | Out-Null
 $w = Widgets
 Check 'photo turned on from the menu' ($w.photo.enable -eq $true)
-Check 'photo placed under the pointer' ([math]::Abs($w.photo.x - 700) -le 2 -and [math]::Abs($w.photo.y - 300) -le 2) "($($w.photo.x),$($w.photo.y))"
+Check 'photo placed under the pointer' ([math]::Abs($w.photo.x - 700) -le 2 -and [math]::Abs($w.photo.y - 150) -le 2) "($($w.photo.x),$($w.photo.y))"
 
 & "$dev\click.ps1" -X 300 -Y 600 -Button Left
 Start-Sleep 1

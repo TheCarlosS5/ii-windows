@@ -114,11 +114,14 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
             }
 
             Loader {
+                id: desktopIconsLoader
                 anchors.fill: parent
                 active: Config.options.background.widgets.desktopIcons.enable && !GlobalStates.screenLocked
-                // Menus must receive clicks above clock/weather; lower icons again on close.
-                z: item?.menuOpen ? 1 : 0
-                sourceComponent: DesktopIcons {}
+                // A name being edited must receive clicks above clock/weather.
+                z: item?.raised ? 1 : 0
+                sourceComponent: DesktopIcons {
+                    menu: desktopMenu
+                }
             }
 
             WidgetCanvas {
@@ -137,8 +140,15 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
                 id: desktopMenu
                 anchors.fill: parent
                 z: 2
+                screen: bgRoot.screen
+                desktopEntries: desktopIconsLoader.item?.desktopEntries ?? []
             }
 '''),
+    # The desktop takes the keyboard when clicked (arrows, F2, Delete...). It is never activated
+    # just by appearing, and stays under the apps when activated (Quickshell's win32 backend).
+    ('''        WlrLayershell.namespace: "quickshell:background"''',
+     '''        WlrLayershell.namespace: "quickshell:background"
+        focusable: Config.options.background.widgets.desktopIcons.enable'''),
 ])
 
 # The upstream canvas is an otherwise empty full-screen MouseArea. It must not eat
@@ -448,6 +458,24 @@ PORT_STRINGS_ES = {
     "Not available": "No disponible",
     "Reload Quickshell": "Recargar Quickshell",
     "Windows settings": "Ajustes de Windows",
+    "Open": "Abrir",
+    "Open with…": "Abrir con…",
+    "Cut": "Cortar",
+    "Copy": "Copiar",
+    "Copy path": "Copiar ruta",
+    "Rename": "Cambiar nombre",
+    "Delete": "Eliminar",
+    "Properties": "Propiedades",
+    "More options": "Más opciones",
+    "New folder": "Nueva carpeta",
+    "Paste": "Pegar",
+    "Sort by": "Ordenar por",
+    "Name": "Nombre",
+    "Date": "Fecha",
+    "Type": "Tipo",
+    "%1 more": "%1 más",
+    "Recent": "Recientes",
+    "Icons": "Iconos",
 }
 
 

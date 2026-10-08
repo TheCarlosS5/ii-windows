@@ -29,7 +29,7 @@ Start-Sleep 32
 # then its "Photo" row (see ii-desktop-menu.ps1 for the arithmetic).
 & "$dev\click.ps1" -X 600 -Y 150 -Button Right
 Start-Sleep 1
-& "$dev\click.ps1" -X 660 -Y (150 + 6 + 3 * 38 + 11 + 30 + 2 * 38 + 18) -Button Left
+& "$dev\click.ps1" -X 660 -Y (150 + 6 + 4 * 38 + 11 + 3 * 38 + 11 + 30 + 36 + 17) -Button Left
 Start-Sleep 1
 & "$dev\click.ps1" -X 200 -Y 700 -Button Left
 Start-Sleep 2
