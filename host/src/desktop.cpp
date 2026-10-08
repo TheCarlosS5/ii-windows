@@ -60,6 +60,7 @@ void restoreAll(bool restartExplorer) {
 	taskbar::restore();
 	desktop::restoreIcons();
 	banners::restore();
+	theme::restore();
 
 	if (!restartExplorer) return;
 

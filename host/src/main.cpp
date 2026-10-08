@@ -1,7 +1,7 @@
 // ii-host: keeps the Windows shell UI out of the way while ii runs, and always puts it back.
 //
 //   ii-host.exe [--shell <quickshell.exe> --config <dir|shell.qml>] [--no-taskbar] [--no-icons] [--no-hook]
-//                [--keep-banners]
+//                [--keep-banners] [--no-theme]
 //   ii-host.exe --rescue [--restart-explorer]   undo everything, from anywhere, any time
 //   ii-host.exe --guard <pid>                   (internal) restores if <pid> dies uncleanly
 //
@@ -31,6 +31,7 @@ struct Options {
 	bool icons = true;
 	bool hook = true;
 	bool banners = true;
+	bool theme = true;
 };
 
 Options options;
@@ -134,6 +135,7 @@ void applyAll() {
 	if (options.taskbar) taskbar::hide();
 	if (options.icons) desktop::hideIcons();
 	if (options.banners) banners::hide();
+	if (options.theme) theme::start();
 }
 
 void shutdown(int code) {
@@ -229,6 +231,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (options.icons) desktop::reapplyIcons();
 			// Apps that send their first toast get a settings key then; catch those too.
 			if (options.banners) banners::hide();
+			// Wallpaper changes rewrite ii's palette; Windows follows.
+			if (options.theme) theme::apply();
 		} else if (wParam == TIMER_RESTART_SHELL) {
 			KillTimer(hwnd, TIMER_RESTART_SHELL);
 			startShell();
@@ -356,6 +360,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		else if (a == L"--no-icons") options.icons = false;
 		else if (a == L"--no-hook") options.hook = false;
 		else if (a == L"--keep-banners") options.banners = false;
+		else if (a == L"--no-theme") options.theme = false;
 		else if (a == L"--rescue" || a == L"--restore") rescue = true;
 		else if (a == L"--restart-explorer") restartExplorer = true;
 		else if (a == L"--guard") guardPid = static_cast<DWORD>(_wtoi(next().c_str()));

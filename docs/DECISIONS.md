@@ -92,3 +92,10 @@ Formato: fecha · decisión · por qué · alternativas descartadas.
 - **Colores:** la biblioteca oficial de Google `material-color-utilities` (C++, Apache-2.0), descargada en un commit fijo por `tools/dev/fetch_mcu.ps1`. Es el algoritmo de matugen (Material 3 clásico); el script de Python anterior usaba una variante más nueva, por eso sus colores diferían un poco. Las dos piezas de Abseil que usa se sustituyen por cabeceras mínimas propias (`host/compat`); el código de Google no se modifica.
 - El host se compila ahora con `clang-cl` (como Quickshell): la biblioteca usa literales compuestos que `cl` no acepta. Repetidas las 28 pruebas del host: 28/28.
 - **Sustitutos de Windows:** selector de archivos de Windows en lugar de `kdialog`, selector de color de Windows en lugar de `hyprpicker`; `test`, `magick identify/-resize` y miniaturas con WIC.
+
+## D17 · 2026-10-07 · Windows sigue la paleta de ii, con copia y restauración
+- Mientras `ii-host` corre, Windows usa el modo oscuro/claro de ii y el color de origen del fondo como acento (paleta de acento, menú Inicio, bordes y barras de título clásicas). Solo valores de personalización de `HKCU`, sin administrador.
+- Mismo patrón que los banners: antes de cambiar un valor se guarda su estado original en `%LOCALAPPDATA%\ii-windows\theme.txt`; la salida, el atajo de pánico, el guardián y `ii-rescue` lo restauran todo y avisan a Windows (`WM_SETTINGCHANGE`). Desactivable con `ii-host --no-theme`.
+- La difusión del cambio se hace en un hilo aparte: puede esperar a ventanas lentas y el hilo principal de `ii-host` también atiende el gancho de teclado, que no debe bloquearse.
+- **Probado** (`tests\test-theme.ps1`, 8/8): oscuro y acento al iniciar, cambio a claro al cambiar la paleta de ii, y los 9 valores exactamente como antes tras salida limpia, guardián y rescate.
+- Límite: el Explorador de Windows 11 dibuja su barra de título con Mica y no usa el color de acento; las apps con barra clásica sí.

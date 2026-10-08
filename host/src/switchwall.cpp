@@ -70,6 +70,8 @@ std::wstring localAppData() {
 
 std::wstring configPath() { return localAppData() + L"\\quickshell\\illogical-impulse\\config.json"; }
 std::wstring colorsPath() { return localAppData() + L"\\quickshell\\State\\user\\generated\\colors.json"; }
+// The palette's source color, like switchwall.sh's cache; ii-host themes Windows' accent from it.
+std::wstring sourceColorPath() { return localAppData() + L"\\quickshell\\State\\user\\generated\\color.txt"; }
 
 std::string readUtf8(const std::wstring& path) {
 	std::string bytes;
@@ -417,6 +419,7 @@ int switchwall(const Args& args) {
 
 	// Config first (wallpaper path), then the palette: ii reloads each file when it changes.
 	writeUtf8(configPath(), toUtf8(std::wstring(config.Stringify())));
+	writeUtf8(sourceColorPath(), hex(source) + "\n");
 	if (!writeUtf8(colorsPath(), out)) return 1;
 	std::printf("source %s, %s, %s -> %zu colors\n", hex(source).c_str(), schemeType.c_str(), dark ? "dark" : "light", keys.size());
 	return 0;

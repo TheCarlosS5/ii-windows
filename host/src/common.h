@@ -47,6 +47,12 @@ void restoreIcons();
 void toggleShowDesktop();
 } // namespace desktop
 
+namespace theme {
+void start();   // follow ii's palette (dark/light, accent) from now on; records originals first
+void apply();   // re-apply if the palette changed (cheap to call often)
+void restore(); // puts every recorded value back
+} // namespace theme
+
 namespace banners {
 void hide();    // records, then turns off Windows' own notification banners per app (cheap to repeat)
 void restore(); // puts every recorded ShowBanner value back

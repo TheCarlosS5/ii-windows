@@ -106,6 +106,10 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - `switchwall` nativo en `ii-shim` con la biblioteca oficial de Google (ver D16): 49 colores en ~130 ms. Los botones de modo claro/oscuro de ii también funcionan.
 - Python ya no es necesario para los colores (`tools/colors/gen_colors.py` queda solo como referencia).
 
+### Windows sigue los colores de ii
+- Con `ii-host` corriendo, Windows pasa a modo oscuro/claro según ii y toma como color de acento el color del fondo. Al cambiar el fondo o el modo en ii, Windows cambia a los ~2 s.
+- Todo se restaura al salir (y con pánico, guardián o `ii-rescue`): probado 8/8 en Sandbox (`tests	est-theme.ps1`). Detalles en D17.
+
 ### Notificaciones (cómo funciona)
 - La shell lee las notificaciones de Windows con la API oficial `UserNotificationListener`, sin permisos de administrador.
 - Si cierras una en ii, también desaparece del centro de notificaciones de Windows.
@@ -131,7 +135,7 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
    - El Wi-Fi está programado (lista, conectar, contraseña, encender/apagar), pero solo se ha probado la parte de cable.
 2. Completar tus prioridades: menú de escritorio más amplio, manejo de muchos iconos, arrastre y navegación con teclado; profundizar las acciones del dock y overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
 3. Validar Escritorio redirigido/OneDrive, carpetas UNC y varias pantallas con usuarios reales; la prueba de Sandbox usa carpetas locales. La clasificación nativa ya reconoce rutas absolutas UNC, pero no se ha validado un recurso de red extremo a extremo.
-4. Cursor Bibata, modo claro/oscuro y color de acento de Windows, colores de Windows Terminal (el generador en C++ y el selector de fondos ya están).
+4. Cursor Bibata y colores de Windows Terminal (generador de colores, selector de fondos, modo oscuro/claro y acento de Windows ya están).
 5. Instalador y desinstalador, multimonitor/DPI, reinicio de Explorer y sleep/resume.
 6. Optimizar la RAM.
 

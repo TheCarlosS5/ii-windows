@@ -24,6 +24,7 @@ Add-Type -Namespace IiRescue -Name Win -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 [StructLayout(LayoutKind.Sequential)] public struct APPBARDATA { public int cbSize; public System.IntPtr hWnd; public uint msg; public uint edge; public RECT rc; public System.IntPtr lParam; }
 [DllImport("shell32.dll")] public static extern System.UIntPtr SHAppBarMessage(uint msg, ref APPBARDATA data);
+[DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern System.IntPtr SendMessageTimeout(System.IntPtr h, uint msg, System.UIntPtr w, string l, uint flags, uint timeout, out System.UIntPtr result);
 '@
 
 function Find-All($cls) {
@@ -109,9 +110,34 @@ if (Test-Path $bannerFile) {
     Log "notification banners restored ($($done.Count) apps)"
 }
 Write-State 'bannersHidden' 0
+
+# 6. Windows' dark/light mode and accent color back to what they were
+$themeFile = Join-Path $dataDir 'theme.txt'
+if (Test-Path $themeFile) {
+    $done = @{}
+    foreach ($line in Get-Content $themeFile -Encoding UTF8) {
+        $parts = $line -split "`t"
+        if ($parts.Count -lt 4) { continue }
+        $id = $parts[0] + "`t" + $parts[1]
+        if ($done.ContainsKey($id)) { continue }
+        $done[$id] = $true
+        $key = Join-Path 'HKCU:' $parts[0]
+        if (-not (Test-Path -LiteralPath $key)) { continue }
+        $type = [int]$parts[2]
+        if ($type -lt 0) { Remove-ItemProperty -LiteralPath $key -Name $parts[1] -ErrorAction SilentlyContinue; continue }
+        $bytes = [byte[]]@(for ($i = 0; $i + 1 -lt $parts[3].Length; $i += 2) { [Convert]::ToByte($parts[3].Substring($i, 2), 16) })
+        if ($type -eq 4) { Set-ItemProperty -LiteralPath $key -Name $parts[1] -Value ([BitConverter]::ToUInt32($bytes, 0)) -Type DWord }
+        else { Set-ItemProperty -LiteralPath $key -Name $parts[1] -Value $bytes -Type Binary }
+    }
+    Remove-Item $themeFile
+    $r = [UIntPtr]::Zero
+    [IiRescue.Win]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'ImmersiveColorSet', 2, 2000, [ref]$r) | Out-Null
+    Log "theme restored ($($done.Count) values)"
+}
+Write-State 'themeApplied' 0
 Write-State 'hostClean' 1
 
-# 6. optional clean Explorer restart
+# 7. optional clean Explorer restart
 if ($RestartExplorer) {
     Get-Process explorer -ErrorAction SilentlyContinue | Stop-Process -Force
     Start-Sleep -Seconds 2

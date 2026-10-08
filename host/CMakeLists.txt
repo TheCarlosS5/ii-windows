@@ -14,6 +14,7 @@ add_executable(ii-host WIN32
 	src/keyboard.cpp
 	src/showdesktop.cpp
 	src/banners.cpp
+	src/theme.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
