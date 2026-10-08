@@ -420,6 +420,33 @@ edit(path('services', 'Translation.qml'), [
         return shipped.find(code => code.split("_")[0] === name.split("_")[0]) ?? name;'''),
 ])
 
+# Workspaces are Windows' virtual desktops: the bar shows exactly the user's desktops (not ii's
+# fixed 10), and a dot is "occupied" when that desktop has windows (every desktop exists).
+edit(path('modules', 'common', 'models', 'WorkspaceModel.qml'), [
+    ('    readonly property int shownCount: C.Config.options.bar.workspaces.shown',
+     '    readonly property int shownCount: Math.max(1, Hyprland.workspaces.values.length)'),
+    ('            return Hyprland.workspaces.values.some(ws => ws.id === thisWorkspaceId);',
+     '            return HyprlandData.windowList.some(w => w.workspace.id === thisWorkspaceId);'),
+    ('''    Connections {
+        target: Hyprland
+        function onFocusedWorkspaceChanged() {
+            root.updateWorkspaceOccupied();
+        }
+    }''',
+     '''    Connections {
+        target: Hyprland
+        function onFocusedWorkspaceChanged() {
+            root.updateWorkspaceOccupied();
+        }
+    }
+    Connections {
+        target: HyprlandData
+        function onWindowListChanged() {
+            root.updateWorkspaceOccupied();
+        }
+    }'''),
+])
+
 # Tray: the icons Windows keeps behind the arrow (not "promoted" in Settings > Taskbar) go to
 # ii's overflow menu as well, so many background apps don't crowd the bar.
 edit(path('services', 'TrayService.qml'), [

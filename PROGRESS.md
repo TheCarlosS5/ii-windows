@@ -184,6 +184,16 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 ### Arreglo de seguridad: autoocultar de la barra de tareas
 - Se encontró en el Sandbox: Windows guarda tarde el estado de la barra, y un reinicio de Explorer podía dejarla en "ocultar automáticamente" aunque ya se hubiera restaurado. Ahora se guarda también en el registro al restaurar y antes de cerrar sesión. Probado con autoocultar apagado y encendido (tu caso): 14/14.
 
+## En curso: pulido tras usarlo en tu PC (2026-10-08 tarde)
+Lo que reportaste, y quién lo hace:
+- [x] **Al minimizar una app desaparecen la barra y el dock** hasta abrir otra app (Claude).
+- [x] **La tecla Windows y Win+Tab** deben abrir la búsqueda / vista general por encima de cualquier app, como en Linux (Claude).
+- [x] **Configuración de ii**: quitar los botones de Windows (minimizar, maximizar, cerrar) y dejar solo la X propia de ii, sin perder poder moverla y cambiarle el tamaño (Claude).
+- [ ] **Escritorios de Windows como espacios de trabajo** (EN CURSO, Claude: servicio nativo, barra y HyprlandData hechos y compilan, SIN probar; falta la tira de escritorios en la vista general y probar en Sandbox. Codex quedó bloqueado por un error de su entorno: "setup refresh had errors"): los puntitos de la barra muestran tus escritorios reales; Win+Tab muestra la vista general con los escritorios y "Nuevo escritorio", como la Vista de tareas de Windows (Codex).
+- [x] **Widget de música** como el de ii en Linux: sin música, el icono de nota con el aro que cambia de forma; con música, la carátula y su fondo (Claude, portando el del dotfile).
+- [x] **Bandeja con iconos ocultos**: los que Windows tiene ocultos van detrás de una flechita, como en la barra de Windows (Claude).
+- [x] **Dock: destello hacia la derecha** al pasar el ratón rápido por las apps abiertas (Claude).
+
 ## Pendiente (en este orden)
 1. Instalar en tu PC la versión con el escritorio nuevo y usarlo a diario.
 2. Probar con hardware real lo que ya está programado: Bluetooth (al conectar tu adaptador), batería (portátil), brillo (monitor con DDC/CI o portátil) y Wi-Fi (solo se ha probado la parte de cable).

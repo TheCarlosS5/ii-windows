@@ -10,7 +10,8 @@ import Quickshell.Hyprland
  * ii-windows: same API as illogical-impulse's HyprlandData, but built from the Windows
  * window list (Quickshell.Wayland ToplevelManager) and monitors instead of `hyprctl -j`.
  * Objects keep hyprctl's JSON shape so the overview, dock and bar work unchanged.
- * Windows has a single set of windows, so everything lives on workspace 1.
+ * Workspaces are Windows' virtual desktops (Hyprland.workspaces, id = desktop number), and each
+ * window is on its desktop's workspace.
  */
 Singleton {
     id: root
@@ -71,19 +72,22 @@ Singleton {
         for (const m of root.monitors) monitorById[m.id] = m;
 
         const toplevels = ToplevelManager.toplevels.values;
+        const current = Hyprland.focusedWorkspace?.id ?? 1;
         const list = [];
         for (let i = 0; i < toplevels.length; ++i) {
             const t = toplevels[i];
             const monitorId = root.monitorIdFor(t);
             const scale = monitorById[monitorId]?.scale ?? 1;
             const g = t.geometry;
+            // A window on all desktops (or of unknown desktop) shows on the current one.
+            const workspaceId = (t.desktop ?? -1) >= 0 ? t.desktop + 1 : current;
             list.push({
                 "address": `0x${t.HyprlandToplevel.address}`,
                 "mapped": true,
                 "hidden": t.minimized,
                 "at": [Math.round(g.x / scale), Math.round(g.y / scale)],
                 "size": [Math.round(g.width / scale), Math.round(g.height / scale)],
-                "workspace": { "id": 1, "name": "1" },
+                "workspace": { "id": workspaceId, "name": `${workspaceId}` },
                 "floating": true,
                 "pseudo": false,
                 "monitor": monitorId,
@@ -110,22 +114,27 @@ Singleton {
         root.addresses = list.map(w => w.address);
 
         const focused = Hyprland.focusedMonitor;
-        const active = list.find(w => w.focusHistoryID === 0);
-        const ws = {
-            "id": 1,
-            "name": "1",
-            "monitor": focused?.name ?? "",
-            "monitorID": focused?.id ?? 0,
-            "windows": list.length,
-            "hasfullscreen": list.some(w => w.fullscreen > 0 && !w.hidden),
-            "lastwindow": active?.address ?? "0x0",
-            "lastwindowtitle": active?.title ?? "",
-            "ispersistent": false,
-        };
-        root.workspaces = [ws];
-        root.workspaceIds = [1];
-        root.workspaceById = { 1: ws };
-        root.activeWorkspace = ws;
+        const workspaces = Hyprland.workspaces.values.map(w => {
+            const windows = list.filter(win => win.workspace.id === w.id);
+            const last = windows.find(win => win.focusHistoryID === 0) ?? windows[0];
+            return {
+                "id": w.id,
+                "name": w.name,
+                "monitor": focused?.name ?? "",
+                "monitorID": focused?.id ?? 0,
+                "windows": windows.length,
+                "hasfullscreen": windows.some(win => win.fullscreen > 0 && !win.hidden),
+                "lastwindow": last?.address ?? "0x0",
+                "lastwindowtitle": last?.title ?? "",
+                "ispersistent": true,
+            };
+        });
+        root.workspaces = workspaces;
+        root.workspaceIds = workspaces.map(w => w.id);
+        const byId = {};
+        for (const w of workspaces) byId[w.id] = w;
+        root.workspaceById = byId;
+        root.activeWorkspace = byId[current] ?? workspaces[0] ?? null;
     }
 
     Component.onCompleted: rebuild()
@@ -143,6 +152,11 @@ Singleton {
     Connections {
         target: Hyprland
         function onFocusedMonitorChanged() { rebuildSoon.restart(); }
+        function onFocusedWorkspaceChanged() { rebuildSoon.restart(); }
+    }
+    Connections {
+        target: Hyprland.workspaces
+        function onValuesChanged() { rebuildSoon.restart(); }
     }
     Timer {
         id: rebuildSoon
