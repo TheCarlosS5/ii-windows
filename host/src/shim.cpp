@@ -36,6 +36,7 @@
 // clang-format on
 
 int switchwall(const std::vector<std::wstring>& args); // switchwall.cpp
+int randomwall(const std::vector<std::wstring>& args); // randomwall.cpp
 
 namespace {
 
@@ -253,6 +254,25 @@ int bash(const Args& args) {
 	if (first == std::wstring::npos) return 127;
 	command = command.substr(first, last - first + 1);
 
+	// Settings passes one script path. Recognize only these two names; never run the script.
+	auto script = command;
+	auto quoted = script.size() >= 2 && (script.front() == L'"' || script.front() == L'\'') && script.back() == script.front();
+	if (quoted) {
+		script = script.substr(1, script.size() - 2);
+	}
+	// FileUtils.trimFileProtocol leaves /C:/... from a file:/// URL.
+	if (script.size() > 3 && script[0] == L'/' && script[2] == L':' && std::iswalpha(script[1])) script.erase(0, 1);
+	auto slash = script.find_last_of(L"\\/");
+	auto name = slash == std::wstring::npos ? script : script.substr(slash + 1);
+	if (name == L"random_konachan_wall.sh" || name == L"random_osu_wall.sh") {
+		auto forbidden = quoted ? L"\"|<>*?\r\n" : L"\"'`|&;<>$*?\r\n";
+		if (script.find_first_of(forbidden) != std::wstring::npos) return 127;
+		auto colon = script.find(L':');
+		if (colon != std::wstring::npos && (colon != 1 || !std::iswalpha(script[0])
+		    || script.find(L':', colon + 1) != std::wstring::npos)) return 127;
+		return ::randomwall({name == L"random_konachan_wall.sh" ? L"konachan" : L"osu"});
+	}
+
 	// ii's light/dark toggles: `bash -c "switchwall --mode dark --noswitch"`. Run in-process,
 	// and only with plain words (flags, a #rrggbb color), never anything a shell would expand.
 	if (command.rfind(L"switchwall ", 0) == 0) {
@@ -451,6 +471,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"screenshot") return screenshot(args);
 	if (command == L"crop") return crop(args);
 	if (command == L"switchwall") return switchwall(args);
+	if (command == L"randomwall") return randomwall(args);
 	if (command == L"test") return test(args);
 	if (command == L"thumbnail") return thumbnail(args);
 	if (command == L"magick") return magick(args);
