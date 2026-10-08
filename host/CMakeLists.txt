@@ -30,7 +30,8 @@ if(NOT MCU_SOURCES)
 	message(FATAL_ERROR "material-color-utilities missing: run tools/dev/fetch_mcu.ps1")
 endif()
 
-add_executable(ii-shim src/shim.cpp src/capture.cpp src/switchwall.cpp src/randomwall.cpp ${MCU_SOURCES})
+add_executable(ii-shim src/shim.cpp src/capture.cpp src/switchwall.cpp src/randomwall.cpp
+	src/http.h src/http.cpp src/weather.cpp ${MCU_SOURCES})
 target_include_directories(ii-shim PRIVATE ${MCU_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/compat)
 # M_PI, and the C99 compound literals it uses (build with clang-cl, as Quickshell).
 target_compile_definitions(ii-shim PRIVATE _USE_MATH_DEFINES)

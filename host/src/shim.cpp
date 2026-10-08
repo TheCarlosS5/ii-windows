@@ -12,6 +12,10 @@
 //   ii-shim suspend                      sleep (not hibernate)
 //   pidof <name>                         print pids of a process name
 //   killall <name>                       end the user's processes with that name
+//   ii-shim fetch <https-url> [opts]      HTTPS bytes to stdout or an atomic cache file
+//   ii-shim weather <place|lat,long>      wttr.in weather as ii's three-object JSON
+
+#include "http.h"
 
 #include <cmath>
 #include <cstdio>
@@ -37,6 +41,7 @@
 
 int switchwall(const std::vector<std::wstring>& args); // switchwall.cpp
 int randomwall(const std::vector<std::wstring>& args); // randomwall.cpp
+int weather(const std::vector<std::wstring>& args); // weather.cpp
 
 namespace {
 
@@ -472,6 +477,8 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"crop") return crop(args);
 	if (command == L"switchwall") return switchwall(args);
 	if (command == L"randomwall") return randomwall(args);
+	if (command == L"fetch") return fetch(args);
+	if (command == L"weather") return weather(args);
 	if (command == L"test") return test(args);
 	if (command == L"thumbnail") return thumbnail(args);
 	if (command == L"magick") return magick(args);

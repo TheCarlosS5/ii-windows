@@ -18,7 +18,7 @@
 #endif
 #include <windows.h>
 #include <shlobj.h>
-#include <winhttp.h>
+#include "http.h"
 
 // clang-format off
 #include <winrt/base.h>
@@ -37,11 +37,6 @@ namespace {
 constexpr size_t IMAGE_LIMIT = 40 * 1024 * 1024;
 constexpr size_t JSON_LIMIT = 1024 * 1024;
 
-struct InternetClose {
-	void operator()(void* handle) const { WinHttpCloseHandle(handle); }
-};
-using Internet = std::unique_ptr<void, InternetClose>;
-
 struct FileClose {
 	void operator()(void* handle) const { CloseHandle(handle); }
 };
@@ -54,10 +49,6 @@ struct Apartment {
 
 void require(bool ok, const char* reason) {
 	if (!ok) throw std::runtime_error(reason);
-}
-
-void httpRequire(bool ok, const char* reason) {
-	if (!ok) throw std::runtime_error(std::string(reason) + " (WinHTTP " + std::to_string(GetLastError()) + ")");
 }
 
 std::wstring env(const wchar_t* name) {
@@ -133,36 +124,8 @@ std::wstring fullPath(std::wstring path) {
 	return result;
 }
 
-struct Url {
-	std::wstring host;
-	std::wstring target;
-	std::wstring path;
-	INTERNET_PORT port;
-};
-
-Url parseUrl(const std::wstring& text) {
-	require(text.find_first_of(L"\r\n\\") == std::wstring::npos, "invalid HTTPS URL");
-	URL_COMPONENTS parts {};
-	parts.dwStructSize = sizeof(parts);
-	parts.dwHostNameLength = parts.dwUrlPathLength = parts.dwExtraInfoLength = static_cast<DWORD>(-1);
-	parts.dwUserNameLength = parts.dwPasswordLength = static_cast<DWORD>(-1);
-	require(WinHttpCrackUrl(text.c_str(), 0, 0, &parts) != 0, "invalid HTTPS URL");
-	require(parts.nScheme == INTERNET_SCHEME_HTTPS, "only HTTPS URLs are allowed");
-	require(parts.dwHostNameLength != 0 && parts.dwUserNameLength == 0 && parts.dwPasswordLength == 0,
-	        "invalid HTTPS URL");
-	Url url;
-	url.host.assign(parts.lpszHostName, parts.dwHostNameLength);
-	if (parts.dwUrlPathLength) url.path.assign(parts.lpszUrlPath, parts.dwUrlPathLength);
-	url.target = url.path.empty() ? L"/" : url.path;
-	if (parts.dwExtraInfoLength) url.target.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
-	auto fragment = url.target.find(L'#');
-	if (fragment != std::wstring::npos) url.target.resize(fragment);
-	url.port = parts.nPort;
-	return url;
-}
-
 std::wstring imageExtension(const std::wstring& url) {
-	auto path = parseUrl(url).path;
+	auto path = http::parseUrl(url).path;
 	auto dot = path.find_last_of(L'.');
 	std::wstring ext = dot == std::wstring::npos ? L"" : path.substr(dot + 1);
 	for (auto& c: ext) c = static_cast<wchar_t>(std::towlower(c));
@@ -170,81 +133,6 @@ std::wstring imageExtension(const std::wstring& url) {
 	        "URL has no supported image extension");
 	return ext;
 }
-
-std::wstring header(HINTERNET request, DWORD name) {
-	DWORD size = 0;
-	if (!WinHttpQueryHeaders(request, name, WINHTTP_HEADER_NAME_BY_INDEX, nullptr, &size, WINHTTP_NO_HEADER_INDEX)) {
-		if (GetLastError() == ERROR_WINHTTP_HEADER_NOT_FOUND) return {};
-		require(GetLastError() == ERROR_INSUFFICIENT_BUFFER, "cannot read HTTP headers");
-	}
-	std::wstring value(size / sizeof(wchar_t), L'\0');
-	require(WinHttpQueryHeaders(request, name, WINHTTP_HEADER_NAME_BY_INDEX, value.data(), &size, WINHTTP_NO_HEADER_INDEX) != 0,
-	        "cannot read HTTP headers");
-	while (!value.empty() && value.back() == L'\0') value.pop_back();
-	return value;
-}
-
-struct Http {
-	Internet session;
-
-	explicit Http(const std::wstring& agent): session(WinHttpOpen(agent.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-	                                                          WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0)) {
-		require(session != nullptr, "cannot open WinHTTP session");
-		require(WinHttpSetTimeouts(session.get(), 20000, 20000, 20000, 20000) != 0, "cannot set HTTP timeouts");
-	}
-
-	std::string get(std::wstring url, size_t cap) {
-		auto started = GetTickCount64();
-		for (int redirects = 0; redirects <= 5; ++redirects) {
-			auto parts = parseUrl(url);
-			Internet connection(WinHttpConnect(session.get(), parts.host.c_str(), parts.port, 0));
-			require(connection != nullptr, "HTTP connection failed");
-			Internet request(WinHttpOpenRequest(connection.get(), L"GET", parts.target.c_str(), nullptr,
-			                                    WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE));
-			require(request != nullptr, "cannot create HTTP request");
-			// Resolve redirects ourselves, checking HTTPS at every hop, including signed download URLs.
-			DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
-			require(WinHttpSetOption(request.get(), WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof(policy)) != 0,
-			        "cannot set redirect policy");
-			httpRequire(WinHttpSendRequest(request.get(), WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != 0
-			        && WinHttpReceiveResponse(request.get(), nullptr) != 0, "HTTP request failed");
-			DWORD status = 0, size = sizeof(status);
-			require(WinHttpQueryHeaders(request.get(), WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-			                           WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX) != 0,
-			        "cannot read HTTP status");
-			if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
-				auto location = header(request.get(), WINHTTP_QUERY_LOCATION);
-				require(!location.empty(), "HTTP redirect has no location");
-				url = winrt::Windows::Foundation::Uri(url).CombineUri(location).AbsoluteUri();
-				require(GetTickCount64() - started < 60000, "HTTP request timed out");
-				continue;
-			}
-			require(status >= 200 && status < 300, ("HTTP status " + std::to_string(status)).c_str());
-			auto length = header(request.get(), WINHTTP_QUERY_CONTENT_LENGTH);
-			size_t expected = 0;
-			if (!length.empty()) {
-				require(length.find_first_not_of(L"0123456789") == std::wstring::npos, "invalid HTTP content length");
-				auto count = _wcstoui64(length.c_str(), nullptr, 10);
-				require(count <= cap, "download exceeds size limit");
-				expected = static_cast<size_t>(count);
-			}
-			std::string bytes;
-			char buffer[64 * 1024];
-			for (;;) {
-				require(GetTickCount64() - started < 60000, "HTTP request timed out");
-				DWORD read = 0;
-				httpRequire(WinHttpReadData(request.get(), buffer, sizeof(buffer), &read) != 0, "HTTP download failed");
-				if (!read) break;
-				require(read <= cap - bytes.size(), "download exceeds size limit");
-				bytes.append(buffer, read);
-			}
-			require(length.empty() || bytes.size() == expected, "incomplete HTTP download");
-			require(!bytes.empty(), "empty HTTP response");
-			return bytes;
-		}
-		throw std::runtime_error("too many HTTP redirects");
-	}
-};
 
 size_t randomIndex(size_t count) {
 	std::random_device random;
@@ -348,19 +236,21 @@ int randomwall(const Args& args) {
 		auto agent = getString(existing(config, L"networking"), L"userAgent");
 		if (agent.empty()) agent = L"ii-windows/randomwall";
 		require(agent.find_first_of(L"\r\n") == std::wstring::npos, "invalid configured User-Agent");
-		Http http(agent);
+		http::Client client(agent);
 		progress(L"Fetching " + args[0] + L" wallpapers...");
 		auto api = testEnv(L"II_RANDOMWALL_TEST_API_URL");
 		if (api.empty()) api = args[0] == L"konachan"
 		    ? L"https://konachan.net/post.json?tags=rating%3Asafe&limit=1&page=" + std::to_wstring(randomIndex(1000) + 1)
 		    : L"https://osu.ppy.sh/api/v2/seasonal-backgrounds";
 		auto fixture = testEnv(L"II_RANDOMWALL_TEST_RESPONSE");
-		auto response = fixture.empty() ? http.get(api, JSON_LIMIT) : readUtf8(fixture);
+		auto response = fixture.empty() ? client.get(api, JSON_LIMIT) : readUtf8(fixture);
+		require(!response.empty(), "empty HTTP response");
 		auto url = chooseImage(args[0], response);
 		auto ext = imageExtension(url);
 		progress(L"Downloading wallpaper...");
 		auto imageFixture = testEnv(L"II_RANDOMWALL_TEST_IMAGE");
-		auto bytes = imageFixture.empty() ? http.get(url, IMAGE_LIMIT) : readBytes(imageFixture, IMAGE_LIMIT);
+		auto bytes = imageFixture.empty() ? client.get(url, IMAGE_LIMIT) : readBytes(imageFixture, IMAGE_LIMIT);
+		require(!bytes.empty(), "empty HTTP response");
 		ext = imageFormat(bytes, ext);
 		auto path = fullPath(output + L"\\random_wallpaper." + ext);
 		auto current = getString(existing(config, L"background"), L"wallpaperPath");
