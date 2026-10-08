@@ -123,12 +123,16 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - La bandeja de ii ya no hace esperar a las apps (las suelta antes de pasarle el icono a Explorer) y nunca espera más de 2 s a Explorer. Un intento con 15 s de espera colgó Explorer en tu PC (Windows lo reinició solo, 05:29); por eso se descartó.
 - Probado en Sandbox (`tests\ii-appbar.ps1`): la barra reserva 40 px, Explorer responde siempre en ≤5 ms, la reserva vuelve tras reiniciar Explorer, otra app con su propia barra sigue funcionando y el rescate libera el espacio. En tu PC: el área útil empieza en y=40.
 
-### Escritorio: menú de clic derecho y widgets nuevos (en curso)
+### Escritorio: menú de clic derecho y widgets nuevos (instalado en tu PC 2026-10-08 06:43)
 - Clic derecho en el escritorio (o sobre un widget) abre el menú de ii: cambiar fondo, fondo aleatorio (de tu carpeta de fondos; si está vacía, uno de Konachan), aleatorio de Konachan, activar/desactivar widgets (reloj, música, foto, archivos recientes, clima, iconos), widgets superpuestos, configuración de ii y de pantalla. Un widget activado desde el menú aparece donde hiciste clic. Los iconos conservan su propio menú.
 - Widget de música: la tarjeta del reproductor de ii en el escritorio (debajo del reloj); se oculta si no suena nada.
 - Widget de foto (Codex): una imagen tuya (o https, los gif se mueven) en cualquier parte; rueda del ratón para el tamaño, clic derecho para cambiarla o quitarla.
 - Fondo aleatorio de Konachan y osu! sin bash/curl (Codex): Konachan funciona; osu! responde 403 (Cloudflare) también en Linux.
 - ii en español: Windows dice es_CO y ii solo trae es_MX; ahora se usa el mismo idioma aunque cambie la región. Textos nuevos del port traducidos.
+- Descargas sin bash/curl/jq (Codex): `ii-shim fetch` y `ii-shim weather`. Funcionan el clima (widget y barra), la carátula del reproductor, la imagen flotante del overlay y los favicons. 46/46 pruebas con internet.
+- Clima: el GPS queda apagado por defecto. En Windows el "GPS" es el servicio de ubicación, y Qt pedía permiso de ubicación en cuanto existía el componente, aunque no se usara. Sin GPS, wttr.in ubica por IP o usa la ciudad de la configuración.
+- Barra: muestra el nombre de la app ("Terminal") en vez de su ID técnico.
+- Pruebas en Sandbox: `ii-desktop-menu.ps1`, `ii-photo.ps1` (menú, foto, rueda, selector de archivos), `ii-net-widgets.ps1` (clima, música, overlay).
 
 ### Instalador
 - Paquete: `out\ii-windows-<versión>.zip` (88 MB), creado con `tools\package\make-package.ps1`. Dentro, `install.cmd`: doble clic, pregunta antes de cada paso, solo tu usuario. Detalles en D18.

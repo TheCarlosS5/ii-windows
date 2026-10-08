@@ -256,6 +256,13 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
                     shown: Config.options.background.widgets.folder.enable'''),
 ])
 
+# Bar: Windows app ids are AppUserModelIDs (Microsoft.WindowsTerminal_8wekyb3d8bbwe!App) or exe
+# names; show the app's name from the Start menu instead, as a Linux class name would read.
+edit(path('modules', 'ii', 'bar', 'ActiveWindow.qml'), [
+    ('''                root.activeWindow?.appId :''',
+     '''                (DesktopEntries.heuristicLookup(root.activeWindow?.appId)?.name ?? root.activeWindow?.appId) :'''),
+])
+
 # Weather: on Windows "GPS" is the Location service, which pops a system permission prompt the
 # moment the weather turns on. Off by default: wttr.in then locates by IP (or uses `city`).
 edit(path('modules', 'common', 'Config.qml'), [
