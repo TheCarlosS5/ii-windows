@@ -143,6 +143,10 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Pruebas en Sandbox: `ii-overview-dock.ps1`, `ii-overview-perf.ps1`.
 - Pendiente: las ventanas minimizadas salen pequeñas y en negro en la vista general (DWM no da imagen de una ventana minimizada).
 
+### Panel lateral derecho (instalado en tu PC 2026-10-08 07:58)
+- Inventario completo en `docs/SIDEBAR-WINDOWS.md` (Codex). Cabecera con la edición de Windows; planes de energía con la API documentada; Bluetooth "no disponible" (sin hardware); los botones sin equivalente en Windows (EasyEffects, WARP, selector de color, reconocer música, anti-flashbang) se ocultan en vez de no hacer nada.
+- Luz nocturna por gamma de pantalla, con copia de las rampas originales y restauración al salir, pánico, guardián y rescate. En tu PC el driver no deja leer ni cambiar la gamma, así que ii la marca como no disponible y el botón abre la luz nocturna de Windows, que sí funciona.
+
 ### Instalador
 - Paquete: `out\ii-windows-<versión>.zip` (88 MB), creado con `tools\package\make-package.ps1`. Dentro, `install.cmd`: doble clic, pregunta antes de cada paso, solo tu usuario. Detalles en D18.
 - Hace: punto de restauración opcional, copia `.reg` de lo que toca, archivos en `%LOCALAPPDATA%\Programs\ii-windows`, cursor Bibata, inicio con Windows, menú Inicio (Iniciar, Rescate, Desinstalar) y entrada en Configuración > Aplicaciones.
