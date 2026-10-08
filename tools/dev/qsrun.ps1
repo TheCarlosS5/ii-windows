@@ -9,9 +9,9 @@ param(
     [switch]$Keep,
     [string[]]$Extra = @()
 )
-$root = 'C:\Users\Calos\Desktop\ii-windows'
+$root = (Resolve-Path "$PSScriptRoot\..\..").Path
 $dev = Join-Path $root 'tools\dev'
-$env:Path = "C:\Users\Calos\dev\Qt\6.12.0-msvc2022_64\bin;$env:Path"
+$env:Path = "$(if ($env:QTDIR) { $env:QTDIR } else { "$env:USERPROFILE\dev\Qt\6.12.0-msvc2022_64" })\bin;$env:Path"
 $env:QML_IMPORT_PATH = Join-Path $root 'quickshell\build\qml_modules'
 $qsArgs = @('-p', $Config) + $Extra
 if ($Verbose2) { $qsArgs += '-vv' }

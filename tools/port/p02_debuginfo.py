@@ -2,7 +2,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 from edit import edit
 
-os.chdir(r'C:\Users\Calos\Desktop\ii-windows\quickshell\src\core')
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'quickshell', 'src', 'core'))
 
 edit('debuginfo.cpp', [
   ('''#include <fcntl.h>

@@ -2,7 +2,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 from edit import edit
 
-os.chdir(r'C:\Users\Calos\Desktop\ii-windows\quickshell\src\win32')
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'quickshell', 'src', 'win32'))
 
 edit('native.hpp', [
   ('''// Mirrors wlr-layer-shell layers. Windows only has "topmost" and "normal" bands,

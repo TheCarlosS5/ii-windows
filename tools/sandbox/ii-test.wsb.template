@@ -4,12 +4,12 @@
   <MemoryInMB>6144</MemoryInMB>
   <MappedFolders>
     <MappedFolder>
-      <HostFolder>C:\Users\Calos\Desktop\ii-windows</HostFolder>
+      <HostFolder>{REPO}</HostFolder>
       <SandboxFolder>C:\ii</SandboxFolder>
       <ReadOnly>true</ReadOnly>
     </MappedFolder>
     <MappedFolder>
-      <HostFolder>C:\Users\Calos\sbx-xchg</HostFolder>
+      <HostFolder>{XCHG}</HostFolder>
       <SandboxFolder>C:\xchg</SandboxFolder>
       <ReadOnly>false</ReadOnly>
     </MappedFolder>

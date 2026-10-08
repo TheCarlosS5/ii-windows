@@ -1,8 +1,8 @@
 # End-to-end check of prototype A (run from anywhere with pwsh).
-$root = 'C:\Users\Calos\Desktop\ii-windows'
+$root = (Resolve-Path "$PSScriptRoot\..\..").Path
 $dev = "$root\tools\dev"
 $here = "$root\prototypes\qs-bar"
-$env:Path = "C:\Users\Calos\dev\Qt\6.12.0-msvc2022_64\bin;$env:Path"
+$env:Path = "$(if ($env:QTDIR) { $env:QTDIR } else { "$env:USERPROFILE\dev\Qt\6.12.0-msvc2022_64" })\bin;$env:Path"
 $env:QML_IMPORT_PATH = "$root\quickshell\build\qml_modules"
 
 "before:  " + (& "$dev\probe.ps1" workarea)

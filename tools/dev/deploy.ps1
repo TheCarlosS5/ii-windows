@@ -1,7 +1,7 @@
 # Refresh dist\quickshell after a rebuild (exe + quickshell's own QML modules).
 # Use -Full to rerun windeployqt (needed when new Qt modules are used).
 param([switch]$Full)
-$root = 'C:\Users\Calos\Desktop\ii-windows'
+$root = (Resolve-Path "$PSScriptRoot\..\..").Path
 $dist = "$root\dist\quickshell"
 if ($Full -or -not (Test-Path "$dist\Qt6Core.dll")) {
     . "$root\tools\dev\vsenv.ps1" *> $null

@@ -5,7 +5,7 @@
 #   -Dest <dir>   stage somewhere else (a private copy while build/ii is in use)
 #   -NoSidebar    skip patch_ii_sidebar.py and the sidebar overlay files (unfinished work)
 param([switch]$NoSidebar, [string]$Dest = '')
-$root = 'C:\Users\Calos\Desktop\ii-windows'
+$root = (Resolve-Path "$PSScriptRoot\..\..").Path
 $src = "$root\upstream\dots\.config\quickshell\ii"
 $overlay = "$root\overlay\ii"
 $dest = if ($Dest) { $Dest } else { "$root\build\ii" }

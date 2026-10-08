@@ -2,7 +2,7 @@ import os, sys
 sys.path.insert(0, os.path.dirname(__file__))
 from edit import edit
 
-os.chdir(r'C:\Users\Calos\Desktop\ii-windows\quickshell\src\launch')
+os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'quickshell', 'src', 'launch'))
 
 edit('command.cpp', [
   ('#include <unistd.h>\n', '#ifndef _WIN32\n#include <unistd.h>\n#endif\n'),

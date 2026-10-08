@@ -3,8 +3,12 @@
 #   sbx.ps1 run <script.ps1> [-Timeout 120]   run a script inside, print its output
 #   sbx.ps1 stop                  close the sandbox (discarding everything inside)
 param([Parameter(Mandatory, Position = 0)][string]$Action, [Parameter(Position = 1)][string]$Script = '', [int]$Timeout = 180)
-$x = 'C:\Users\Calos\sbx-xchg'
-$wsb = 'C:\Users\Calos\Desktop\ii-windows\tools\sandbox\ii-test.wsb'
+$x = "$env:USERPROFILE\sbx-xchg"
+$repo = (Resolve-Path "$PSScriptRoot\..\..").Path
+# Windows Sandbox wants absolute folders: fill the template for this machine.
+New-Item -ItemType Directory -Force "$x\inbox", "$x\outbox", "$x\done" | Out-Null
+$wsb = Join-Path $x 'ii-test.wsb'
+(Get-Content "$PSScriptRoot\ii-test.wsb.template" -Raw).Replace('{REPO}', $repo).Replace('{XCHG}', $x) | Set-Content $wsb -Encoding UTF8
 
 function Test-Agent([int]$MaxAge = 900) {
     # The agent refreshes the heartbeat between scripts, so a long script makes it look stale;

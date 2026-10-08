@@ -111,7 +111,7 @@ $oldMode = [IiSidebarCheck.Errors]::SetErrorMode(0x8003)
 $oldPath = $env:Path
 try {
     $env:Path = (Join-Path $repo 'dist\quickshell') + ';' + $oldPath
-    $qtBin = if ($env:QTDIR) { Join-Path $env:QTDIR 'bin' } else { 'C:\Users\Calos\dev\Qt\6.12.0-msvc2022_64\bin' }
+    $qtBin = if ($env:QTDIR) { Join-Path $env:QTDIR 'bin' } else { "$env:USERPROFILE\dev\Qt\6.12.0-msvc2022_64\bin" }
     $qmlFiles = @(Get-ChildItem (Join-Path $repo 'build\ii\modules\ii\sidebarRight') -Filter '*.qml' -Recurse)
     $qmlFiles += @(Get-ChildItem (Join-Path $repo 'build\ii\modules\common\models\quickToggles') -Filter '*.qml')
     foreach ($name in 'Hyprsunset','SystemInfo','Audio','Network') { $qmlFiles += Get-Item (Join-Path $repo "build\ii\services\$name.qml") }
