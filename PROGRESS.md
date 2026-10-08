@@ -110,7 +110,14 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
 - Con `ii-host` corriendo, Windows pasa a modo oscuro/claro según ii y toma como color de acento el color del fondo. Al cambiar el fondo o el modo en ii, Windows cambia a los ~2 s.
 - Todo se restaura al salir (y con pánico, guardián o `ii-rescue`): probado 8/8 en Sandbox (`tests	est-theme.ps1`). Detalles en D17.
 
-### Instalador (listo para probar)
+### Instalado en tu PC real (2026-10-08)
+- Instalado con el paquete `db033f3` + punto de restauración ("Antes de instalar ii-windows") + copias `.reg` en `%LOCALAPPDATA%\ii-windowsackup61008-050918`.
+- Rescate probado en tu PC: restauró barra (autoocultar como lo tenías), iconos, 23 banners y 7 valores de color; Windows quedó igual que antes.
+- Arreglado al verlo en tu escritorio:
+  - Dock: Windows Terminal salía con un icono "!" y separado de su anclaje (Terminal no marca sus ventanas con su ID de app; ahora se lee del proceso). El anclaje de Edge mostraba el icono de Git (tu PC no tiene Edge en Inicio): anclajes por defecto ahora Explorador y Terminal.
+  - `ii-host` creía que Explorer se reiniciaba cada 10-20 s (era el aviso de la bandeja de ii) y volvía a aplicar todo: ahora solo cuenta una barra de Explorer nueva de verdad.
+
+### Instalador
 - Paquete: `out\ii-windows-<versión>.zip` (88 MB), creado con `tools\package\make-package.ps1`. Dentro, `install.cmd`: doble clic, pregunta antes de cada paso, solo tu usuario. Detalles en D18.
 - Hace: punto de restauración opcional, copia `.reg` de lo que toca, archivos en `%LOCALAPPDATA%\Programs\ii-windows`, cursor Bibata, inicio con Windows, menú Inicio (Iniciar, Rescate, Desinstalar) y entrada en Configuración > Aplicaciones.
 - Desinstalar deja Windows exactamente como estaba (probado 15/15 en Sandbox limpio).
@@ -141,7 +148,7 @@ Evidencia local copiada en `build/verification/2026-10-07-desktop/` (logs, estad
    - El Wi-Fi está programado (lista, conectar, contraseña, encender/apagar), pero solo se ha probado la parte de cable.
 2. Completar tus prioridades: menú de escritorio más amplio, manejo de muchos iconos, arrastre y navegación con teclado; profundizar las acciones del dock y overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
 3. Validar Escritorio redirigido/OneDrive, carpetas UNC y varias pantallas con usuarios reales; la prueba de Sandbox usa carpetas locales. La clasificación nativa ya reconoce rutas absolutas UNC, pero no se ha validado un recurso de red extremo a extremo.
-4. Probar el instalador en tu PC real cuando decidas (todo lo anterior se probó solo en Sandbox).
+4. Uso diario en tu PC real: anotar lo que falle (instalado el 2026-10-08).
 5. Multimonitor/DPI y sleep/resume (necesitan hardware real).
 6. Optimizar la RAM.
 
