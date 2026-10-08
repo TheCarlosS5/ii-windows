@@ -203,20 +203,55 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 
 } // namespace
 
-bool install(HWND notifyWindow) {
-	notify = notifyWindow;
+namespace {
+// The hook lives on its own thread. Windows calls a low-level hook on the thread that installed
+// it, and if that thread is busy for a moment (tray forwarding, Explorer restarts, the theme...)
+// it skips the hook: the Win key then reaches Windows and opens Start. This thread does nothing
+// but run the hook.
+HANDLE hookThread = nullptr;
+DWORD hookThreadId = 0;
+HANDLE hookReady = nullptr;
+
+DWORD WINAPI hookThreadMain(LPVOID) {
 	hook = SetWindowsHookExW(WH_KEYBOARD_LL, proc, GetModuleHandleW(nullptr), 0);
+	auto error = GetLastError();
+	SetEvent(hookReady);
 	if (!hook) {
-		log(L"keyboard: SetWindowsHookEx failed (%lu)", GetLastError());
-		return false;
+		log(L"keyboard: SetWindowsHookEx failed (%lu)", error);
+		return 1;
 	}
 	log(L"keyboard: hook installed");
-	return true;
+	MSG msg;
+	while (GetMessageW(&msg, nullptr, 0, 0) > 0) DispatchMessageW(&msg);
+	UnhookWindowsHookEx(hook);
+	hook = nullptr;
+	return 0;
+}
+} // namespace
+
+bool install(HWND notifyWindow) {
+	notify = notifyWindow;
+	hookReady = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+	hookThread = CreateThread(nullptr, 0, hookThreadMain, nullptr, 0, &hookThreadId);
+	if (!hookThread) {
+		log(L"keyboard: CreateThread failed (%lu)", GetLastError());
+		return false;
+	}
+	// Above normal: key events must never wait behind other work on this machine.
+	SetThreadPriority(hookThread, THREAD_PRIORITY_ABOVE_NORMAL);
+	WaitForSingleObject(hookReady, 5000);
+	return hook != nullptr;
 }
 
 void uninstall() {
-	if (hook) UnhookWindowsHookEx(hook);
-	hook = nullptr;
+	if (hookThread) {
+		PostThreadMessageW(hookThreadId, WM_QUIT, 0, 0);
+		WaitForSingleObject(hookThread, 2000);
+		CloseHandle(hookThread);
+		hookThread = nullptr;
+	}
+	if (hookReady) CloseHandle(hookReady);
+	hookReady = nullptr;
 	log(L"keyboard: hook removed");
 }
 

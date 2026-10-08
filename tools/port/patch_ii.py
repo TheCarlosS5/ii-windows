@@ -420,6 +420,35 @@ edit(path('services', 'Translation.qml'), [
         return shipped.find(code => code.split("_")[0] === name.split("_")[0]) ?? name;'''),
 ])
 
+# ii's settings app is a plain Qt window: Windows would add its own caption and buttons next to
+# ii's title bar and close button. Keep only ii's: no Windows caption (frame, shadow and resizable
+# edges stay), ii's title bar moves the window and a double click maximizes, as Windows' does.
+edit(path('settings.qml'), [
+    ('    title: "illogical-impulse Settings"\n',
+     '    title: "illogical-impulse Settings"\n'
+     "    // Quickshell's win32 backend hides the Windows caption of such windows, keeping the frame.\n"
+     '    property bool customTitleBar: true\n'),
+    ('''        Item { // Titlebar
+            visible: Config.options?.windows.showTitlebar
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
+''',
+     '''        Item { // Titlebar
+            visible: Config.options?.windows.showTitlebar
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
+            DragHandler {
+                target: null
+                onActiveChanged: if (active) root.startSystemMove()
+            }
+            TapHandler {
+                onDoubleTapped: root.visibility === Window.Maximized ? root.showNormal() : root.showMaximized()
+            }
+'''),
+])
+
 # Spanish for the strings this port adds (desktop menu, desktop icons, folder and photo widgets).
 # Only missing keys are added; ii's own translations win.
 PORT_STRINGS_ES = {
