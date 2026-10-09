@@ -17,6 +17,14 @@ para Windows debajo.
 
 *English summary at the end.*
 
+<p align="center">
+  <img src="docs/media/material-you.webp" width="860"
+       alt="ii-windows: al cambiar el fondo, toda la interfaz toma sus colores (Material You)">
+</p>
+
+**Video de presentación:** [horizontal, 68 s](https://github.com/TheCarlosS5/ii-windows/releases/download/v0.1.1/ii-windows-promo-wide.mp4) ·
+[vertical, 36 s](https://github.com/TheCarlosS5/ii-windows/releases/download/v0.1.1/ii-windows-promo-tall.mp4)
+
 ## Qué incluye
 
 - **Barra** de ii con bandeja del sistema (iconos reales de tus apps, menús nativos), red, audio,
@@ -38,6 +46,7 @@ para Windows debajo.
 - **Notificaciones**, overlay (Super+G), recortes de pantalla con OCR, menú de sesión, cheatsheet.
 - Fuentes, iconos y el cursor **Bibata** del dotfile. **Sonidos de la interfaz** propios.
 - Se aparta de los juegos a pantalla completa.
+- **fastfetch** con el logo de ii: escribe `fastfetch` en cualquier terminal (opcional al instalar).
 - **Arranque**: al entrar en Windows ii carga con prioridad alta y tu fondo de ii aparece al
   momento (no se ve el fondo ni la barra de Explorer); luego vuelve a prioridad normal.
 
@@ -68,6 +77,13 @@ de tu usuario (arranca unos segundos más tarde).
 
 Requisitos: Windows 11 (probado en 24H2/25H2), x64.
 
+## Reportar un problema
+
+Menú Inicio > ii-windows > **Reportar un problema de ii**: guarda en tu Escritorio un archivo de
+diagnóstico (sin tu nombre de usuario ni el de tu PC; es texto, puedes revisarlo) y abre el
+[formulario de fallos](https://github.com/TheCarlosS5/ii-windows/issues/new/choose) con la versión
+ya puesta. Arrastra el archivo al formulario y cuenta qué pasó. Las ideas también son bienvenidas.
+
 ## Compilar desde el código
 
 Necesitas Visual Studio Build Tools 2022 (con clang-cl), Qt 6.12 MSVC y Python 3.
@@ -80,6 +96,7 @@ git clone https://github.com/end-4/dots-hyprland upstream; git -C upstream check
 cmake -S quickshell -B quickshell\build -G Ninja; cmake --build quickshell\build
 cmake -S host -B host\build -G Ninja; cmake --build host\build
 .\tools\dev\stage-ii.ps1; .\tools\dev\deploy.ps1 -Full
+.\tools\dev\fetch_fastfetch.ps1                           # fastfetch 2.69.0 (MIT), verificado
 .\tools\package\make-package.ps1                          # out\ii-windows-<versión>.zip
 ```
 
@@ -95,6 +112,7 @@ Cómo está hecho: [docs/DECISIONS.md](docs/DECISIONS.md). Pruebas en Windows Sa
 - **Quickshell**: [outfoxxed](https://git.outfoxxed.me/quickshell/quickshell) y colaboradores,
   LGPL-3.0. El fork para Windows conserva esa licencia y su código está publicado en
   [TheCarlosS5/quickshell-windows](https://github.com/TheCarlosS5/quickshell-windows).
+- **fastfetch** (fastfetch-cli, MIT), con un logo y una configuración propios de ii-windows.
 - **material-color-utilities** (Google, Apache-2.0), **Bibata Modern Classic** (GPL-3.0), las
   fuentes e iconos del dotfile: sus licencias van incluidas en el paquete (`licenses/`).
 - Hecho por Carlos con Claude Code (Anthropic) y Codex (OpenAI).
@@ -104,9 +122,11 @@ Cómo está hecho: [docs/DECISIONS.md](docs/DECISIONS.md). Pruebas en Windows Sa
 ii-windows runs end-4's Illogical Impulse shell (Quickshell/QML) natively on Windows 11 through a
 Windows port of Quickshell: bar with a real system tray, launcher and window overview, dock with
 live previews, sidebars, notifications, desktop widgets, Material 3 colours from the wallpaper that
-Windows' own theme follows. It doesn't manage windows. Everything is per-user and reversible
+Windows' own theme follows, plus `fastfetch` with ii's logo. It doesn't manage windows. Everything is per-user and reversible
 (restore point, `.reg` backups, panic hotkey `Ctrl+Alt+Shift+R`, rescue shortcut, clean uninstall).
 GPL-3.0; Quickshell fork LGPL-3.0. Credits above.
+To report a bug: Start menu > ii-windows > *Reportar un problema de ii* (diagnostics file without your
+user name + the bug form), or [open an issue](https://github.com/TheCarlosS5/ii-windows/issues/new/choose).
 
 **Unofficial project.** ii-windows is not affiliated with or endorsed by end-4 (Illogical Impulse)
 or outfoxxed (Quickshell). It was built with AI assistance (Claude Code and Codex), and its author

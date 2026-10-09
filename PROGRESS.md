@@ -232,6 +232,20 @@ Hecho en esta ronda (todo probado en Sandbox):
 - [x] `/konachanwallpaper`, descarga de ilustraciones de la galería y suspensión por batería crítica sin bash/curl.
 - [x] **Vigilante de la shell** (tras una pantalla negra en tu PC: la shell se colgó al cargar y ii-host mantenía oculta la barra de Windows). Si la shell no muestra su fondo en 90 s, o deja de responder 20 s, ii-host la reinicia; tras 3 intentos devuelve la barra y el escritorio de Windows con un aviso. No cuenta mientras hay un juego a pantalla completa delante. `tests\ii-watchdog.ps1` 3/3, `test-host.ps1` sin fallos.
 
+## 0.1.1 (2026-10-09, instalada en tu PC)
+
+- **Paneles que se abrían al escribir** (arreglado): si ii-host perdía el aviso de que soltaste la
+  tecla Windows (cambio de escritorio virtual, pantalla segura, una llamada del hook saltada), seguía
+  creyendo que estaba apretada y cada letra contaba como Win+letra (`n` abría el panel derecho, `a`/`o`
+  el izquierdo). Ahora el hook comprueba el estado real de la tecla. Prueba reproducible:
+  `tools/sandbox/tests/ii-stale-win.ps1` (0.1.0: de "nota" llega "t"; 0.1.1: llega "nota").
+- **fastfetch** con el logo de ii (`extras/fastfetch`, fastfetch 2.69.0 MIT): opcional al instalar;
+  su carpeta va al final del PATH de usuario (manda el fastfetch que ya tengas) y el desinstalador
+  devuelve el PATH exacto.
+- **Reportar un problema**: acceso en el menú Inicio que guarda un diagnóstico sin tu nombre de usuario
+  ni el del PC y abre el formulario de GitHub (`.github/ISSUE_TEMPLATE`, español e inglés).
+- Prueba de instalación en Sandbox ampliada (fastfetch, PATH, reporte): 0 fallos.
+
 ## Pendiente (en este orden)
 1. Instalar en tu PC la versión con el escritorio nuevo y usarlo a diario.
 2. Probar con hardware real lo que ya está programado: Bluetooth (al conectar tu adaptador), batería (portátil), brillo (monitor con DDC/CI o portátil) y Wi-Fi (solo se ha probado la parte de cable).
