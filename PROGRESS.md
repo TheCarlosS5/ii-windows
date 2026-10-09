@@ -256,7 +256,7 @@ Hecho en esta ronda (todo probado en Sandbox):
 - Todos los arreglos P0 de la auditoría (abajo).
 - `test-install.ps1`: 0 fallos.
 
-## 0.1.3 (en curso, 2026-10-09 tarde; trabajo autónomo mientras viajas)
+## 0.1.3 (2026-10-09, publicada en GitHub e instalada en tu PC; trabajo autónomo mientras viajabas)
 - **Escritorios como en Arch:**
   - `ii-shim vdesk` usa la interfaz interna de Explorer (la de la Vista de tareas). Solo funciona en Windows 11 24H2 o posterior; si no, no hace nada y quedan los atajos de antes.
   - Con ella: ir a un escritorio de golpe, cerrar uno sin visitarlo y mover ventanas de otras apps.
