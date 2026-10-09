@@ -256,6 +256,52 @@ Hecho en esta ronda (todo probado en Sandbox):
 - Todos los arreglos P0 de la auditoría (abajo).
 - `test-install.ps1`: 0 fallos.
 
+## 0.1.3 (en curso, 2026-10-09 tarde; trabajo autónomo mientras viajas)
+- **Escritorios como en Arch:**
+  - `ii-shim vdesk` usa la interfaz interna de Explorer (la de la Vista de tareas). Solo funciona en Windows 11 24H2 o posterior; si no, no hace nada y quedan los atajos de antes.
+  - Con ella: ir a un escritorio de golpe, cerrar uno sin visitarlo y mover ventanas de otras apps.
+  - Comprobado en tu PC (25H2) solo con consultas de lectura.
+  - La barra vuelve a los 10 espacios de ii.
+  - Win+Mayús+número mueve la ventana de delante a ese escritorio.
+  - En la vista general, una ventana arrastrada sobre un escritorio de la tira se mueve allí.
+  - El último escritorio, si lo dejas vacío, se quita solo: `services/DesktopCleanup.qml`, opción `bar.workspaces.removeEmptyDesktops`.
+- **Bloqueo (opción A):**
+  - "Bloquear" en ii hace la animación de ii y luego el bloqueo de Windows.
+  - Win+L, la inactividad o la tapa ponen a ii en su estado bloqueado por debajo.
+  - Al desbloquear, ii sale con su animación. Antes nadie reseteaba ese estado tras desbloquear Windows.
+- **Animaciones:** las laterales se deslizan desde su borde al abrir y al cerrar, y la vista general aparece con un pequeño zoom (`tools/port/patch_ii_anim.py`).
+- **Configuración** (Codex, `tools/port/patch_ii_settings.py`): se ocultan las opciones que no hacen nada en Windows.
+- **Arranque y consumo:**
+  - Pantalla de carga siempre que arranca ii, con indicador y "Cargando ii…", o "Preparando ii por primera vez…".
+  - ii-host lanza la shell antes.
+  - ii y ii-host quedan fuera del ahorro de energía de Windows (EcoQoS).
+  - El instalador pide la GPU de ahorro de energía para la shell.
+  - El cursor se vigila por eventos en lugar de cada 16 ms.
+  - Fuera las fuentes sin uso (10 MB).
+- **Corrección a la auditoría:** el fondo **ya** se cargaba al tamaño de la pantalla (`StyledImage` pone `sourceSize`).
+- **IA del panel izquierdo (Codex, revisado):**
+  - `ii-shim ai-request` hace POST por WinHTTP con respuesta en streaming, también a `http://localhost` para Ollama. La clave nunca se escribe en disco: se expande desde una variable de entorno.
+  - `ii-shim ls` sustituye a `ls -1` para los prompts y chats guardados.
+  - `tools/port/patch_ii_ai.py` cambia el script de bash+curl por esa petición. Los adjuntos todavía no funcionan en Windows y lo avisa en el chat.
+  - Probada contra un servidor local; no hubo llamadas reales a APIs.
+- **Terminal (Codex, revisado):**
+  - Dos perfiles en el fragmento de Windows Terminal, "ii · PowerShell" e "ii · CMD", con fastfetch y el esquema ii-windows.
+  - El instalador pone JetBrains Mono Nerd Font para tu usuario (opcional y reversible).
+  - El desinstalador borra el fragmento, que antes se quedaba en disco.
+- **Pruebas en Sandbox:**
+  - `ii-p0` 25/25.
+  - `ii-desktop2` sin fallos (sus 5 fallos eran de la prueba: la bienvenida del primer arranque tapaba el escritorio).
+  - `test-host` sin fallos.
+  - `ii-startup`: QML en 0,9 s con caché.
+  - `ii-desktops-direct` 9/9. Mover ventanas con `vdesk` funciona; en el Sandbox no se pudo poner delante la ventana de prueba para probar Win+Mayús+número con el teclado real.
+  - `ii-splash`: la pantalla de carga sale y se va sola.
+- **Errores míos atrapados por las pruebas:** `Session.qml` sin `import QtQuick` impedía cargar toda la config; `StandardPaths` sin `import QtCore` en Ai.qml.
+- **Pendiente:**
+  - la imagen de la pantalla de bloqueo de Windows con el fondo de ii (opción A completa);
+  - respetar "No molestar" de Windows;
+  - límite de fps;
+  - Wallpaper Engine y el actualizador (pedidos).
+
 ## Pedidos para más adelante
 - **Wallpaper Engine.** Muchos usuarios de Windows lo tienen.
   - Al instalar ii, los fondos PNG con transparencia dejaban ver el fondo animado de Wallpaper Engine, y esa combinación quedaba bien.

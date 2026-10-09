@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -9,6 +10,10 @@
 #include <objbase.h>
 #include <shlobj.h>
 #include <wincodec.h>
+// GDI+ needs min/max as macros or its own; it only draws the loading indicator.
+#include <algorithm>
+namespace Gdiplus { using std::max; using std::min; }
+#include <gdiplus.h>
 
 // Startup cover: at logon Explorer paints its own wallpaper (and its taskbar flashes) while ii is
 // still loading. ii-host --boot shows ii's wallpaper at once, one window per screen, just above
@@ -21,7 +26,11 @@ namespace {
 
 constexpr UINT_PTR TIMER_WATCH = 1;
 constexpr UINT_PTR TIMER_FADE = 2;
-constexpr ULONGLONG TIMEOUT_MS = 30000;
+constexpr UINT_PTR TIMER_SPIN = 3;
+// As long as the watchdog waits for a stuck shell: the cover only sits above Explorer's desktop
+// (apps open above it), so it can stay until ii is really there.
+constexpr ULONGLONG TIMEOUT_MS = 90000;
+constexpr ULONGLONG SLOW_MS = 25000;
 
 struct Cover {
 	HWND hwnd = nullptr;
@@ -34,6 +43,9 @@ DWORD shellPid = 0;
 ULONGLONG shownAt = 0;
 ULONGLONG readySince = 0;
 int alpha = 255;
+ULONG_PTR gdiplusToken = 0;
+bool firstRun = false;
+bool spanish = false;
 
 std::wstring widen(const std::string& text) {
 	if (text.empty()) return {};
@@ -114,6 +126,55 @@ HBITMAP loadCover(const std::wstring& path, int width, int height) {
 	return result;
 }
 
+// A pill near the bottom: a turning arc (Material's loading indicator, roughly) and what is
+// happening. Only GDI+ for the antialiasing.
+void paintIndicator(HDC dc, const RECT& client) {
+	if (!gdiplusToken) return;
+	using namespace Gdiplus;
+	Graphics g(dc);
+	g.SetSmoothingMode(SmoothingModeAntiAlias);
+	g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
+	auto dpi = static_cast<REAL>(GetDeviceCaps(dc, LOGPIXELSY)) / 96.0F;
+	auto now = GetTickCount64();
+	const wchar_t* text = firstRun ? (spanish ? L"Preparando ii por primera vez\u2026" : L"Getting ii ready for the first time\u2026")
+	                               : (spanish ? L"Cargando ii\u2026" : L"Loading ii\u2026");
+	if (now - shownAt > SLOW_MS) text = spanish ? L"Esto est\u00e1 tardando m\u00e1s de lo normal\u2026" : L"This is taking longer than usual\u2026";
+
+	FontFamily family(L"Segoe UI");
+	Font font(&family, 15.0F * dpi, FontStyleRegular, UnitPixel);
+	RectF measured;
+	g.MeasureString(text, -1, &font, PointF(0, 0), &measured);
+	auto spinner = 22.0F * dpi;
+	auto pad = 14.0F * dpi;
+	auto width = pad + spinner + pad * 0.8F + measured.Width + pad;
+	auto height = spinner + pad * 1.4F;
+	auto x = (static_cast<REAL>(client.right) - width) / 2;
+	auto y = static_cast<REAL>(client.bottom) * 0.78F;
+
+	GraphicsPath pill;
+	auto r = height / 2;
+	pill.AddArc(x, y, height, height, 90, 180);
+	pill.AddArc(x + width - height, y, height, height, 270, 180);
+	pill.CloseFigure();
+	SolidBrush back(Color(200, 0x1d, 0x1b, 0x20));
+	g.FillPath(&back, &pill);
+
+	Pen track(Color(60, 0xe6, 0xe0, 0xe9), 3.0F * dpi);
+	Pen arc(Color(255, 0xd0, 0xbc, 0xff), 3.0F * dpi);
+	arc.SetStartCap(LineCapRound);
+	arc.SetEndCap(LineCapRound);
+	auto sx = x + pad;
+	auto sy = y + (height - spinner) / 2;
+	g.DrawEllipse(&track, sx, sy, spinner, spinner);
+	auto start = static_cast<REAL>((now / 3) % 360);
+	auto sweep = 90.0F + 70.0F * static_cast<REAL>(std::sin(static_cast<double>(now) / 450.0));
+	g.DrawArc(&arc, sx, sy, spinner, spinner, start, sweep);
+
+	SolidBrush ink(Color(255, 0xe6, 0xe0, 0xe9));
+	g.DrawString(text, -1, &font, PointF(sx + spinner + pad * 0.8F, y + (height - measured.Height) / 2), &ink);
+	(void) r;
+}
+
 LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 	case WM_PAINT: {
@@ -122,23 +183,34 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		RECT client;
 		GetClientRect(hwnd, &client);
 		auto it = std::find_if(covers.begin(), covers.end(), [&](const Cover& c) { return c.hwnd == hwnd; });
+		auto* frame = CreateCompatibleDC(dc);
+		auto* frameBitmap = CreateCompatibleBitmap(dc, client.right, client.bottom);
+		auto* frameOld = SelectObject(frame, frameBitmap);
 		if (it != covers.end() && it->bitmap) {
 			auto* mem = CreateCompatibleDC(dc);
 			auto* old = SelectObject(mem, it->bitmap);
-			BitBlt(dc, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
+			BitBlt(frame, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
 			SelectObject(mem, old);
 			DeleteDC(mem);
 		} else {
 			auto* brush = CreateSolidBrush(RGB(0x14, 0x12, 0x18)); // ii's dark surface
-			FillRect(dc, &client, brush);
+			FillRect(frame, &client, brush);
 			DeleteObject(brush);
 		}
+		paintIndicator(frame, client);
+		BitBlt(dc, 0, 0, client.right, client.bottom, frame, 0, 0, SRCCOPY);
+		SelectObject(frame, frameOld);
+		DeleteObject(frameBitmap);
+		DeleteDC(frame);
 		EndPaint(hwnd, &ps);
 		return 0;
 	}
 	case WM_MOUSEACTIVATE: return MA_NOACTIVATE;
 	case WM_TIMER:
 		if (wParam == TIMER_WATCH) watch();
+		else if (wParam == TIMER_SPIN) {
+			for (auto& c: covers) InvalidateRect(c.hwnd, nullptr, FALSE);
+		}
 		else if (wParam == TIMER_FADE) {
 			alpha -= 32;
 			if (alpha <= 0) close();
@@ -178,6 +250,17 @@ void show() {
 	if (!covers.empty()) return;
 	auto initialized = SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
 	auto image = wallpaperPath();
+	Gdiplus::GdiplusStartupInput gdiplusInput;
+	if (Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusInput, nullptr) != Gdiplus::Ok) gdiplusToken = 0;
+	spanish = PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_SPANISH;
+	{
+		// No compiled QML yet (quickshell/cache/by-shell): the first start takes longer.
+		wchar_t* base = nullptr;
+		if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base))) {
+			firstRun = GetFileAttributesW((std::wstring(base) + L"\\quickshell\\cache\\by-shell").c_str()) == INVALID_FILE_ATTRIBUTES;
+		}
+		CoTaskMemFree(base);
+	}
 	EnumDisplayMonitors(nullptr, nullptr, addMonitor, 0);
 
 	WNDCLASSW wc {};
@@ -198,7 +281,10 @@ void show() {
 	if (initialized) CoUninitialize();
 	shownAt = GetTickCount64();
 	alpha = 255;
-	if (!covers.empty()) SetTimer(covers.front().hwnd, TIMER_WATCH, 150, nullptr);
+	if (!covers.empty()) {
+		SetTimer(covers.front().hwnd, TIMER_WATCH, 150, nullptr);
+		SetTimer(covers.front().hwnd, TIMER_SPIN, 33, nullptr);
+	}
 	log(L"splash: shown on %d screen(s), wallpaper %s", static_cast<int>(covers.size()), image.empty() ? L"(none)" : image.c_str());
 }
 
@@ -213,6 +299,7 @@ void watch() {
 	// Give the shell's wallpaper a moment to paint, then fade.
 	if ((readySince && now - readySince > 700) || now - shownAt > TIMEOUT_MS) {
 		KillTimer(covers.front().hwnd, TIMER_WATCH);
+		KillTimer(covers.front().hwnd, TIMER_SPIN);
 		SetTimer(covers.front().hwnd, TIMER_FADE, 30, nullptr);
 		log(L"splash: %s after %llu ms", readySince ? L"shell ready" : L"timeout", now - shownAt);
 	}
@@ -225,6 +312,8 @@ void close() {
 	}
 	covers.clear();
 	readySince = 0;
+	if (gdiplusToken) Gdiplus::GdiplusShutdown(gdiplusToken);
+	gdiplusToken = 0;
 }
 
 } // namespace ii::splash

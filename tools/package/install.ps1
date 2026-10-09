@@ -56,6 +56,7 @@ Say '  - exportar antes a archivos .reg las claves de tu usuario (HKCU) que se t
 if (-not $NoCursor) { Say '  - poner el cursor Bibata (guardando el actual para el desinstalador)' }
 if (-not $NoAutostart) { Say '  - iniciar ii con Windows (solo tu usuario; una tarea al entrar, pide permiso de administrador una vez)' }
 if (-not $NoFastfetch) { Say '  - agregar el comando fastfetch con el estilo de ii (al final de tu PATH de usuario)' }
+Say '  - instalar la fuente JetBrains Mono Nerd Font para la terminal (opcional, solo tu usuario)'
 Say '  - crear accesos en el menu Inicio: rescate, reportar un problema y desinstalar'
 Say 'Mientras ii corre: oculta la barra de tareas y los iconos del escritorio, y Windows sigue sus colores.'
 Say 'Todo se deshace al salir de ii, con Ctrl+Alt+Shift+R, con el rescate o desinstalando.'
@@ -64,7 +65,28 @@ if (-not (Ask 'Continuar?' $true)) { Say 'Cancelado.'; exit 1 }
 $manifest = [ordered]@{
     product = 'ii-windows'; version = $version; installed = (Get-Date).ToString('s')
     installDir = $installDir; dataDir = $dataDir; backupDir = $backupDir
-    registry = @(); shortcuts = @(); cursor = $false; restorePoint = 'no'
+    registry = @(); shortcuts = @(); fonts = @(); cursor = $false; restorePoint = 'no'
+}
+
+# Keep ownership across updates; an already registered font is otherwise left alone.
+$previousManifestPath = Join-Path $dataDir 'install.json'
+if (Test-Path -LiteralPath $previousManifestPath) {
+    $previousManifest = Get-Content -LiteralPath $previousManifestPath -Raw | ConvertFrom-Json
+    if ($previousManifest.fonts) {
+        $manifest.fonts = @($previousManifest.fonts)
+        foreach ($font in $manifest.fonts) {
+            $manifest.registry += "HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts\$($font.valueName)"
+        }
+    }
+}
+
+# Persist ownership before another installation step can fail; keep the previous JSON intact.
+function SaveManifest() {
+    $path = Join-Path $dataDir 'install.json'
+    $temp = "$path.tmp"
+    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $temp -Encoding UTF8
+    if (Test-Path -LiteralPath $path) { [IO.File]::Replace($temp, $path, $null) }
+    else { [IO.File]::Move($temp, $path) }
 }
 
 # --- 1. restore point (optional, needs administrator) ------------------------------------------
@@ -92,6 +114,7 @@ $keys = @(
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings',
+    'HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts',
     'HKCU\Environment'
 )
 foreach ($key in $keys) {
@@ -119,6 +142,20 @@ Copy-Item (Join-Path $here 'uninstall.ps1') $installDir -Force
 Copy-Item (Join-Path $here 'uninstall.cmd') $installDir -Force
 Copy-Item (Join-Path $here 'autostart-task.ps1') $installDir -Force
 Say "Copiado a $installDir"
+
+# --- 3b. power-saving GPU for the shell ----------------------------------------------------------
+# On laptops with two GPUs (iGPU + NVIDIA/AMD) a shell that lands on the dedicated one keeps it
+# awake all day and copies every frame between GPUs. Same setting as Settings > System > Display >
+# Graphics, per user; only written if the user never chose one for this file.
+$gpuKey = 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences'
+$shellExe = Join-Path $installDir 'quickshell\quickshell.exe'
+$gpuCurrent = (Get-ItemProperty $gpuKey -Name $shellExe -ErrorAction SilentlyContinue).$shellExe
+if (-not $gpuCurrent) {
+    New-Item -Force $gpuKey -ErrorAction SilentlyContinue | Out-Null
+    Set-ItemProperty $gpuKey -Name $shellExe -Value 'GpuPreference=1;'
+    $manifest.gpuPreference = $shellExe
+    $manifest.registry += "HKCU\Software\Microsoft\DirectX\UserGpuPreferences\$shellExe (GPU de ahorro de energia)"
+}
 
 # --- 4. cursor ---------------------------------------------------------------------------------
 $cursorKey = 'HKCU:\Control Panel\Cursors'
@@ -183,6 +220,82 @@ if (-not $NoFastfetch -and (Test-Path (Join-Path $binDir 'fastfetch.cmd'))) {
         Say 'Listo: abre una terminal nueva y escribe fastfetch.'
     } else { Say 'Omitido.' }
 }
+# --- 4c. per-user terminal fonts -----------------------------------------------------------------
+# Read the TTF name table (full name, ID 4); no font loading or administrator rights needed.
+function FontFullName($path) {
+    $bytes = [IO.File]::ReadAllBytes($path)
+    $u16 = { param($at) ([int]$bytes[$at] -shl 8) -bor [int]$bytes[$at + 1] }
+    $u32 = { param($at) ([int]$bytes[$at] -shl 24) -bor ([int]$bytes[$at + 1] -shl 16) -bor ([int]$bytes[$at + 2] -shl 8) -bor [int]$bytes[$at + 3] }
+    $table = -1
+    for ($i = 0; $i -lt (& $u16 4); $i++) {
+        $at = 12 + $i * 16
+        if ([Text.Encoding]::ASCII.GetString($bytes, $at, 4) -eq 'name') { $table = & $u32 ($at + 8); break }
+    }
+    if ($table -lt 0) { throw "Fuente sin tabla name: $path" }
+    $strings = $table + (& $u16 ($table + 4))
+    $fallback = $null
+    for ($i = 0; $i -lt (& $u16 ($table + 2)); $i++) {
+        $at = $table + 6 + $i * 12
+        $platform = & $u16 $at
+        if ((& $u16 ($at + 6)) -ne 4 -or $platform -notin 0, 3) { continue }
+        $length = & $u16 ($at + 8)
+        $offset = & $u16 ($at + 10)
+        $name = [Text.Encoding]::BigEndianUnicode.GetString($bytes, ($strings + $offset), $length)
+        if ($platform -eq 3 -and (& $u16 ($at + 4)) -eq 0x409) { return $name }
+        $fallback = $name
+    }
+    if (-not $fallback) { throw "Fuente sin nombre completo: $path" }
+    return $fallback
+}
+
+Step 'Fuente JetBrains Mono Nerd Font para la terminal'
+if (Ask 'Instalar la fuente JetBrains Mono Nerd Font para la terminal? (solo tu usuario)' $true) {
+    $fontsDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
+    $fontsKeyPath = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+    $fontFiles = @(Get-ChildItem -LiteralPath (Join-Path $payload 'quickshell\fonts') -Filter 'JetBrainsMonoNerdFont-*.ttf' -File)
+    if ($fontFiles.Count -gt 0) {
+        New-Item -ItemType Directory -Force $fontsDir | Out-Null
+        if (-not (Test-Path -LiteralPath $fontsKeyPath)) { New-Item -Force $fontsKeyPath | Out-Null }
+        $fontsKey = Get-Item -LiteralPath $fontsKeyPath
+        try {
+            foreach ($font in $fontFiles) {
+                $copied = $false
+                $registeredByUs = $false
+                $valueName = (FontFullName $font.FullName) + ' (TrueType)'
+                $file = Join-Path $fontsDir $font.Name
+                $registered = $fontsKey.GetValueNames() -contains $valueName
+                foreach ($name in $fontsKey.GetValueNames()) {
+                    $registeredFile = [string]$fontsKey.GetValue($name)
+                    if ($registeredFile -and [IO.Path]::GetFileName($registeredFile) -eq $font.Name) { $registered = $true }
+                }
+                if ($registered -or (Test-Path -LiteralPath $file)) {
+                    Say "  $($font.Name): ya existe; se conserva."
+                    continue
+                }
+                try {
+                    [IO.File]::Copy($font.FullName, $file, $false)
+                    $copied = $true
+                    New-ItemProperty -LiteralPath $fontsKeyPath -Name $valueName -Value $file -PropertyType String | Out-Null
+                    $registeredByUs = $true
+                    $manifest.fonts = @($manifest.fonts | Where-Object { $_.file -ne $file }) + @([ordered]@{ file = $file; valueName = $valueName })
+                    $registryEntry = "HKCU\Software\Microsoft\Windows NT\CurrentVersion\Fonts\$valueName"
+                    if ($manifest.registry -notcontains $registryEntry) { $manifest.registry += $registryEntry }
+                    SaveManifest
+                    Say "  $valueName"
+                } catch {
+                    if ($registeredByUs) {
+                        Remove-ItemProperty -LiteralPath $fontsKeyPath -Name $valueName -ErrorAction SilentlyContinue
+                        $manifest.fonts = @($manifest.fonts | Where-Object { $_.file -ne $file })
+                        $manifest.registry = @($manifest.registry | Where-Object { $_ -ne $registryEntry })
+                    }
+                    if ($copied) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
+                    Say "No se pudo instalar $($font.Name): $($_.Exception.Message)"
+                }
+            }
+        } finally { $fontsKey.Close() }
+    } else { Say 'No hay fuentes JetBrains Mono Nerd Font en el paquete.' }
+} else { Say 'Omitido.' }
+
 # --- 5. autostart, shortcuts, uninstall entry ---------------------------------------------------
 Step 'Inicio con Windows y accesos'
 $hostExe = Join-Path $installDir 'ii-host.exe'
@@ -259,7 +372,7 @@ $manifest.runtime = @(
     "Configuracion de ii: $env:LOCALAPPDATA\quickshell\illogical-impulse y $env:LOCALAPPDATA\quickshell\State"
 )
 New-Item -ItemType Directory -Force $dataDir | Out-Null
-$manifest | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $dataDir 'install.json') -Encoding UTF8
+SaveManifest
 Copy-Item (Join-Path $dataDir 'install.json') $installDir -Force
 
 Step 'Listo'

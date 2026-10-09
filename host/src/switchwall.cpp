@@ -386,9 +386,54 @@ std::vector<mcu::Argb> terminalColors(const mcu::DynamicScheme& scheme, bool dar
 	return out;
 }
 
-// A Windows Terminal fragment: adds the "ii-windows" color scheme without touching the user's
-// settings.json (pick it in Terminal's settings, per profile or for all profiles).
-void writeTerminalScheme(const mcu::DynamicScheme& scheme, const std::vector<mcu::Argb>& term) {
+bool terminalFontInstalled() {
+	constexpr wchar_t nerdFamily[] = L"JetBrainsMono Nerd Font";
+	constexpr wchar_t nfFamily[] = L"JetBrainsMono NF";
+	for (auto root: {HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE}) {
+		HKEY key = nullptr;
+		if (RegOpenKeyExW(root, L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", 0, KEY_QUERY_VALUE, &key) != ERROR_SUCCESS) continue;
+		DWORD maxName = 0;
+		if (RegQueryInfoKeyW(key, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &maxName, nullptr, nullptr, nullptr) != ERROR_SUCCESS) {
+			RegCloseKey(key);
+			continue;
+		}
+		std::vector<wchar_t> name(static_cast<size_t>(maxName) + 1);
+		bool found = false;
+		for (DWORD i = 0;; ++i) {
+			DWORD length = static_cast<DWORD>(name.size());
+			auto status = RegEnumValueW(key, i, name.data(), &length, nullptr, nullptr, nullptr, nullptr);
+			if (status == ERROR_NO_MORE_ITEMS) break;
+			if (status != ERROR_SUCCESS) continue;
+			if (_wcsnicmp(name.data(), nerdFamily, _countof(nerdFamily) - 1) == 0 || _wcsnicmp(name.data(), nfFamily, _countof(nfFamily) - 1) == 0) {
+				found = true;
+				break;
+			}
+		}
+		RegCloseKey(key);
+		if (found) return true;
+	}
+	return false;
+}
+
+std::wstring terminalPowerShell() {
+	std::vector<wchar_t> path(32768);
+	auto length = SearchPathW(nullptr, L"pwsh.exe", nullptr, static_cast<DWORD>(path.size()), path.data(), nullptr);
+	std::wstring exe;
+	if (length > 0 && length < path.size()) exe.assign(path.data(), length);
+	if (exe.empty()) {
+		PWSTR programFiles = nullptr;
+		if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, nullptr, &programFiles))) {
+			auto candidate = std::wstring(programFiles) + L"\\PowerShell\\7\\pwsh.exe";
+			auto attributes = GetFileAttributesW(candidate.c_str());
+			if (attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY)) exe = candidate;
+		}
+		CoTaskMemFree(programFiles);
+	}
+	return (exe.empty() ? L"powershell.exe" : L"\"" + exe + L"\"") + std::wstring(L" -NoLogo -NoExit -Command fastfetch");
+}
+
+// A Windows Terminal fragment: adds ii's scheme and profiles without touching settings.json.
+bool writeTerminalScheme(const mcu::DynamicScheme& scheme, const std::vector<mcu::Argb>& term) {
 	static const char* const names[16] = {"black", "red", "green", "yellow", "blue", "purple", "cyan", "white",
 	                                      "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue",
 	                                      "brightPurple", "brightCyan", "brightWhite"};
@@ -400,8 +445,24 @@ void writeTerminalScheme(const mcu::DynamicScheme& scheme, const std::vector<mcu
 	json += field("cursorColor", M::Primary().GetArgb(scheme)) + ",\n";
 	json += field("selectionBackground", M::PrimaryContainer().GetArgb(scheme));
 	for (int i = 0; i < 16; ++i) json += ",\n" + field(names[i], term[i]);
-	json += "\n    }\n  ]\n}\n";
-	writeUtf8(localAppData() + L"\\Microsoft\\Windows Terminal\\Fragments\\ii-windows\\ii-windows.json", json);
+	json += "\n    }\n  ],\n  \"profiles\": [\n";
+	// Stringify the command through the JSON API: an absolute pwsh path needs quotes and escapes.
+	auto command = toUtf8(std::wstring(winrt::Windows::Data::Json::JsonValue::CreateStringValue(terminalPowerShell()).Stringify()));
+	const char* const guids[] = {"{495a2d45-6aed-4548-8692-8479d8ea50b8}", "{0ecc530a-0128-423d-91f9-8c75d854077d}"};
+	const char* const profiles[] = {"ii \xC2\xB7 PowerShell", "ii \xC2\xB7 CMD"}; // "\u00b7" as UTF-8 bytes
+	auto haveFont = terminalFontInstalled();
+	for (int i = 0; i < 2; ++i) {
+		json += "    {\n      \"guid\": \"" + std::string(guids[i]) + "\",\n";
+		json += "      \"name\": \"" + std::string(profiles[i]) + "\",\n";
+		json += "      \"commandline\": " + (i == 0 ? command : "\"cmd.exe /k fastfetch\"") + ",\n";
+		json += "      \"colorScheme\": \"ii-windows\",\n";
+		// The bundled TTF's English typographic family (name ID 16).
+		if (haveFont) json += "      \"font\": { \"face\": \"JetBrainsMono Nerd Font\", \"size\": 11 },\n";
+		json += "      \"opacity\": 92,\n      \"useAcrylic\": false,\n      \"padding\": \"10\"\n    }";
+		json += i == 0 ? ",\n" : "\n";
+	}
+	json += "  ]\n}\n";
+	return writeUtf8(localAppData() + L"\\Microsoft\\Windows Terminal\\Fragments\\ii-windows\\ii-windows.json", json);
 }
 
 } // namespace
@@ -498,6 +559,7 @@ int switchwall(const Args& args) {
 	number(L"harmony", props.harmony);
 	number(L"harmonizeThreshold", props.threshold);
 	number(L"termFgBoost", props.fgBoost);
+	// Terminal's fragment is a nicety: a failure there must not fail the wallpaper change.
 	writeTerminalScheme(*scheme, terminalColors(*scheme, dark, schemeType == "scheme-monochrome", props));
 	if (!writeUtf8(colorsPath(), out)) return 1;
 	std::printf("source %s, %s, %s -> %zu colors\n", hex(source).c_str(), schemeType.c_str(), dark ? "dark" : "light", keys.size());

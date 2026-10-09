@@ -46,6 +46,7 @@ struct Options {
 	bool theme = true;
 	bool nightlight = true;
 	bool boot = false;
+	bool splash = true;
 };
 
 Options options;
@@ -495,9 +496,15 @@ int runHost() {
 	taskbarCreatedMsg = RegisterWindowMessageW(L"TaskbarCreated");
 	ChangeWindowMessageFilterEx(hostWindow, taskbarCreatedMsg, MSGFLT_ALLOW, nullptr);
 
+	// Never throttled as background work on battery (the keyboard hook lives here).
+	PROCESS_POWER_THROTTLING_STATE throttling {};
+	throttling.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+	throttling.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+	throttling.StateMask = 0;
+	SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &throttling, sizeof(throttling));
+
 	state::set(L"hostClean", 0);
 	guardReady = spawnGuard();
-	if (options.nightlight) nightlight::start(guardReady);
 
 	if (!RegisterHotKey(hostWindow, HOTKEY_PANIC, MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, 'R')) {
 		log(L"panic hotkey Ctrl+Alt+Shift+R unavailable (%lu)", GetLastError());
@@ -506,18 +513,22 @@ int runHost() {
 	if (options.boot) {
 		booting = true;
 		SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
-		splash::show();
 		SetTimer(hostWindow, TIMER_BOOT_FAST, BOOT_FAST_MS, nullptr);
 		SetTimer(hostWindow, TIMER_BOOT_END, BOOT_HIGH_PRIORITY_MS, nullptr);
 		log(L"boot: high priority, fast taskbar checks, splash");
 	}
 
+	// A cover with ii's wallpaper and a loading indicator until the shell's own wallpaper is up.
+	if (options.splash) splash::show();
 	applyAll();
+	// The shell first: everything below (gamma ramps through GDI, the hook thread) can take a
+	// moment and the shell's load doesn't depend on it.
+	startShell();
+	if (options.nightlight) nightlight::start(guardReady);
 	watchExplorer();
 	SetTimer(hostWindow, TIMER_REAPPLY, 2000, nullptr);
 	SetTimer(hostWindow, TIMER_WATCHDOG, 5000, nullptr);
 	if (options.hook) keyboard::install(hostWindow);
-	startShell();
 
 	MSG msg;
 	int code = 0;
@@ -579,6 +590,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		else if (a == L"--no-theme") options.theme = false;
 		else if (a == L"--no-nightlight") options.nightlight = false;
 		else if (a == L"--boot") options.boot = true;
+		else if (a == L"--no-splash") options.splash = false;
 		else if (a == L"--rescue" || a == L"--restore") rescue = true;
 		else if (a == L"--restart-explorer") restartExplorer = true;
 		else if (a == L"--guard") guardPid = static_cast<DWORD>(_wtoi(next().c_str()));

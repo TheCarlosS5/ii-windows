@@ -1,6 +1,8 @@
 pragma Singleton
+import QtQuick
 import Quickshell
 import qs.services
+import qs
 import qs.modules.common
 
 /**
@@ -19,8 +21,16 @@ Singleton {
         Quickshell.execDetached(["explorer.exe", "ms-settings:signinoptions"]);
     }
 
+    // ii's lock animation first (LockScreen.qml's WlSessionLock locks Windows right after);
+    // if that path isn't there, Windows locks directly a moment later anyway.
     function lock() {
-        Quickshell.execDetached(["ii-shim", "lock"]);
+        GlobalStates.screenLocked = true;
+        lockFallback.restart();
+    }
+    property Timer lockFallback: Timer {
+        interval: 2000
+        // Not after a quick unlock (Windows Hello can be faster than this): unlocking resets it.
+        onTriggered: if (GlobalStates.screenLocked) Quickshell.execDetached(["ii-shim", "lock"])
     }
 
     function suspend() {

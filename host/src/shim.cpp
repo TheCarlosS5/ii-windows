@@ -13,16 +13,22 @@
 //   pidof <name>                         print pids of a process name
 //   killall <name>                       end the user's processes with that name
 //   ii-shim fetch <https-url> [opts]      HTTPS bytes to stdout or an atomic cache file
+//   ii-shim ai-request <request.json>     streaming HTTP/HTTPS POST for AI chat
+//   ls [-1] <dir>                        sorted visible file and folder names, one per line
 //   ii-shim weather <place|lat,long>      wttr.in weather as ii's three-object JSON
 //   ii-shim files <action> ...            desktop file actions through the shell (fileops.cpp)
+//   ii-shim vdesk <command> ...            virtual desktops: switch, remove, move windows (vdesk.cpp)
 
 #include "http.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cwctype>
 #include <string>
 #include <vector>
+#include <fcntl.h>
+#include <io.h>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -43,6 +49,7 @@
 int switchwall(const std::vector<std::wstring>& args); // switchwall.cpp
 int randomwall(const std::vector<std::wstring>& args); // randomwall.cpp
 int weather(const std::vector<std::wstring>& args); // weather.cpp
+int aiRequest(const std::vector<std::wstring>& args); // airequest.cpp
 int cava(const std::vector<std::wstring>& args); // cava.cpp
 int ydotool(const std::vector<std::wstring>& args); // ydotool.cpp
 int secretTool(const std::vector<std::wstring>& args); // secrettool.cpp
@@ -190,6 +197,33 @@ int qalc(const Args& args) {
 }
 
 // --- misc -------------------------------------------------------------------------------
+
+int ls(const Args& args) {
+	auto offset = !args.empty() && args[0] == L"-1" ? 1u : 0u;
+	if (args.size() != offset + 1 || args[offset].empty()) return 1;
+	auto path = args[offset];
+	if (path.size() > 3 && path[0] == L'/' && path[2] == L':' && std::iswalpha(path[1])) path.erase(0, 1);
+	std::replace(path.begin(), path.end(), L'/', L'\\');
+	auto attributes = GetFileAttributesW(path.c_str());
+	if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY)) return 1;
+	if (path.back() != L'\\') path += L'\\';
+	WIN32_FIND_DATAW entry {};
+	auto handle = FindFirstFileW((path + L"*").c_str(), &entry);
+	if (handle == INVALID_HANDLE_VALUE) return GetLastError() == ERROR_FILE_NOT_FOUND ? 0 : 1;
+	std::vector<std::wstring> names;
+	do {
+		// Exclude both Windows hidden attributes and Linux-style dotfiles.
+		if (entry.cFileName[0] != L'.' && !(entry.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN)) names.emplace_back(entry.cFileName);
+	} while (FindNextFileW(handle, &entry));
+	auto error = GetLastError();
+	FindClose(handle);
+	if (error != ERROR_NO_MORE_FILES) return 1;
+	std::sort(names.begin(), names.end());
+	// Ai.qml splits on LF and checks extensions without trimming each name.
+	if (_setmode(_fileno(stdout), _O_BINARY) == -1) return 1;
+	for (const auto& name: names) out(name);
+	return std::ferror(stdout) ? 1 : 0;
+}
 
 // qs ...: ii calls Quickshell by its short name (e.g. `qs -p <config> ipc call ...`). The shims
 // live in <dist>\bin, Quickshell one level up next to its Qt DLLs.
@@ -475,6 +509,7 @@ int ocrFile(const std::vector<std::wstring>& args);
 int switchwall(const std::vector<std::wstring>& args);
 int thumbnail(const std::vector<std::wstring>& args);
 int magick(const std::vector<std::wstring>& args);
+int vdesk(const std::vector<std::wstring>& args);
 // fileops.cpp
 int filesCommand(const std::vector<std::wstring>& args);
 
@@ -501,6 +536,8 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"switchwall") return switchwall(args);
 	if (command == L"randomwall") return randomwall(args);
 	if (command == L"fetch") return fetch(args);
+	if (command == L"ai-request") return aiRequest(args);
+	if (command == L"ls") return ls(args);
 	if (command == L"weather") return weather(args);
 	if (command == L"cava") return cava(args);
 	if (command == L"nightlight") return nightlightCommand(args);
@@ -510,6 +547,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"test") return test(args);
 	if (command == L"thumbnail") return thumbnail(args);
 	if (command == L"magick") return magick(args);
+	if (command == L"vdesk") return vdesk(args);
 	if (command == L"ocr") return ocrFile(args);
 	if (command == L"notify-send") return notifySend(args);
 	if (command == L"playerctl") return playerctl(args);

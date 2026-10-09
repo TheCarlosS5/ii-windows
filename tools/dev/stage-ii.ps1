@@ -39,4 +39,13 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\patch_ii_tools.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_tools.py failed" }
 # Audit 2026-10-09, P0: battery suspend, booru, popups without a window per hover, widgets.
 & python -I "$root\tools\port\patch_ii_p0.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_p0.py failed" }
+# Desktops like Hyprland's workspaces: drag windows to other desktops, empty ones dropped.
+& python -I "$root\tools\port\patch_ii_desktops.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_desktops.py failed" }
+# Lock: ii's look around Windows' secure lock screen.
+& python -I "$root\tools\port\patch_ii_lock.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_lock.py failed" }
+# Panels slide in and out (Hyprland's compositor did that on Linux).
+& python -I "$root\tools\port\patch_ii_anim.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_anim.py failed" }
+# Settings: hide what does nothing on Windows (Codex).
+& python -I "$root\tools\port\patch_ii_settings.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_settings.py failed" }
+& python -I "$root\tools\port\patch_ii_ai.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ai.py failed" }
 "staged ii -> $dest ($n overlay files)"

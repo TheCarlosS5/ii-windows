@@ -76,6 +76,7 @@ constexpr LPARAM IDX_WSNUMBER = 1002;    // workspaceNumber: held while Win is d
 // taskbar's pinned apps). With Shift/Ctrl/Alt Windows opens new instances or jump lists of
 // those hidden buttons: swallowed (IDX_BLOCK).
 constexpr LPARAM IDX_DESKTOP = 1100;     // + 0..9
+constexpr LPARAM IDX_MOVE = 1110;        // + 0..9: Win+Shift+number moves the window in front
 constexpr LPARAM IDX_BLOCK = 1200;
 constexpr LPARAM IDX_SESSION = 1201;     // Alt+F4 on Explorer's desktop: ii's session menu
 
@@ -211,8 +212,9 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 
 	// Win+number: desktops (see IDX_DESKTOP).
 	if (winDown && vk >= '0' && vk <= '9') {
-		auto plain = !keyHeld(VK_CONTROL) && !keyHeld(VK_MENU) && !keyHeld(VK_SHIFT);
-		post(true, plain ? IDX_DESKTOP + (vk == '0' ? 9 : static_cast<LPARAM>(vk - '1')) : IDX_BLOCK);
+		auto ctrl = keyHeld(VK_CONTROL), alt = keyHeld(VK_MENU), shift = keyHeld(VK_SHIFT);
+		auto n = vk == '0' ? 9 : static_cast<LPARAM>(vk - '1');
+		post(true, ctrl || alt ? IDX_BLOCK : shift ? IDX_MOVE + n : IDX_DESKTOP + n);
 		swallowedDown[vk] = true;
 		swallowedInChord = true;
 		return 1;
@@ -318,6 +320,15 @@ const wchar_t* shortcutName(LPARAM index) {
 			    L"hl:workspace 6", L"hl:workspace 7", L"hl:workspace 8", L"hl:workspace 9", L"hl:workspace 10",
 			};
 			return desktops[index - IDX_DESKTOP];
+		}
+		if (index >= IDX_MOVE && index < IDX_MOVE + 10) {
+			static const wchar_t* moves[] = {
+			    L"hl:movetoworkspacesilent 1", L"hl:movetoworkspacesilent 2", L"hl:movetoworkspacesilent 3",
+			    L"hl:movetoworkspacesilent 4", L"hl:movetoworkspacesilent 5", L"hl:movetoworkspacesilent 6",
+			    L"hl:movetoworkspacesilent 7", L"hl:movetoworkspacesilent 8", L"hl:movetoworkspacesilent 9",
+			    L"hl:movetoworkspacesilent 10",
+			};
+			return moves[index - IDX_MOVE];
 		}
 		if (index >= 0 && static_cast<size_t>(index) < SHORTCUTS.size()) return SHORTCUTS[index].name;
 		return nullptr;

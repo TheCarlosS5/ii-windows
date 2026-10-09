@@ -37,6 +37,8 @@ Say '  - cerrar ii y devolver la barra de tareas, los iconos, los banners y los 
 if ($manifest -and $manifest.cursor) { Say '  - devolver tu cursor anterior' }
 if ($manifest) { foreach ($r in $manifest.registry) { Say "  - quitar $r" } }
 if ($manifest) { foreach ($s in $manifest.shortcuts) { Say "  - borrar el acceso $s" } }
+if ($manifest) { foreach ($font in $manifest.fonts) { Say "  - borrar la fuente $($font.file)" } }
+Say '  - borrar los perfiles y colores de ii en Windows Terminal'
 Say "  - borrar la carpeta $installDir"
 if (-not $KeepConfig) { Say "  - borrar la configuracion de ii ($env:LOCALAPPDATA\quickshell)" }
 Say "Se conservan las copias del registro de la instalacion en $dataDir\backup"
@@ -101,6 +103,10 @@ if (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue) {
     if (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue) { Say 'No se pudo quitar la tarea "ii-windows": borrala en el Programador de tareas.' }
 }
 Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows' -Recurse -ErrorAction SilentlyContinue
+# The power-saving GPU choice, only if the installer wrote it.
+if ($manifest -and ($manifest.PSObject.Properties.Name -contains 'gpuPreference') -and $manifest.gpuPreference) {
+    Remove-ItemProperty 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -Name ([string]$manifest.gpuPreference) -ErrorAction SilentlyContinue
+}
 Remove-Item (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows') -Recurse -Force -ErrorAction SilentlyContinue
 Say 'Inicio automatico, entrada de Aplicaciones y accesos quitados.'
 
@@ -128,12 +134,58 @@ if ($envKey -and ($envKey.GetValueNames() -contains 'Path')) {
     }
 }
 if ($envKey) { $envKey.Close() }
+# 3c. only the fonts recorded as ours; a font the user already had was never recorded
+$fontsDir = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'))
+$fontsKeyPath = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+$remainingFonts = @()
+if ($manifest -and $manifest.fonts) {
+    foreach ($font in $manifest.fonts) {
+        $removed = $true
+        $file = [IO.Path]::GetFullPath([string]$font.file)
+        if ([IO.Path]::GetDirectoryName($file) -ne $fontsDir) {
+            Say "Fuente fuera de la carpeta de fuentes de usuario; se conserva: $file"
+            $remainingFonts += $font
+            continue
+        }
+        $key = Get-Item -LiteralPath $fontsKeyPath -ErrorAction SilentlyContinue
+        $registered = if ($key) { $key.GetValue([string]$font.valueName) } else { $null }
+        if ($key) { $key.Close() }
+        # If the user replaced this registration, keep their new value.
+        if ($registered -eq $file) {
+            try { Remove-ItemProperty -LiteralPath $fontsKeyPath -Name ([string]$font.valueName) -ErrorAction Stop }
+            catch { $removed = $false; Say "No se pudo quitar el registro de $($font.valueName): $($_.Exception.Message)" }
+        }
+        if (Test-Path -LiteralPath $file) {
+            try { Remove-Item -LiteralPath $file -Force -ErrorAction Stop }
+            catch { $removed = $false; Say "No se pudo borrar la fuente $file (puede estar en uso); no se programa su borrado: $($_.Exception.Message)" }
+        }
+        if (-not $removed) { $remainingFonts += $font }
+    }
+}
+if ($remainingFonts.Count -gt 0) {
+    $manifest.fonts = $remainingFonts
+    try {
+        $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "$manifestPath.tmp" -Encoding UTF8 -ErrorAction Stop
+        if (Test-Path -LiteralPath $manifestPath) { [IO.File]::Replace("$manifestPath.tmp", $manifestPath, $null) }
+        else { [IO.File]::Move("$manifestPath.tmp", $manifestPath) }
+    } catch { Say "No se pudo actualizar la lista de fuentes: $($_.Exception.Message)" }
+    Say "La lista de fuentes pendientes se conserva en $manifestPath para reintentar su retirada."
+}
+
+# Terminal fragments live outside the install folder, even when -KeepConfig is used.
+$fragmentDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\Fragments\ii-windows'
+if (Test-Path -LiteralPath $fragmentDir) {
+    try { Remove-Item -LiteralPath $fragmentDir -Recurse -Force -ErrorAction Stop }
+    catch { Say "No se pudo borrar la carpeta de Windows Terminal ${fragmentDir}: $($_.Exception.Message)" }
+}
+
 # 4. files (this script may live in the folder it deletes: finish from a temporary copy)
 if (-not $KeepConfig) {
     Remove-Item (Join-Path $env:LOCALAPPDATA 'quickshell') -Recurse -Force -ErrorAction SilentlyContinue
     Say 'Configuracion de ii borrada.'
 }
 foreach ($f in 'state.ini', 'install.json', 'banners.txt', 'theme.txt') {
+    if ($f -eq 'install.json' -and $remainingFonts.Count -gt 0) { continue }
     Remove-Item (Join-Path $dataDir $f) -ErrorAction SilentlyContinue
 }
 $self = $MyInvocation.MyCommand.Path

@@ -37,6 +37,8 @@ Remove-Item -LiteralPath $layout -Force -ErrorAction SilentlyContinue
 
 $state = "$env:LOCALAPPDATA\quickshell\State\user\generated"
 New-Item -ItemType Directory -Path $state -Force | Out-Null
+# Not a first run: the welcome window would cover the desktop the clicks below are aimed at.
+Set-Content -LiteralPath "$env:LOCALAPPDATA\quickshell\State\user\first_run.txt" -Value 'ii-windows test' -Encoding UTF8
 Copy-Item -LiteralPath C:\ii\build\seed\colors.json -Destination "$state\colors.json" -Force
 $pictures = Join-Path $env:USERPROFILE 'Pictures'
 New-Item -ItemType Directory -Path $pictures -Force | Out-Null

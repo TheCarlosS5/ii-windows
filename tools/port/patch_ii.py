@@ -324,8 +324,6 @@ edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
     }'''),
     ('''                    windowData: windowByAddress[address]''',
      '''                    windowData: root.gridLayout[address] ?? windowByAddress[address]'''),
-    ('''                        drag.target: parent''',
-     '''                        drag.target: null // ii-windows: one workspace, nowhere to move windows to'''),
 ])
 # Under the overview, a strip with Windows' virtual desktops and "New desktop", like Task View
 # (overlay modules/ii/overview/DesktopStrip.qml).
@@ -456,11 +454,10 @@ edit(path('services', 'Translation.qml'), [
         return shipped.find(code => code.split("_")[0] === name.split("_")[0]) ?? name;'''),
 ])
 
-# Workspaces are Windows' virtual desktops: the bar shows exactly the user's desktops (not ii's
-# fixed 10), and a dot is "occupied" when that desktop has windows (every desktop exists).
+# Workspaces are Windows' virtual desktops: the bar keeps ii's fixed slots (10 by default, as on
+# Hyprland), and a dot is "occupied" when that desktop has windows (an empty or missing desktop
+# looks empty).
 edit(path('modules', 'common', 'models', 'WorkspaceModel.qml'), [
-    ('    readonly property int shownCount: C.Config.options.bar.workspaces.shown',
-     '    readonly property int shownCount: Math.max(1, Hyprland.workspaces.values.length)'),
     ('            return Hyprland.workspaces.values.some(ws => ws.id === thisWorkspaceId);',
      '            return HyprlandData.windowList.some(w => w.workspace.id === thisWorkspaceId);'),
     ('''    onGroupChanged: {

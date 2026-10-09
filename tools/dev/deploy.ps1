@@ -24,7 +24,11 @@ foreach ($module in @(
 }
 robocopy "$root\quickshell\build\qml_modules" "$dist\qml" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 if (Test-Path "$root\third_party\fonts") {
-    robocopy "$root\third_party\fonts" "$dist\fonts" /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    # Every font is loaded into the shell's memory at startup: skip the ones no QML uses
+    # (Material Symbols Outlined, 10 MB; Rubik).
+    robocopy "$root\third_party\fonts" "$dist\fonts" /MIR /XF 'MaterialSymbolsOutlined*' 'Rubik*' /NFL /NDL /NJH /NJS /NP | Out-Null
+    # /MIR keeps excluded files that are already there.
+    Get-ChildItem "$dist\fonts" -File | Where-Object { $_.Name -like 'MaterialSymbolsOutlined*' -or $_.Name -like 'Rubik*' } | Remove-Item -Force
 }
 if (Test-Path "$root\third_party\icons") {
     # One compressed resource instead of ~40k files (Quickshell registers icons.rcc at startup).
@@ -43,7 +47,7 @@ robocopy "$root\shim\qml" "$dist\qml" /E /NFL /NDL /NJH /NJS /NP | Out-Null
 $shim = "$root\host\build\ii-shim.exe"
 if (Test-Path $shim) {
     New-Item -ItemType Directory -Force "$dist\bin" | Out-Null
-    foreach ($name in 'ii-shim', 'qalc', 'xdg-open', 'notify-send', 'playerctl', 'wpctl', 'pidof', 'killall', 'pkill', 'loginctl', 'bash', 'qs', 'switchwall', 'test', 'magick', 'ddcutil', 'brightnessctl', 'cava', 'ydotool', 'secret-tool', 'cliphist', 'hyprpicker', 'trans') {
+    foreach ($name in 'ii-shim', 'qalc', 'xdg-open', 'notify-send', 'playerctl', 'wpctl', 'pidof', 'killall', 'pkill', 'loginctl', 'bash', 'qs', 'switchwall', 'test', 'magick', 'ddcutil', 'brightnessctl', 'cava', 'ydotool', 'secret-tool', 'cliphist', 'hyprpicker', 'trans', 'ls') {
         Copy-Item $shim "$dist\bin\$name.exe" -Force
     }
 }

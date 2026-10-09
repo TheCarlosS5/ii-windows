@@ -72,10 +72,21 @@ Item {
         implicitWidth: root.previewWidth + 12
         implicitHeight: column.implicitHeight + 12
 
-        Rectangle { // hover / active background
+        // A window card dragged here from the overview moves to this desktop on release
+        // (GlobalStates.overviewDropDesktop; needs Windows 11 24H2+).
+        DropArea {
+            id: dropArea
+            anchors.fill: parent
+            enabled: !card.isNew
+            onEntered: GlobalStates.overviewDropDesktop = card.desktopId
+            onExited: if (GlobalStates.overviewDropDesktop === card.desktopId) GlobalStates.overviewDropDesktop = -1
+        }
+
+        Rectangle { // hover / active / drop background
             anchors.fill: parent
             radius: Appearance.rounding.normal
-            color: mouseArea.pressed ? Appearance.colors.colLayer1Active
+            color: dropArea.containsDrag ? Appearance.colors.colSecondaryContainer
+                : mouseArea.pressed ? Appearance.colors.colLayer1Active
                 : mouseArea.containsMouse ? Appearance.colors.colLayer1Hover : "transparent"
             Behavior on color {
                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

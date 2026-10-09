@@ -26,6 +26,7 @@ Singleton {
         bind(superKey, "Tab", "Shell: Overview of open windows"),
         bind(superKey, "Q", "Windows: Close the window in front (like Alt+F4)"),
         bind(superKey, "1-0", "Desktops: Go to desktop 1-10 (creates one if it doesn't exist)"),
+        bind(superKey | shift, "1-0", "Desktops: Move the window in front to desktop 1-10"),
         bind(superKey | ctrl, "Left/Right", "Desktops: Previous / next desktop (Windows)"),
         bind(superKey | ctrl, "D", "Desktops: New desktop (Windows)"),
         bind(superKey | ctrl, "F4", "Desktops: Close this desktop (Windows)"),

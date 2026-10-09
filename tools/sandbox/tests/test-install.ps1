@@ -25,7 +25,15 @@ function Snapshot() {
     $d = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\DWM'
     $run = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).'ii-windows'
     $userPath = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment').GetValue('Path', '<none>', 'DoNotExpandEnvironmentNames')
-    "cursor=$($c.Arrow)|$($c.'(default)')|$($c.Wait) theme=$($t.AppsUseLightTheme)/$($t.SystemUsesLightTheme) dwm=$($d.AccentColor)/$($d.ColorPrevalence) run=$run taskbar=$(TaskbarVisible) path=$userPath"
+    $gpu = @((Get-ItemProperty 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -ErrorAction SilentlyContinue).PSObject.Properties | Where-Object { $_.Name -like '*quickshell*' }).Count
+    $fontKey = Get-Item 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts' -ErrorAction SilentlyContinue
+    $fonts = @(if ($fontKey) {
+        foreach ($name in ($fontKey.GetValueNames() | Sort-Object)) {
+            [ordered]@{ name = $name; kind = [string]$fontKey.GetValueKind($name); value = $fontKey.GetValue($name, $null, 'DoNotExpandEnvironmentNames') }
+        }
+        $fontKey.Close()
+    }) | ConvertTo-Json -Compress -Depth 3
+    "cursor=$($c.Arrow)|$($c.'(default)')|$($c.Wait) theme=$($t.AppsUseLightTheme)/$($t.SystemUsesLightTheme) dwm=$($d.AccentColor)/$($d.ColorPrevalence) run=$run taskbar=$(TaskbarVisible) path=$userPath gpu=$gpu fonts=$fonts"
 }
 
 Get-Process ii-host, quickshell -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -53,6 +61,22 @@ Check 'Apps & features entry' (Test-Path 'HKCU:\Software\Microsoft\Windows\Curre
 Check 'Start menu shortcuts' ((Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ii-windows" -Filter *.lnk).Count -eq 4)
 Check 'registry exported before changes' ((Get-ChildItem "$env:LOCALAPPDATA\ii-windows\backup" -Recurse -Filter *.reg).Count -ge 5)
 Check 'manifest written' (Test-Path "$env:LOCALAPPDATA\ii-windows\install.json")
+$manifest = Get-Content "$env:LOCALAPPDATA\ii-windows\install.json" -Raw | ConvertFrom-Json
+$fonts = @($manifest.fonts)
+$fontFiles = @(Get-ChildItem "$pkg\app\quickshell\fonts" -Filter 'JetBrainsMonoNerdFont-*.ttf' -File)
+Check 'all packaged terminal fonts recorded' ($fontFiles.Count -gt 0 -and $fonts.Count -eq $fontFiles.Count)
+$fontKeyPath = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
+foreach ($font in $fonts) {
+    $fontKey = Get-Item -LiteralPath $fontKeyPath -ErrorAction SilentlyContinue
+    $registered = if ($fontKey) { $fontKey.GetValue([string]$font.valueName) } else { $null }
+    if ($fontKey) { $fontKey.Close() }
+    Check "font registered: $($font.valueName)" ($registered -eq $font.file)
+    Check "font file present: $($font.valueName)" (Test-Path -LiteralPath $font.file -PathType Leaf)
+}
+$fragmentDir = "$env:LOCALAPPDATA\Microsoft\Windows Terminal\Fragments\ii-windows"
+Check 'Terminal fragment written' (Test-Path "$fragmentDir\ii-windows.json")
+$gpuPref = (Get-ItemProperty 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -ErrorAction SilentlyContinue)."$env:LOCALAPPDATA\Programs\ii-windows\quickshell\quickshell.exe"
+Check 'power-saving GPU for the shell' ($gpuPref -eq 'GpuPreference=1;') "($gpuPref)"
 $userPath = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
 Check 'fastfetch folder appended to the user PATH' ($userPath.Split(';')[-1] -eq "$dir\bin") "($userPath)"
 $ff = & cmd.exe /c "`"$dir\bin\fastfetch.cmd`" --pipe true" 2>&1 | Out-String
@@ -73,6 +97,13 @@ Check 'install folder removed' (-not (Test-Path $dir))
 Check 'logon task removed' (-not (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue))
 Check 'shortcuts removed' (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ii-windows"))
 Check 'Apps & features entry removed' (-not (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'))
+foreach ($font in $fonts) {
+    $fontKey = Get-Item -LiteralPath $fontKeyPath -ErrorAction SilentlyContinue
+    Check "font registration removed: $($font.valueName)" (-not $fontKey -or $fontKey.GetValueNames() -notcontains $font.valueName)
+    if ($fontKey) { $fontKey.Close() }
+    Check "font file removed: $($font.valueName)" (-not (Test-Path -LiteralPath $font.file))
+}
+Check 'Terminal fragment folder removed' (-not (Test-Path -LiteralPath $fragmentDir))
 $after = Snapshot
 Check 'Windows exactly as before' ($after -eq $baseline) "($after)"
 & "$dev\screenshot.ps1" -Out "$out\uninstalled.png" | Out-Null
