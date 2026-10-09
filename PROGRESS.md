@@ -246,6 +246,29 @@ Hecho en esta ronda (todo probado en Sandbox):
   ni el del PC y abre el formulario de GitHub (`.github/ISSUE_TEMPLATE`, español e inglés).
 - Prueba de instalación en Sandbox ampliada (fastfetch, PATH, reporte): 0 fallos.
 
+## 0.1.2 (2026-10-09, instalada en tu PC y publicada)
+- **Arranque de ~25–30 s a ~5 s en tu PC.** Quickshell tardaba 19 s en escanear la config:
+  - guardaba las carpetas ya vistas como una lista de `QDir`;
+  - en Windows, cada comparación de `QDir` consulta el disco;
+  - con 590 archivos eso son decenas de miles de consultas, y Kaspersky las hace aún más lentas.
+  - Ahora es un conjunto de rutas: 0,2 s.
+- **QML compilado guardado entre arranques.** La config se carga desde una copia en archivos reales (`src/core/qmltree.cpp`), así Qt reutiliza lo compilado (668 archivos). Con `QS_NO_QMLTREE=1` se vuelve al modo anterior. Prueba: `tools/sandbox/tests/ii-startup.ps1`.
+- Todos los arreglos P0 de la auditoría (abajo).
+- `test-install.ps1`: 0 fallos.
+
+## Pedidos para más adelante
+- **Wallpaper Engine.** Muchos usuarios de Windows lo tienen.
+  - Al instalar ii, los fondos PNG con transparencia dejaban ver el fondo animado de Wallpaper Engine, y esa combinación quedaba bien.
+  - Idea: detectar Wallpaper Engine (y Lively) y ofrecer un modo "fondo de ii transparente". Las capas de ii (widgets, iconos, reloj) irían sobre el fondo animado sin taparlo, y los colores Material saldrían de una captura del fondo animado.
+  - Cuidado:
+    - ii y ellos pelean por la capa del escritorio (WorkerW);
+    - hay que pausar el fondo animado con juegos, como ya hace ii.
+- **Actualizador oficial.**
+  - Un aviso de "hay una versión nueva" cuando se publique en GitHub.
+  - La actualización bajaría solo lo que cambió (parches: QML y ejecutables modificados) en vez del paquete de 100 MB.
+  - Antes de aplicar, rescate y copia; si algo falla, se vuelve atrás.
+  - Las descargas firmadas o verificadas con hash.
+
 ## Auditoría 2026-10-09: velocidad, consumo y cosas que rompen ii (solo plan, nada implementado)
 
 Fuentes de esta auditoría: tu instalación real (logs, procesos, ventanas, memoria), el código (`host/`, el fork `quickshell/src/win32`, el overlay y los parches) y una prueba en vivo de las APIs del panel izquierdo. Cada punto indica cómo se sabe:
