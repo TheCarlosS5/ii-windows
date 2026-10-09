@@ -194,10 +194,43 @@ void watchExplorer() {
 	showHook = SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, nullptr, onObjectShown, pid, 0, WINEVENT_OUTOFCONTEXT);
 }
 
+void sendToShell(const wchar_t* name, bool pressed);
+
+// Win+Q: close the app in front the way Alt+F4 does (SC_CLOSE: it may still ask to save).
+// Never ii's own surfaces or the taskbar; on the desktop it opens ii's session menu instead.
+void closeForegroundWindow() {
+	auto* fg = GetForegroundWindow();
+	if (!fg) return;
+	DWORD pid = 0;
+	GetWindowThreadProcessId(fg, &pid);
+	if (pid == shellPid || pid == GetCurrentProcessId()) return;
+	wchar_t cls[64] {};
+	GetClassNameW(fg, cls, 64);
+	if (wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0) {
+		sendToShell(L"sessionToggle", true);
+		sendToShell(L"sessionToggle", false);
+		return;
+	}
+	if (wcscmp(cls, L"Shell_TrayWnd") == 0 || wcscmp(cls, L"Shell_SecondaryTrayWnd") == 0) return;
+	PostMessageW(fg, WM_SYSCOMMAND, SC_CLOSE, 0);
+}
+
+void sendToShell(const wchar_t* name, bool pressed) {
+	auto* sink = findShellSink();
+	if (!sink) return;
+	COPYDATASTRUCT data {};
+	data.dwData = pressed ? COPYDATA_PRESSED : COPYDATA_RELEASED;
+	data.cbData = static_cast<DWORD>((wcslen(name) + 1) * sizeof(wchar_t));
+	data.lpData = const_cast<wchar_t*>(name);
+	DWORD_PTR result = 0;
+	SendMessageTimeoutW(sink, WM_COPYDATA, reinterpret_cast<WPARAM>(hostWindow), reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 250, &result);
+}
+
 void dispatchShortcut(WPARAM pressed, LPARAM index) {
 	auto* name = keyboard::shortcutName(index);
 	if (name && name[0] == L'@') {
 		if (pressed && wcscmp(name, L"@showDesktop") == 0) desktop::toggleShowDesktop();
+		if (pressed && wcscmp(name, L"@closeWindow") == 0) closeForegroundWindow();
 		if (pressed && wcscmp(name, L"@colorPicker") == 0) {
 			// ii's color picker (Super+Shift+C on Linux): ii-shim hyprpicker, next to the shell.
 			auto dir = options.shell.substr(0, options.shell.find_last_of(L"\\/"));
@@ -219,15 +252,7 @@ void dispatchShortcut(WPARAM pressed, LPARAM index) {
 		}
 		return;
 	}
-	auto* sink = findShellSink();
-	if (!name || !sink) return;
-
-	COPYDATASTRUCT data {};
-	data.dwData = pressed ? COPYDATA_PRESSED : COPYDATA_RELEASED;
-	data.cbData = static_cast<DWORD>((wcslen(name) + 1) * sizeof(wchar_t));
-	data.lpData = const_cast<wchar_t*>(name);
-	DWORD_PTR result = 0;
-	SendMessageTimeoutW(sink, WM_COPYDATA, reinterpret_cast<WPARAM>(hostWindow), reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 250, &result);
+	if (name) sendToShell(name, pressed != 0);
 }
 
 struct ShellWindows {

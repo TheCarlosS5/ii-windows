@@ -524,6 +524,24 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"lock" || (command == L"loginctl" && !args.empty() && args[0] == L"lock-session")) {
 		return LockWorkStation() ? 0 : 1;
 	}
-	if (command == L"suspend") return SetSuspendState(FALSE, FALSE, FALSE) ? 0 : 1;
+	if (command == L"suspend") {
+		// Leave a trace: an unexpected sleep must be explainable from ii's own log.
+		SYSTEM_POWER_STATUS power {};
+		GetSystemPowerStatus(&power);
+		wchar_t* base = nullptr;
+		if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base))) {
+			auto path = std::wstring(base) + L"\\ii-windows\\host.log";
+			if (auto* f = _wfopen(path.c_str(), L"a, ccs=UTF-8")) {
+				SYSTEMTIME t;
+				GetLocalTime(&t);
+				fwprintf(f, L"%04d-%02d-%02d %02d:%02d:%02d.%03d [%lu] ii-shim suspend: AC %d, battery %d%%, reason %s\n",
+				    t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, t.wMilliseconds, GetCurrentProcessId(),
+				    power.ACLineStatus, power.BatteryLifePercent, args.empty() ? L"session menu" : args[0].c_str());
+				fclose(f);
+			}
+		}
+		CoTaskMemFree(base);
+		return SetSuspendState(FALSE, FALSE, FALSE) ? 0 : 1;
+	}
 	return 2;
 }

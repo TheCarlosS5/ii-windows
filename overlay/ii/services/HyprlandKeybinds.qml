@@ -22,7 +22,15 @@ Singleton {
 
     property var keybinds: [
         bind(superKey, "SUPER_L", "Shell: Search apps, files and math (tap the key)"),
+        bind(superKey, "S", "Shell: Search"),
         bind(superKey, "Tab", "Shell: Overview of open windows"),
+        bind(superKey, "Q", "Windows: Close the window in front (like Alt+F4)"),
+        bind(superKey, "1-0", "Desktops: Go to desktop 1-10 (creates one if it doesn't exist)"),
+        bind(superKey | ctrl, "Left/Right", "Desktops: Previous / next desktop (Windows)"),
+        bind(superKey | ctrl, "D", "Desktops: New desktop (Windows)"),
+        bind(superKey | ctrl, "F4", "Desktops: Close this desktop (Windows)"),
+        bind(superKey, "W", "Shell: Left sidebar"),
+        bind(superKey | alt, "D", "Shell: Right sidebar (calendar)"),
         bind(superKey, "V", "Shell: Clipboard history"),
         bind(superKey, "Period", "Shell: Emoji picker"),
         bind(superKey, "A", "Shell: Left sidebar"),
@@ -44,6 +52,7 @@ Singleton {
         bind(superKey | shift, "T", "Screenshot: Translate a region"),
         bind(superKey | shift, "R", "Screenshot: Record a region"),
         bind(ctrl | alt, "End", "Session: Session menu (power, sign out, lock)"),
+        bind(alt, "F4", "Session: Session menu, on the desktop"),
         bind(superKey, "L", "Session: Lock (Windows)"),
         bind(ctrl | alt, "Delete", "Session: Security options (Windows)"),
         bind(ctrl | shift, "Escape", "Session: Task Manager (Windows)"),

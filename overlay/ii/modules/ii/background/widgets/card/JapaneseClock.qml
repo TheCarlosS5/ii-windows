@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Effects
 import qs
 import qs.services
 import qs.modules.common
@@ -9,22 +10,28 @@ import qs.modules.ii.background.widgets
 // ii-windows: time and date written in kanji (十六時 二十五分 / 十月八日 木曜日), vertical like
 // traditional Japanese text (columns read right to left) or horizontal. Options in
 // background.widgets.japaneseClock: vertical, showDate, showSeconds, card.
+// Its size multiplies the font sizes (scalesContent) instead of stretching the rendered text,
+// so it stays sharp at any size.
 AbstractBackgroundWidget {
     id: root
 
     configEntryName: "japaneseClock"
+    scalesContent: true
+    readonly property real f: root.widgetScale
     readonly property bool vertical: configEntry.vertical ?? true
     readonly property bool showDate: configEntry.showDate ?? true
     readonly property bool showSeconds: configEntry.showSeconds ?? false
     readonly property bool card: configEntry.card ?? false
     property date now: new Date()
 
-    implicitWidth: content.implicitWidth + (card ? 48 : 16)
-    implicitHeight: content.implicitHeight + (card ? 48 : 16)
+    readonly property Item shown: vertical ? verticalContent : horizontalContent
+    implicitWidth: Math.ceil(shown.implicitWidth + (card ? 48 : 16) * f)
+    implicitHeight: Math.ceil(shown.implicitHeight + (card ? 48 : 16) * f)
 
     Timer {
         interval: root.showSeconds ? 1000 : 10000
-        running: root.visible
+        // Nobody sees it under a maximized app: no repaints of the whole wallpaper for it.
+        running: root.visible && !root.desktopCovered
         repeat: true
         triggeredOnStart: true
         onTriggered: root.now = new Date()
@@ -59,41 +66,56 @@ AbstractBackgroundWidget {
         color: Appearance.colors.colLayer0
     }
 
+    // Without a card, a soft shadow keeps it readable on any wallpaper (Text.Raised drew a
+    // second copy 1 px lower, which looked doubled on thin kanji strokes).
+    component Shadowed: MultiEffect {
+        shadowEnabled: true
+        shadowBlur: 0.35
+        shadowOpacity: 0.45
+        shadowVerticalOffset: 1
+        shadowColor: "black"
+    }
+
     // Vertical: big time column on the right, date column to its left (read right to left).
     Row {
-        id: content
-        anchors.centerIn: parent
+        id: verticalContent
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
         visible: root.vertical
+        layer.enabled: !root.card
+        layer.effect: Shadowed {}
         layoutDirection: Qt.RightToLeft
-        spacing: 14
+        spacing: Math.round(14 * root.f)
 
         VerticalText {
             text: root.timeText
-            pixelSize: 64
+            pixelSize: Math.round(64 * root.f)
             weight: Font.Bold
         }
         VerticalText {
             visible: root.showDate
             text: root.dateText + "　" + root.weekdayText
-            pixelSize: 30
+            pixelSize: Math.round(30 * root.f)
             weight: Font.Normal
             opacity: 0.8
         }
     }
 
     Column {
-        anchors.centerIn: parent
+        id: horizontalContent
+        x: Math.round((root.width - width) / 2)
+        y: Math.round((root.height - height) / 2)
         visible: !root.vertical
-        spacing: 4
+        layer.enabled: !root.card
+        layer.effect: Shadowed {}
+        spacing: Math.round(4 * root.f)
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
             text: root.timeText
             color: root.textColor
             font.family: "Yu Gothic UI"
-            font.pixelSize: 64
+            font.pixelSize: Math.round(64 * root.f)
             font.weight: Font.Bold
-            style: root.card ? Text.Normal : Text.Raised
-            styleColor: Qt.alpha("black", 0.3)
         }
         StyledText {
             anchors.horizontalCenter: parent.horizontalCenter
@@ -102,9 +124,7 @@ AbstractBackgroundWidget {
             color: root.textColor
             opacity: 0.8
             font.family: "Yu Gothic UI"
-            font.pixelSize: 30
-            style: root.card ? Text.Normal : Text.Raised
-            styleColor: Qt.alpha("black", 0.3)
+            font.pixelSize: Math.round(30 * root.f)
         }
     }
 
@@ -114,9 +134,9 @@ AbstractBackgroundWidget {
         property string text
         property int pixelSize
         property int weight
-        readonly property real charWidth: pixelSize * 1.1
+        readonly property real charWidth: Math.round(pixelSize * 1.1)
         width: charWidth
-        spacing: -pixelSize * 0.12
+        spacing: -Math.round(pixelSize * 0.12)
         Repeater {
             model: Array.from(column.text)
             delegate: StyledText {
@@ -128,8 +148,6 @@ AbstractBackgroundWidget {
                 font.family: "Yu Gothic UI"
                 font.pixelSize: column.pixelSize
                 font.weight: column.weight
-                style: root.card ? Text.Normal : Text.Raised
-                styleColor: Qt.alpha("black", 0.3)
             }
         }
     }

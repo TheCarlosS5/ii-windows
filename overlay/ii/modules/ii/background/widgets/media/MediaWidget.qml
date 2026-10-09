@@ -13,7 +13,8 @@ import qs.modules.ii.mediaControls
 
 // ii-windows: ii's player card (the one in the bar's media popup) on the desktop, for whatever
 // is playing: cover, title, artist, progress and controls. While nothing plays it shows a music
-// note in one of ii's Material shapes, which slowly turns and morphs from shape to shape.
+// note in one of ii's Material shapes, which slowly turns and morphs from shape to shape
+// (only while the desktop is in view: every frame repaints the whole wallpaper window).
 // Drag it by its edges like the clock.
 AbstractBackgroundWidget {
     id: root
@@ -32,6 +33,8 @@ AbstractBackgroundWidget {
         id: cava
         running: root.playing && (root.player?.isPlaying ?? false) && (root.configEntry.spectrum ?? true)
             && root.visible && !GlobalStates.screenLocked && ((QsWindow.window as QsWindow)?.visible ?? false)
+            // Not under a maximized app, and not twice: the media panel runs its own cava.
+            && !root.desktopCovered && !GlobalStates.mediaControlsOpen
         command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
         onRunningChanged: if (!running) root.visualizerPoints = []
         stdout: SplitParser {
@@ -79,7 +82,7 @@ AbstractBackgroundWidget {
 
         Timer {
             interval: 4000
-            running: idle.visible && !GlobalStates.screenLocked
+            running: idle.visible && !GlobalStates.screenLocked && !root.desktopCovered
             repeat: true
             onTriggered: idle.shapeIndex = (idle.shapeIndex + 1) % idle.shapes.length
         }
@@ -91,7 +94,7 @@ AbstractBackgroundWidget {
             shape: idle.shapes[idle.shapeIndex]
             color: Appearance.colors.colSecondaryContainer
             RotationAnimation on rotation {
-                running: idle.visible && !GlobalStates.screenLocked
+                running: idle.visible && !GlobalStates.screenLocked && !root.desktopCovered
                 from: 0
                 to: 360
                 duration: 30000

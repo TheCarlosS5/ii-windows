@@ -246,7 +246,383 @@ Hecho en esta ronda (todo probado en Sandbox):
   ni el del PC y abre el formulario de GitHub (`.github/ISSUE_TEMPLATE`, español e inglés).
 - Prueba de instalación en Sandbox ampliada (fastfetch, PATH, reporte): 0 fallos.
 
+## Auditoría 2026-10-09: velocidad, consumo y cosas que rompen ii (solo plan, nada implementado)
+
+Fuentes de esta auditoría: tu instalación real (logs, procesos, ventanas, memoria), el código (`host/`, el fork `quickshell/src/win32`, el overlay y los parches) y una prueba en vivo de las APIs del panel izquierdo. Cada punto indica cómo se sabe:
+- **C**: confirmado en el código o medido.
+- **P**: probable; hay que comprobarlo en un portátil.
+- **T**: sin probar.
+
+### Lo que se midió en tu PC
+| Qué | Resultado | Qué significa |
+| --- | --- | --- |
+| Arranque al encender | 22–30 s hasta "shell lista" (logs del 08-oct 21:32 y 21:33, 09-oct 11:30). Reparto del 09-oct: ~1 s en abrir quickshell y sus DLL, 0,7 s en fuentes, **~25 s sin ningún mensaje** (entre "fuentes cargadas" y "atajos listos") y ~3 s en primeros fotogramas y servicios | Casi todo es cargar y compilar el QML (causa 1). Confirmarlo con una traza antes de tocar nada |
+| Caché de QML | `%LOCALAPPDATA%\quickshell\cache\qmlcache` tiene 16 archivos (76 KB), todos del 08-oct 05:10. ii tiene 607 QML (2,2 MB) | ii se compila entera en **cada** arranque, no solo el primero |
+| RAM de quickshell | 1.300 MB privados y 909 MB en uso tras 35 min; 150 hilos, 2.494 handles | En un portátil de 8 GB es una sexta parte de la RAM |
+| GPU de quickshell | 353 MB dedicados + 96 MB compartidos; el motor 3D al **~8 % sin tocar nada** | El fondo se redibuja sin parar (causa 6) |
+| CPU en reposo | ~11 % de un núcleo, con **dos procesos `cava`** a la vez | Dos capturas de audio con FFT a 60 fps |
+| Ventanas de la shell | 8 visibles y 19 ocultas (13 `_q_titlebar` de Qt, sidebars, overview…) | Cada ventana tiene su propio dispositivo D3D, sus texturas y su caché de letras |
+| Fuentes | 42 MB cargadas al iniciar. *Material Symbols Outlined* (10 MB) y *Rubik* no aparecen en ningún QML | RAM sin uso |
+| Tu config | Reloj japonés con `widgetScale: 1.1` y posición `x: 39.394, y: 55.197`. Otro widget en `1649.73, 47.716` con escala 1.3 | Explica lo borroso (causa 5) |
+| APIs del panel izquierdo (probadas hoy) | Gelbooru **401** (ahora exige clave de API). Danbooru **403** con un User-Agent de navegador como el que manda ii, **200** con uno propio. Zerochan **500** con JSON mal formado. yande.re, Konachan y waifu.im **200**. Alcy 200 con etiqueta, página HTML sin etiqueta | Ver P0 |
+| fastfetch | 467 ms la primera vez, 62 ms después | Bien para la terminal |
+
+**Por qué a ti te va bien y a tus amigos no:**
+- Tu PC es un escritorio (Ryzen 5 5500GT): 1080p a 75 Hz, escala 100 %, sin batería, y con *Mem Reduct* recortando memoria.
+- Un portátil gamer típico es otra cosa:
+  - pantalla 1440p–1600p a 144–240 Hz, con escala 125–150 %;
+  - gráfica híbrida (Intel/AMD + NVIDIA) y modo batería;
+  - núcleos de eficiencia y antivirus preinstalado.
+- ii hoy redibuja pantallas completas a la frecuencia del monitor. Allí eso cuesta de 3 a 6 veces más.
+
+### Causas encontradas
+1. **Sin caché de QML (C).**
+   - Quickshell sirve el QML con su esquema `qs:`, y Qt solo guarda compilados los archivos `file:`. El fork lo dice en `src/launch/launch.cpp`: "The qml engine currently refuses to cache non file (qsintercept) paths".
+   - Cada archivo pasa además por la capa de red de Qt, y el antivirus lo escanea al leerlo.
+2. **ii-host arranca la shell al final (C, `host/src/main.cpp`).** Antes lanza el guardián, la luz nocturna (lee con GDI la gamma de cada pantalla), los banners, el tema y el gancho de teclado. En tu PC son 0,1 s; en portátiles con dos GPU puede ser más.
+3. **Todo se dibuja en el hilo principal (C, `src/win32/init.cpp` pone `QSG_RENDER_LOOP=basic`).** Mientras una ventana se dibuja, ese hilo no atiende ratón, teclado ni temporizadores. Con varias ventanas animándose y una GPU justa salen tirones.
+4. **Popups que crean una ventana nueva al pasar el ratón (C).**
+   - `bar/StyledPopup.qml` (recursos, reloj, batería, clima) y `PopupToolTip` (bandeja, aviso de la rueda) crean una ventana nativa al entrar el ratón y la destruyen al salir.
+   - Cada vez hay que crear dispositivo D3D, swapchain y primer fotograma. Es la "pausa por pasada" de los portátiles.
+5. **Widgets borrosos, tres causas (C).**
+   - El tamaño del widget se aplica con `scale:`, y el texto de ii es `Text.NativeRendering`: se dibuja a tamaño 1 y después se estira.
+   - Al arrastrar fuera del modo edición la posición se guarda con decimales (`saveDrop` solo redondea en modo edición), y el texto cae entre píxeles.
+   - El reloj japonés usa `Text.Raised`, que dibuja una copia desplazada 1 px: se ve doble.
+6. **El fondo se redibuja sin parar (C).**
+   - El widget de música en reposo tiene una `RotationAnimation` infinita; con música, `cava` va a 60 fps.
+   - Cualquier cambio en el fondo redibuja la pantalla entera (1920×1080, o 2560×1600 en un portátil), aunque una ventana maximizada lo tape.
+   - El panel multimedia lanza además su propio `cava`.
+7. **El cursor se consulta cada 16 ms (C, `InputRegions` en `native.cpp`).** Siempre hay una ventana con zona de clic (la barra, el dock), así que un temporizador de precisión despierta la CPU 60 veces por segundo para decidir si el clic atraviesa. Así un portátil no descansa nunca.
+8. **El fondo se carga a resolución completa (C).** `Background.qml` no pone `sourceSize`. Una imagen 4K ocupa ~36 MB de RAM, más su textura, aunque la pantalla sea 1080p.
+9. **Paneles cargados aunque estén cerrados (C).** El panel izquierdo (IA, booru, traductor) se crea al arrancar (`active: true`). Las ventanas ocultas conservan sus recursos de GPU.
+
+### Plan por prioridad
+
+#### P0. Errores que rompen o asustan (rápidos de arreglar)
+> **Hecho el 2026-10-09 y probado en Sandbox (aún no instalado en tu PC).** `tools/sandbox/tests/ii-p0.ps1`: 25/25. Siguen pasando `test-host.ps1`, `ii-stale-win.ps1` e `ii-desktops.ps1`.
+> - **Alt+F4 en el escritorio:** abre el menú de sesión de ii y el fondo sigue. En el resto de ventanas de ii, Alt+F4 no hace nada.
+> - **Escritorios:**
+>   - La rueda de la barra ya no crea escritorios.
+>   - Win+1…0 cambia de escritorio. Si no existe, crea **uno** solo.
+>   - Win+Mayús/Ctrl/Alt+número ya no abren apps de la barra oculta.
+> - **Atajos:**
+>   - Win+Q cierra la ventana de delante; en el escritorio no cierra nada.
+>   - Win+S abre la búsqueda de ii.
+>   - Win+W abre el panel izquierdo y Win+Alt+D el derecho.
+>   - Win+T queda bloqueado.
+>   - La cheatsheet ya los muestra.
+> - **Batería:** la suspensión automática viene apagada. Si la activas, exige 1 minuto seguido con batería, avisa antes y nunca actúa con el cargador puesto. Cada suspensión queda anotada en `host.log` con el motivo.
+> - **Panel izquierdo:**
+>   - Gelbooru: campos `apiKey`/`userId` y un mensaje que explica la clave.
+>   - Danbooru/Konachan: User-Agent propio.
+>   - Zerochan: lee su JSON roto y pide las miniaturas en JPG (Qt no abre AVIF en Windows).
+>   - Alcy: etiqueta por defecto.
+>   - Mensajes según el error: 401/403/429/sin conexión.
+> - **Widgets:**
+>   - El reloj japonés escala sus fuentes (nítido a cualquier tamaño) y usa una sombra suave.
+>   - Las posiciones se guardan en píxeles enteros, también la capa de widgets.
+>   - Para que los demás widgets escalen igual, basta con `scalesContent: true`.
+> - **Popups de la barra:** la ventana se crea una vez y se reutiliza 20 s (comprobado: el mismo identificador de ventana en la siguiente pasada). Los tooltips de la bandeja, igual durante 15 s.
+> - **Escritorio tapado:** `services/DesktopCover.qml`. Con una app maximizada delante se paran el giro del widget de música, su espectro y el reloj japonés. El `cava` del widget no corre mientras el panel multimedia tiene el suyo.
+> - **Fallo encontrado en la prueba y corregido:** Qt entrega el Alt+F4 de la cola de mensajes sin dónde guardar la respuesta, y escribir ahí cerraba la shell. Ahora se comprueba antes.
+> - **Pendiente de P0:**
+>   - el reloj de ii (CookieClock) y los demás widgets siguen escalando con `scale`;
+>   - un solo `cava` compartido de verdad;
+>   - campos de Gelbooru en la pantalla de Configuración (hoy van en `config.json`).
+- [x] **Alt+F4 sobre el escritorio cierra el fondo (C).** El fork no intercepta `WM_CLOSE`/`SC_CLOSE`, y el fondo recibe el foco desde que tiene iconos.
+  - Ignorar el cierre en todas las ventanas de la shell, dentro de `NativeEventRouter`: fondo, barra, dock, overview, sidebars, OSD y selector de región.
+  - Alt+F4 con el escritorio delante abre el menú de sesión de ii, igual que Windows muestra "Apagar Windows". Lo mismo si delante está el escritorio de Explorer (Progman), que hoy abre el diálogo clásico.
+  - Alt+F4 en las apps normales sigue igual.
+- [x] **La rueda en la barra crea escritorios (C).** `bar/Workspaces.qml` manda `r+1`, y `focusWorkspace` (`compat/hyprland.cpp`) crea uno nuevo si ya estás en el último.
+  - La rueda solo recorre los escritorios que existen: para en el último o da la vuelta.
+  - Solo se crea con una acción explícita: "Nuevo escritorio", Win+Ctrl+D o Win+número (P2).
+- [x] **Autosuspensión por batería: causa probable de "el portátil se apaga al terminar la instalación" (P).**
+  - Por qué puede pasar:
+    - ii trae `battery.automaticSuspend: true` (al 3 %), y en Windows eso llama a `SetSuspendState`.
+    - Solo cuenta como "cargando" si Windows dice *Charging*. Enchufado pero lleno, o con limitador de carga (ASUS, Lenovo, MSI), cuenta como "no cargando".
+    - Basta una lectura falsa de 0 % al arrancar o mientras se instalan drivers.
+    - En portátiles con *Modern Standby* puede acabar en hibernación: el equipo parece apagarse, y al encenderlo aparece ii ya cargado.
+  - Plan:
+    - En Windows, desactivarla por defecto (Windows ya tiene su propia "acción de batería crítica").
+    - Si el usuario la activa: nunca con el cargador conectado, solo tras varias lecturas seguidas durante 60 s, con un aviso cancelable de 30 s y una línea en `host.log`.
+  - Cómo confirmarlo en el portátil de tu amigo: `Get-WinEvent -FilterHashtable @{LogName='System'; Id=42,107,1074,41,6008} -MaxEvents 20`. El evento 42 es la entrada en suspensión, con el motivo; el 1074 dice qué proceso pidió apagar. Añadir esos eventos a "Reportar un problema".
+- [x] **Atajos de Windows que muestran su barra o su búsqueda (C: no están en la tabla de `host/src/keyboard.cpp`):**
+  - Win+Q y Win+S abren la búsqueda de Windows.
+    - Win+Q pasa a cerrar la ventana activa, como Super+Q en Arch. Manda `SC_CLOSE`, igual que Alt+F4: la app puede preguntar si guardas. Nunca se aplica a ventanas de ii, y Alt+F4 sigue igual.
+    - Win+S abre la búsqueda de ii.
+  - Win+1…0 abren las apps ancladas de la barra oculta. Pasan a cambiar de escritorio (P2).
+  - Win+Mayús/Ctrl/Alt+número abren una instancia nueva, la última ventana o la lista de saltos de la barra oculta. Win+Mayús+número pasa a mover la ventana a ese escritorio (P2); los demás se bloquean.
+  - Win+T y Win+B dan el foco a la barra o a la bandeja ocultas, y el teclado "desaparece": se bloquean.
+  - Win+Alt+D abre el calendario de la barra de Windows: abrirá el de ii.
+  - Win+W abre los Widgets de Windows: abrirá el panel izquierdo de ii.
+  - Win+X (menú de enlaces rápidos) es útil y se deja.
+  - Actualizar la cheatsheet (`overlay/ii/services/HyprlandKeybinds.qml`) con todo esto.
+- [x] **Proveedores del panel izquierdo:**
+  - **Gelbooru:** campos `api_key` y `user_id`, guardados con DPAPI como las claves de IA, y el mensaje "Gelbooru pide una clave de API" en vez del error genérico. Sin clave, sale de la lista.
+  - **Danbooru y Konachan:** un User-Agent propio (`ii-windows/<versión> (+github)`), no el de Chrome.
+  - **Zerochan:** leer el JSON aunque llegue con un 500 y limpiar la `{` sobrante. Pedir el usuario, porque Zerochan lo exige.
+  - **Alcy:** usar la etiqueta `ycy` si no escribes ninguna.
+  - Un mensaje propio para cada error (401, 403, sin conexión).
+- [x] **Widgets nítidos:**
+  - Redondear siempre la posición al guardarla.
+  - Cambiar el tamaño multiplicando fuentes y medidas, en lugar de `scale:` (o usar `Text.CurveRendering` en los widgets escalables).
+  - Quitar `Text.Raised` del reloj japonés y usar la sombra suave de ii.
+  - Poner `smooth: true` en las imágenes escaladas.
+- [x] **Popups de la barra sin ventanas nuevas:**
+  - Una sola ventana de popup por barra, creada una vez y reutilizada: solo cambian su contenido y su posición.
+  - Los tooltips de la bandeja, dentro de la propia ventana de la barra.
+- [x] **Fondo quieto cuando no se ve:**
+  - Una señal de "escritorio tapado" (ventana maximizada o a pantalla completa en ese monitor) que pausa las animaciones, `cava`, el reloj con segundos y el paralaje.
+  - El widget de música en reposo, sin giro infinito.
+  - Un solo `cava` para el widget y el panel multimedia, a 30 fps con batería.
+
+#### P1. Arranque y primera ejecución
+- [ ] **Caché de QML que funcione (la mejora más grande).**
+  - Opción recomendada: el fork escribe a disco una copia espejo de la config, con los `qmldir` que hoy genera en memoria, y la carga con rutas `file:`. Así Qt guarda y reutiliza los `.qmlc`. Para las herramientas ya existe algo parecido (`src/core/toolsupport.cpp`).
+  - Objetivo: de ~25 s a menos de 5 s con la caché ya llena.
+  - Alternativa mayor: compilar ii por adelantado (qmlcachegen) dentro del paquete.
+- [ ] **Precalentar en el instalador.** Último paso: "Preparando ii por primera vez…", con barra de progreso.
+  - Arranca la shell oculta una vez, la deja llenar sus cachés y la cierra.
+  - Cachés que se llenan: QML, shaders de Qt5Compat (`_qt_QGfxShaderBuilder`), pipelines, índice de apps e iconos.
+- [ ] **ii-host lanza la shell lo primero.** Luz nocturna, banners y tema van después, en otro hilo.
+- [ ] **Pantalla de carga siempre, no solo con `--boot`.**
+  - Muestra el fondo de ii, el logo, un indicador Material y un texto ("Preparando ii por primera vez…" / "Cargando…").
+  - La shell le avisa a ii-host de cada etapa (config, barra, fondo), así el progreso es real.
+  - Si tarda demasiado: "Esto está tardando más de lo normal", con [Esperar] y [Usar Windows normal].
+  - Ocultar la barra y los iconos de Windows solo cuando la barra de ii esté lista o con la pantalla de carga encima. Hoy, sin `--boot`, se ve un escritorio vacío unos 25 s.
+- [ ] **Cargar los paneles al abrirlos.**
+  - Solo al usarlos: panel izquierdo, ajustes, selector de fondos, cheatsheet, teclado en pantalla, selector de región y traductor de pantalla.
+  - `keepRightSidebarLoaded` según la RAM del equipo. Con la caché de QML arreglada, abrir un panel tarda poco.
+- [ ] **Paquete más ligero (menos que escanear y que cargar).** Probar cada quitada con test-install.
+  - Estilos de Qt Quick Controls que ii no usa (FluentWinUI3 solo lo usa Waffle; también Imagine, Universal, Windows…).
+  - `dxcompiler.dll`/`dxil.dll` (13,7 MB, solo sirven para D3D12).
+  - Las fuentes sin uso.
+- [ ] **Firma de código** (gratis con SignPath para código abierto, o Azure Trusted Signing). Sin firma:
+  - *Smart App Control*, activo en algunas instalaciones nuevas de Windows 11, puede bloquear ii por completo.
+  - SmartScreen avisa al instalar.
+  - Los antivirus desconfían de un programa sin firma que tiene un gancho de teclado.
+  - Además: `Unblock-File` del paquete al instalar, para quitar la marca de "descargado de Internet".
+
+#### P1. RAM (objetivo: menos de 350 MB privados en un portátil de 8 GB)
+- [ ] **Antes de recortar, medir dónde está la RAM** (VMMap/ETW). Prueba de 24 h con muestreo para encontrar fugas (hoy hay procesos `cava` duplicados).
+- [ ] **Fondos a su tamaño.** Wallpaper con `sourceSize` igual a pantalla × zoom × escala, y las miniaturas de fondos guardadas a tamaño miniatura.
+- [ ] **Ventanas cerradas que liberan la GPU.** `persistentGraphics`/`persistentSceneGraph` en false desde el fork, o destruir la ventana tras ~30 s cerrada (sidebars, overview, selector de fondos, ajustes).
+- [ ] **Fuentes instaladas por usuario**, en lugar de cargarlas en la memoria de la shell. Van en `%LOCALAPPDATA%\Microsoft\Windows\Fonts` + HKCU, sin admin y reversible. Windows las comparte entre programas, y Windows Terminal puede usar JetBrains Mono NF (fastfetch la necesita para sus iconos).
+- [ ] **Menos caché sin control.**
+  - Recoger la basura de JS tras el arranque y al cerrar los paneles grandes.
+  - Poner límites a las cachés de imágenes: booru, carátulas, portapapeles y miniaturas del overview.
+- [ ] **Probar `QT_QPA_DISABLE_REDIRECTION_SURFACE=1`.** Qt dibuja con DirectComposition (`dcomp.dll` está cargada), y la superficie de redirección de cada ventana es memoria duplicada. Verificar que la variable existe en Qt 6.12.
+
+#### P1. Fluidez en portátiles
+- [ ] **Bucle de render `threaded`** (dibuja fuera del hilo principal).
+  - Se descartó porque las animaciones se congelaban en ventanas con click-through.
+  - Volver a probarlo sin el cambio de estilo `WS_EX_LAYERED` y con el punto siguiente.
+- [ ] **Click-through por eventos.**
+  - Cambiar el sondeo de 16 ms por `SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE)` sobre el cursor (`OBJID_CURSOR`): solo trabaja cuando el ratón se mueve.
+  - Con el ratón quieto, la CPU duerme.
+- [ ] **GPU de bajo consumo.**
+  - Registrar `quickshell.exe` como "Ahorro de energía" en las preferencias gráficas de Windows (`HKCU\Software\Microsoft\DirectX\UserGpuPreferences`, reversible), o elegir desde el fork el adaptador que tiene la pantalla.
+  - Así ii no despierta la NVIDIA ni copia imágenes entre las dos GPU.
+- [ ] **Que Windows no la frene (P).**
+  - Sacar quickshell e ii-host del *power throttling*/EcoQoS con `SetProcessInformation(ProcessPowerThrottling)`.
+  - ii nunca está en primer plano. Con batería, Windows puede mandarla a los núcleos de eficiencia (Intel de 12.ª generación o posterior). Probarlo en un portátil.
+- [ ] **Límite de fps para ii.** En pantallas de 120 Hz o más, animar a 60 (intervalo de swap 2), y siempre con batería. Opción en Configuración.
+- [ ] **Modo juego automático.** Con un juego a pantalla completa, además de apartarse, ii **oculta** sus ventanas y para temporizadores y servicios. Hoy se aparta, pero puede seguir dibujando debajo.
+- [ ] **Modo batería.** Menos consultas (recursos, clima, red), sin espectro ni paralaje, y `cava` apagado.
+- [ ] **Recorte barato.** Cada efecto de Qt5Compat (`OpacityMask`, `GaussianBlur`) cuesta una capa extra.
+  - Compilar los shaders HLSL de `ClippingRectangle` para Windows (`qsb --hlsl`) y volver a su recorte, que es más barato.
+  - Usar `MultiEffect` en el resto de efectos.
+
+#### P2. Escritorios como en Arch
+- [ ] **10 espacios fijos en la barra**, como ii en Linux, en vez de uno por escritorio existente.
+  - Hoy `shownCount` es el número de escritorios reales; por eso salían 27 bolitas.
+  - Un escritorio vacío se ve igual que uno que no existe. Si hay más de 10, aparece un "+".
+- [ ] **Escritorios efímeros** (opción, activada por defecto).
+  - Al salir de un escritorio vacío, ii lo quita, como Hyprland borra los workspaces vacíos. El 1 no se quita nunca.
+  - Así nunca se acumulan.
+- [ ] **Win+1…0 lleva al escritorio N.**
+  - Si N no existe, crea **uno** al final y va ahí. Nunca varios de golpe.
+  - Win+Mayús+N mueve la ventana activa al escritorio N.
+- [ ] **Saltar directo y mover ventanas de otras apps.**
+  - Windows no tiene API pública para esto. La única vía es la interfaz no documentada que usan VirtualDesktopAccessor y MScholtes/VirtualDesktop (ambos MIT), y sus GUID cambian entre versiones de Windows.
+  - Plan seguro:
+    - una tabla por número de build (22621/22631, 26100/26200);
+    - las llamadas en un hilo aparte, con tiempo límite;
+    - si el build no está en la tabla o algo falla, vuelven los atajos de hoy.
+  - Lo que permite:
+    - ir del 1 al 7 sin pasar por los intermedios (hoy son 6 animaciones seguidas);
+    - Win+Mayús+N;
+    - **arrastrar ventanas a otro escritorio en la vista general**, soltando la tarjeta sobre un escritorio de la tira.
+
+#### P2. Pantalla de bloqueo de ii
+**Límite real:** ningún programa normal puede dibujar en el escritorio seguro de Windows (contraseña, Ctrl+Alt+Supr). Tampoco puede sustituir el inicio de sesión del arranque sin un *credential provider*, que es una DLL de sistema en HKLM. Eso es arriesgado y va contra las reglas de seguridad del proyecto. Opciones:
+- **A. Animación + bloqueo real (recomendada por defecto, segura).**
+  - Win+L o "Bloquear" lanza la animación de ii: fondo con desenfoque y zoom y el reloj, como en el dotfile. Después bloquea Windows de verdad. Al desbloquear, la animación inversa.
+  - La pantalla de bloqueo de Windows lleva el fondo de ii, sin "datos curiosos" ni widgets (HKCU). Falta verificar que la API de imagen de bloqueo funciona fuera de la Store.
+- **B. Bloqueo de ii (opcional).**
+  - Una pantalla de bloqueo propia de ii, con su campo de contraseña.
+    - La contraseña se comprueba con `LogonUserW` (cuentas locales y cuentas Microsoft con contraseña).
+    - PIN, huella o cara, con Windows Hello (`UserConsentVerifier`: sale la ventanita de Windows Hello).
+    - Mientras está activa, el gancho de teclado bloquea Win, Alt+Tab y Alt+F4.
+  - **No es una barrera de seguridad:** Ctrl+Alt+Supr siempre funciona. Por eso, en cualquiera de estos casos, ii-host llama al bloqueo real de Windows:
+    - aparece la pantalla segura;
+    - se abre el Administrador de tareas;
+    - la shell se cierra;
+    - el equipo se va a dormir;
+    - pasan N minutos.
+  - Quien intente saltárselo cae en el bloqueo de Windows.
+- **C. Solo PCs de casa, con advertencia: inicio de sesión automático + B al arrancar.**
+  - Así no se ve la pantalla de Windows al encender.
+  - Requiere admin y guarda la contraseña como secreto LSA. Sin BitLocker, quien tenga el equipo puede entrar.
+  - ii-host tendría que mostrar su cobertura de bloqueo **antes** de que cargue la shell.
+- **Quitar la "cortina" del bloqueo de Windows** (ir directo a la contraseña): política `NoLockScreen` (HKLM, admin). Según Microsoft solo aplica en Enterprise y Education; verificarlo en Pro y Home.
+
+#### P2. Animaciones de los paneles
+- En Hyprland, las animaciones de abrir y cerrar paneles las hace el compositor (`layerrule animation slide/popin` por *namespace*).
+- En Windows, ii las desactiva (`DWMWA_TRANSITIONS_FORCEDISABLED`) y nada las reemplaza: los paneles aparecen de golpe (C: `SidebarLeft.qml` solo cambia `visible`).
+- [ ] **Un componente común en el overlay**, que anima el contenido dentro de la ventana con las curvas de ii:
+  - las sidebars se deslizan desde su borde;
+  - *popin* para el overview y la cheatsheet;
+  - fundido para el menú de sesión y los OSD;
+  - el dock sube y las notificaciones se deslizan.
+- [ ] **El cierre se anima entero:** `visible: false` espera a que termine la animación de cierre.
+- [ ] Respetar "Reducir animaciones" de Windows y el modo batería.
+
+#### P2. Configuración: solo lo que funciona en Windows
+- [ ] **Ocultar lo que no funciona en Windows** (un parche en `tools/port`, sin borrarlo del upstream):
+  - actualizaciones del sistema ("Arch only");
+  - Distro y Dotfiles en *Acerca de*;
+  - estilo automático y traducción con Gemini (la IA aún no tiene transporte);
+  - reconocimiento de música (SongRec);
+  - opciones del bloqueo de Linux (hyprlock, huella, desbloquear el llavero);
+  - grabar la pantalla (no hay `record.sh`) y la selección circular de región;
+  - "Workspaces shown" (lo fija el port);
+  - la familia de paneles Waffle;
+  - la posición automática de widgets ("menos/más ocupado", usa Python);
+  - "Constantly rotate" del reloj (su propio texto dice que gasta el 50 % de la GPU);
+  - la transparencia con desenfoque (Windows no difumina lo que hay detrás).
+- [ ] **Monitor de las notificaciones como lista desplegable.** Hoy pide nombres tipo `eDP-1`; en Windows son `DISPLAY1`.
+- [ ] **Terminal y Qt apps:** dejar solo lo que alimenta el esquema de Windows Terminal.
+- [ ] Cuando algo se implemente (el bloqueo, la IA), su opción vuelve a aparecer.
+
+#### P2. Terminar el panel izquierdo
+- [ ] **IA (hoy no conversa).** ii conversa con `bash` + `curl`, y eso no existe en Windows.
+  - Hacer el transporte en `ii-shim`, que ya tiene un cliente HTTP (`host/src/http.cpp`), con respuestas en streaming para Gemini, OpenAI/OpenRouter, Mistral y Ollama local. Las claves ya se guardan con DPAPI.
+  - Arreglar el listado de prompts y chats guardados (`ls -1` → `FolderListModel`).
+  - Arreglar los errores `commandPrefix of null` del log.
+- [ ] **Booru:** lo de P0, más descargas con `ii-shim fetch` y una caché limitada.
+- [ ] **Botón de fijar el panel:** hoy llama a `hyprctl` (`togglePin`); hacerlo directo.
+- [ ] **Traductor:** ya funciona con Google; falta un error claro cuando no hay internet.
+
+#### P2. Terminal de ii con fastfetch
+- [ ] **Perfiles en Windows Terminal.** Añadirlos a la *fragment* que ya escribe `switchwall.cpp`:
+  - "ii · PowerShell": `powershell -NoLogo -NoExit -Command fastfetch` (o pwsh si está instalado);
+  - "ii · CMD": `cmd /k fastfetch`.
+- [ ] **Estilo de los perfiles:** el esquema ii-windows, JetBrains Mono NF (instalada por usuario, ver RAM), acrílico suave y márgenes.
+- [ ] **Perfil por defecto:** preguntar antes; implica editar `settings.json`, con copia de seguridad.
+- [ ] **Opcional:** un prompt con los colores de ii (starship, MIT).
+- [ ] **No usar** el `AutoRun` de cmd ni el `$PROFILE` de PowerShell. Se ejecutan también en scripts (`cmd /c`, `powershell -File`) y romperían programas o los harían más lentos.
+
+#### P3. Windows en equipos de 8 GB: "modo ligero" opcional
+Opcional en el instalador: lista para elegir y todo reversible, con copia antes, como hoy. Los ahorros son aproximados, en un Windows 11 recién instalado.
+
+| Qué | Cómo (reversible) | Ahorro aprox. |
+| --- | --- | --- |
+| Widgets de Windows (noticias) | Política `AllowNewsAndInterests=0` (admin). Windows protege el valor de HKCU en los builds recientes | 100–200 MB (WebView2) |
+| Edge en segundo plano y su "aumento de inicio" | Políticas de usuario de Edge: `StartupBoostEnabled=0`, `BackgroundModeEnabled=0` | 100–300 MB |
+| Sugerencias web en la búsqueda | `DisableSearchBoxSuggestions=1` (HKCU) | SearchHost más ligero |
+| Apps al inicio (Teams personal, Copilot, utilidades del fabricante; OneDrive si no lo usas) | Los mismos interruptores de Administrador de tareas > Inicio (`StartupApproved`), en una lista para elegir | Variable |
+| Grabación en segundo plano de Xbox Game Bar | `AppCaptureEnabled=0` / `GameDVR_Enabled=0` (HKCU). El Modo juego se deja | CPU y GPU en juegos |
+| Apps que se instalan solas y consejos | `ContentDeliveryManager` (HKCU) | Menos programas sin pedir |
+| Indexador de búsqueda | No desactivarlo (rompe las búsquedas). En un PC nuevo termina en unas horas: avisar | — |
+| No tocar | Integridad de memoria (HVCI), Defender, SysMain, Inicio rápido | Seguridad y arranque |
+
+Además, avisar en la bienvenida: en las primeras horas de un PC nuevo, Windows se actualiza, indexa y escanea, así que todo va lento, no solo ii.
+
+### Casos en que el usuario puede romper o confundir el entorno
+Estado: **C** confirmado · **P** probable · **T** sin probar.
+
+**Teclado**
+| Caso | Qué pasa hoy | Protección |
+| --- | --- | --- |
+| Alt+F4 con el foco en el escritorio, la barra, el dock, el overview o un panel | C: se cierra esa ventana de ii; el fondo desaparece y queda el de Explorer | P0 |
+| Win+Q / Win+S | C: búsqueda de Windows | P0 |
+| Win+número, también con Mayús/Ctrl/Alt | C: apps de la barra oculta o su lista de saltos | P0 / P2 |
+| Win+T, Win+B | C: foco en la barra o la bandeja invisibles | P0 |
+| Win+Alt+D, Win+W | C: paneles de Windows | P0 |
+| Tecla Windows con una app de administrador delante | P: el gancho no ve teclas de apps elevadas y se abre el Inicio de Windows | Documentarlo; no hay solución limpia (UIAccess exige firma e instalar en Program Files) |
+| Equipo muy cargado (primer arranque, antivirus) | P: Windows quita en silencio un gancho de teclado lento (está documentado) y la tecla Windows abre el Inicio hasta reiniciar | ii-host reinstala el gancho cada minuto y al reanudar o desbloquear |
+| Ctrl+Alt+Mayús+R por accidente | C: ii se cierra del todo, sin aviso | Aviso: "ii se cerró (atajo de pánico). Menú Inicio > Iniciar ii" |
+| Teclas de volumen y brillo | C: salen dos OSD, el de Windows y el de ii | Investigar cómo ocultar el de Windows, o no mostrar el de ii |
+| Ctrl+Alt+Fin (menú de sesión) dentro de un escritorio remoto | C: choca con el Ctrl+Alt+Supr remoto | Ya documentado; combinación alternativa opcional |
+
+**Ratón, touchpad y pantalla táctil**
+| Caso | Qué pasa hoy | Protección |
+| --- | --- | --- |
+| Rueda sobre los escritorios de la barra | C: crea escritorios sin fin | P0 |
+| Gestos del touchpad: 3 dedos (búsqueda de Windows por defecto), 4 dedos (notificaciones), 3 dedos hacia arriba (Vista de tareas); deslizar desde los bordes en pantallas táctiles | P: abren la interfaz de Windows | Mientras ii corre, cambiarlos a "atajo personalizado" (Windows 11 lo permite) que abra lo de ii. Guardar y restaurar como los banners; antes, averiguar dónde los guarda Windows |
+| Esquinas de la pantalla | P: abren paneles sin querer (en Windows la gente va abajo a la izquierda buscando el Inicio) | Revisar los valores por defecto; opción "clic para abrir" |
+| Pasar rápido el ratón por la barra | C: crea y destruye ventanas | P0 |
+| Toque o lápiz sobre zonas con click-through | P: el primer toque atraviesa (la consulta va 16 ms por detrás) | Se arregla con los eventos del cursor (P1); probar en un 2 en 1 |
+| Widget al 400 % o fuera de la pantalla | P: lo tapa todo o se pierde | Límite según el tamaño de pantalla y "Restablecer widgets" en el menú del escritorio |
+
+**Windows y el equipo**
+| Caso | Qué pasa hoy | Protección |
+| --- | --- | --- |
+| Terminar quickshell en el Administrador de tareas | C: ii-host la reinicia | Ya está bien |
+| Terminar ii-host | C: el guardián restaura Windows, y ii no vuelve hasta reiniciar | Aviso con un botón "Iniciar ii" |
+| Terminar ii-host y también el guardián | P: barra en autoocultar y sin región hasta el próximo inicio | El rescate ya existe; el siguiente arranque de ii-host repara lo que quedó |
+| Actualización del driver de la GPU (Windows Update en un PC nuevo, muy común) | P: se pierde el dispositivo D3D y quedan ventanas negras o cuelgues. En tus logs hay un cierre por fallo `0xC0000005` el 08-oct a las 16:30, de causa desconocida | Detectar la pérdida del dispositivo y el cambio de adaptador, y reiniciar la shell sola |
+| Suspender, hibernar o cerrar la tapa | T | Al reanudar, registrar de nuevo la AppBar, el gancho y los servicios; probar en un portátil |
+| Cambiar resolución, escala o rotación; conectar o quitar un monitor; Win+P; dock USB-C | T (multimonitor y DPI siguen pendientes) | Pruebas; recolocar paneles y fondo |
+| Escritorio remoto (RDP) o Parsec | P: Qt dibuja por software (WARP) y gasta mucha CPU | Detectar la sesión remota y bajar efectos |
+| Cambiar en Configuración la barra de tareas de Windows (alineación, autoocultar) | P: Explorer recrea la barra y se ve hasta 2 s; el autoocultar original podría guardarse mal | Vigilar el cambio y ocultarla al momento |
+| Cambiar el tema o el acento de Windows con ii abierto | C: al cambiar de fondo, ii vuelve a poner el suyo; al salir, vuelve el de antes de ii | Detectar el cambio del usuario y respetarlo, sin restaurar encima |
+| No molestar / Concentración de Windows | P: ii muestra sus popups igual | Respetar el estado de Windows |
+| Antivirus de terceros (Kaspersky; McAfee o Norton preinstalados) | P: el gancho de teclado y `SendInput` parecen un keylogger y pueden acabar en cuarentena; además escanean los 607 QML en cada arranque | Firma; documentar la exclusión; detectar el gancho caído |
+| Smart App Control activado | P: ii no arranca | Firma; el instalador lo detecta y lo explica |
+| ZIP sin "Desbloquear", o `install.cmd` abierto dentro del ZIP sin extraer | P: aviso de SmartScreen o "Paquete incompleto" | `Unblock-File`; mensaje "extrae el ZIP primero" |
+| Escritorio e Imágenes en OneDrive (por defecto en muchos PC nuevos), con nombres traducidos ("Imágenes") | P: la carpeta de fondos `~/Pictures/Wallpapers` queda mal, y las miniaturas de archivos que solo están en la nube los descargan | Rutas con `SHGetKnownFolderPath`; para archivos en la nube, solo miniaturas ya guardadas |
+| Usuario con tilde, espacio o apóstrofo (`José O'Brien`) | T: los comandos con comillas de bash pasados a cmd pueden romperse | Probar en Sandbox con ese nombre |
+| Región con coma decimal (es-CO) | T: números como "0,5" en los shims y en QML | Probarlo |
+| Wallpaper Engine, Lively, Rainmeter, ExplorerPatcher, StartAllBack, TranslucentTB | P: se pelean por el escritorio o la barra | Detectarlos al iniciar y avisar |
+| Fondo de video, GIF animado o imagen 8K | P: fondo negro, redibujo continuo o mucha RAM | Reducir la imagen al tamaño de la pantalla; video: avisar o darle soporte |
+| Windows 11 ARM (Snapdragon) | P: corre emulado y lento | Avisar en el instalador |
+| Disco lleno al guardar `config.json` | P: la config queda cortada | Escritura atómica y una copia de la última config buena, que se restaura sola |
+
+**Configuración de ii**
+| Caso | Protección |
+| --- | --- |
+| Elegir Waffle, o cambiar de familia por IPC | Ocultarlo en Windows |
+| "Constantly rotate", transparencia con desenfoque, paralaje | Avisar del coste u ocultarlo |
+| Editar `config.json` a mano y dejar un error | Validarlo y volver a la copia buena, con un aviso |
+| Pegar una clave de IA y que la IA no conteste | Ocultar la IA hasta que tenga transporte (P2) |
+| GPS del clima | Ya viene apagado por defecto (Windows pide permiso) |
+
+**Instalador**
+| Caso | Protección |
+| --- | --- |
+| El portátil se "apaga" al terminar | Autosuspensión (P0) y registro de los eventos de energía |
+| "¿Iniciar ii ahora?" viene en No | Ponerlo en Sí, con pantalla de carga y precalentado |
+| Punto de restauración lento, o "Protección del sistema" apagada (común en portátiles nuevos) | Tiempo límite y un mensaje claro |
+| Muchas preguntas en la consola | Más adelante, un instalador con ventana (mismas preguntas, mismo `install.json`) |
+
+### Cómo se comprobará (antes de dar nada por hecho)
+- **Arranque:** tiempos en frío y en caliente sacados de los logs, en Sandbox y en tu PC. Objetivo: menos de 5 s en caliente.
+- **RAM y GPU:** las de quickshell a los 10 min y a las 24 h. Objetivo: menos de 350 MB y sin crecer.
+- **Reposo:** GPU y CPU con el escritorio tapado (objetivo ≈ 0 %) y con música.
+- **Ratón:** pasar por la barra no crea ventanas ni da tirones.
+- **Pruebas nuevas en `tools/sandbox/tests`:**
+  - Alt+F4 en cada panel;
+  - rueda y Win+número;
+  - atajos bloqueados;
+  - batería simulada (`normalizeBattery` y la regla de suspensión);
+  - proveedores booru con respuestas grabadas;
+  - widgets nítidos (captura y comparación).
+- **Un portátil real** (de tus amigos), con el reporte ampliado: eventos de energía, qué GPU usa ii, frecuencia y escala de la pantalla.
+
 ## Pendiente (en este orden)
+0. El plan de la **Auditoría 2026-10-09** (arriba): primero P0, medir, y después P1.
 1. Instalar en tu PC la versión con el escritorio nuevo y usarlo a diario.
 2. Probar con hardware real lo que ya está programado: Bluetooth (al conectar tu adaptador), batería (portátil), brillo (monitor con DDC/CI o portátil) y Wi-Fi (solo se ha probado la parte de cable).
 3. Profundizar las acciones del dock y del overlay. Menú de sesión y cheatsheet ya están implementados; no ejecutar cierre de sesión/apagado en la sesión personal durante las pruebas.
@@ -295,7 +671,7 @@ Las capturas quedan en `%USERPROFILE%\sbx-xchg\outbox\`.
 - O Ctrl+Shift+Esc → Archivo → Ejecutar nueva tarea → `powershell -ExecutionPolicy Bypass -File ".\tools\rescue\ii-rescue.ps1" -RestartExplorer`.
 
 ## Problemas conocidos
-- **RAM:** ~500–600 MB en el Sandbox (wallpaper 3840×2400, ~15 ventanas Qt y fuentes de 15 MB). Pendiente de optimizar: reducir el wallpaper al tamaño de la pantalla y cargar en diferido los paneles cerrados.
+- **RAM:** ~500–600 MB en el Sandbox (wallpaper 3840×2400, ~15 ventanas Qt y fuentes de 15 MB). En tu PC, el 2026-10-09: ~1,3 GB privados + ~450 MB de GPU tras 35 min. Plan en la Auditoría 2026-10-09 (P1, RAM).
 - **Notificaciones:** los botones propios de cada notificación de Windows (p. ej. "Responder") no se pueden pulsar desde fuera; ii muestra un botón "Open" que abre la app. La primera notificación de una app nueva puede salir también como banner de Windows (una sola vez).
 - **Hardware sin probar:** Bluetooth, batería y brillo están programados pero solo se han probado sin hardware (ver D21).
 - **Bandeja:** el menú de ii para fijar/desfijar iconos se cambió por el menú nativo de cada app. Los iconos propios de Explorer (volumen, quitar USB) también aparecen.

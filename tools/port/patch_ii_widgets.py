@@ -34,6 +34,10 @@ edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qm
     property bool handlesOwnScale: false
     readonly property real sizeFactor: handlesOwnScale ? (configEntry.scale ?? 1) : (configEntry.widgetScale ?? 1)
     readonly property real widgetScale: handlesOwnScale ? 1 : Math.max(0.3, Math.min(4, configEntry.widgetScale ?? 1))
+    // Widgets that multiply their own fonts and sizes by widgetScale (scalesContent) stay sharp;
+    // the others are stretched as a whole, which blurs ii's natively rendered text.
+    property bool scalesContent: false
+    readonly property real transformScale: scalesContent ? 1 : widgetScale
     function setSize(value) {
         configEntry[handlesOwnScale ? "scale" : "widgetScale"] = Math.max(0.3, Math.min(4, Math.round(value * 20) / 20));
     }
@@ -45,6 +49,10 @@ edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qm
             const grid = 32;
             root.x = Math.max(0, Math.round(root.x / grid) * grid);
             root.y = Math.max(0, Math.round(root.y / grid) * grid);
+        } else {
+            // Whole pixels: text between pixels looks blurry.
+            root.x = Math.round(root.x);
+            root.y = Math.round(root.y);
         }
         root.targetX = root.x;
         root.targetY = root.y;
@@ -57,12 +65,12 @@ edit(path('modules', 'ii', 'background', 'widgets', 'AbstractBackgroundWidget.qm
     }
 '''),
     ('    property real targetX: Math.max(0, Math.min(configEntry.x < 0 ? scaledScreenWidth - width + configEntry.x : configEntry.x, scaledScreenWidth - width))',
-     '    property real targetX: Math.max(0, Math.min(configEntry.x < 0 ? scaledScreenWidth - width * widgetScale + configEntry.x : configEntry.x, scaledScreenWidth - width * widgetScale))'),
+     '    property real targetX: Math.max(0, Math.min(configEntry.x < 0 ? scaledScreenWidth - width * transformScale + configEntry.x : configEntry.x, scaledScreenWidth - width * transformScale))'),
     ('    property real targetY: Math.max(0, Math.min(configEntry.y < 0 ? scaledScreenHeight - height + configEntry.y : configEntry.y, scaledScreenHeight - height))',
-     '    property real targetY: Math.max(0, Math.min(configEntry.y < 0 ? scaledScreenHeight - height * widgetScale + configEntry.y : configEntry.y, scaledScreenHeight - height * widgetScale))'),
+     '    property real targetY: Math.max(0, Math.min(configEntry.y < 0 ? scaledScreenHeight - height * transformScale + configEntry.y : configEntry.y, scaledScreenHeight - height * transformScale))'),
     ('    scale: (draggable && containsPress) ? 1.05 : 1\n',
      '    transformOrigin: Item.TopLeft\n'
-     '    scale: ((draggable && containsPress) ? 1.05 : 1) * widgetScale\n'),
+     '    scale: ((draggable && containsPress) ? 1.05 : 1) * transformScale\n'),
     ('''    onReleased: {
         root.targetX = root.x;
         root.targetY = root.y;

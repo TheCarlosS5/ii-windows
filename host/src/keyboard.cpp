@@ -57,12 +57,27 @@ constexpr std::array SHORTCUTS = {
     Shortcut {true, false, false, true, 'T', L"screenTranslate"},
     Shortcut {true, false, false, true, 'R', L"regionRecord"},
     Shortcut {true, false, true, false, 'R', L"regionRecord"},
+    // Windows shortcuts that would show its own (hidden) taskbar or search instead of ii:
+    // Win+Q closes the active window as Super+Q does in ii on Hyprland (Alt+F4 keeps working);
+    // Win+S is ii's search; Win+W and Win+Alt+D open ii's panels instead of Windows' widgets and
+    // taskbar calendar; Win+T would focus the hidden taskbar.
+    Shortcut {true, false, false, false, 'Q', L"@closeWindow"},
+    Shortcut {true, false, false, false, 'S', L"searchToggle"},
+    Shortcut {true, false, false, false, 'W', L"sidebarLeftToggle"},
+    Shortcut {true, false, true, false, 'D', L"sidebarRightToggle"},
+    Shortcut {true, false, false, false, 'T', L"@block"},
 };
 
 // Pseudo shortcuts driven by the Win key itself.
 constexpr LPARAM IDX_SEARCH = 1000;      // searchToggleRelease: press on Win down, release on up
 constexpr LPARAM IDX_INTERRUPT = 1001;   // searchToggleReleaseInterrupt: another key while held
 constexpr LPARAM IDX_WSNUMBER = 1002;    // workspaceNumber: held while Win is down
+// Win+1..9,0: virtual desktop 1..10, as Super+number in ii (Windows would launch the hidden
+// taskbar's pinned apps). With Shift/Ctrl/Alt Windows opens new instances or jump lists of
+// those hidden buttons: swallowed (IDX_BLOCK).
+constexpr LPARAM IDX_DESKTOP = 1100;     // + 0..9
+constexpr LPARAM IDX_BLOCK = 1200;
+constexpr LPARAM IDX_SESSION = 1201;     // Alt+F4 on Explorer's desktop: ii's session menu
 
 constexpr ULONG_PTR OWN_INPUT_TAG = 0x11A1D00D;
 
@@ -194,6 +209,29 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	auto handled = winDown ? chordActive : (findShellSink() != nullptr && !foregroundIsFullscreen());
 	if (!handled) return CallNextHookEx(hook, code, wParam, lParam);
 
+	// Win+number: desktops (see IDX_DESKTOP).
+	if (winDown && vk >= '0' && vk <= '9') {
+		auto plain = !keyHeld(VK_CONTROL) && !keyHeld(VK_MENU) && !keyHeld(VK_SHIFT);
+		post(true, plain ? IDX_DESKTOP + (vk == '0' ? 9 : static_cast<LPARAM>(vk - '1')) : IDX_BLOCK);
+		swallowedDown[vk] = true;
+		swallowedInChord = true;
+		return 1;
+	}
+
+	// Alt+F4 with Explorer's own desktop in front shows Windows' "Shut Down Windows" dialog.
+	if (vk == VK_F4 && !winDown && keyHeld(VK_MENU) && !keyHeld(VK_CONTROL) && !keyHeld(VK_SHIFT)) {
+		if (auto* fg = GetForegroundWindow()) {
+			wchar_t cls[32] = {};
+			GetClassNameW(fg, cls, 32);
+			if (wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0) {
+				post(true, IDX_SESSION);
+				post(false, IDX_SESSION);
+				swallowedDown[vk] = true;
+				return 1;
+			}
+		}
+	}
+
 	// Ctrl+Esc opens Start too.
 	if (vk == VK_ESCAPE && !winDown && keyHeld(VK_CONTROL) && !keyHeld(VK_MENU) && !keyHeld(VK_SHIFT)) {
 		post(true, IDX_SEARCH);
@@ -271,7 +309,16 @@ const wchar_t* shortcutName(LPARAM index) {
 	case IDX_SEARCH: return L"searchToggleRelease";
 	case IDX_INTERRUPT: return L"searchToggleReleaseInterrupt";
 	case IDX_WSNUMBER: return L"workspaceNumber";
+	case IDX_BLOCK: return L"@block";
+	case IDX_SESSION: return L"sessionToggle";
 	default:
+		if (index >= IDX_DESKTOP && index < IDX_DESKTOP + 10) {
+			static const wchar_t* desktops[] = {
+			    L"hl:workspace 1", L"hl:workspace 2", L"hl:workspace 3", L"hl:workspace 4", L"hl:workspace 5",
+			    L"hl:workspace 6", L"hl:workspace 7", L"hl:workspace 8", L"hl:workspace 9", L"hl:workspace 10",
+			};
+			return desktops[index - IDX_DESKTOP];
+		}
 		if (index >= 0 && static_cast<size_t>(index) < SHORTCUTS.size()) return SHORTCUTS[index].name;
 		return nullptr;
 	}
