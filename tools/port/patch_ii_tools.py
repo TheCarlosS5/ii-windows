@@ -66,6 +66,31 @@ edit(path('welcome.qml'), [
             }
 '''),
 ])
+# Illustration download (left sidebar gallery): ii-shim fetch instead of mkdir + curl, and the
+# "Download complete" notice only once the file is there.
+edit(path('modules', 'ii', 'sidebarLeft', 'anime', 'BooruImage.qml'), [
+    ('''                                Quickshell.execDetached(["bash", "-c", 
+                                    `mkdir -p '${targetPath}' && curl '${StringUtils.shellSingleQuoteEscape(root.imageData.file_url)}'${userAgentHeader} -o '${targetPath}/${root.fileName}' && notify-send '${Translation.tr("Download complete")}' '${root.downloadPath}/${root.fileName}' -a 'Shell'`
+                                ])''',
+     '''                                // ii-windows: ii-shim fetch, then the notice (no bash/curl/mkdir).
+                                const file = `${targetPath}/${root.fileName}`;
+                                downloadProc.file = file;
+                                downloadProc.exec(["ii-shim", "fetch", root.imageData.file_url, "--out", file, "--max", "209715200",
+                                    ...(userAgent ? ["--agent", userAgent] : [])]);'''),
+    ('''                        MenuButton {
+                            id: downloadButton''',
+     '''                        Process {
+                            id: downloadProc
+                            property string file
+                            onExited: (exitCode, exitStatus) => {
+                                if (exitCode === 0) Quickshell.execDetached(["notify-send", Translation.tr("Download complete"), downloadProc.file, "-a", "Shell"]);
+                                else Quickshell.execDetached(["notify-send", Translation.tr("Download failed"), root.imageData.file_url, "-a", "Shell"]);
+                            }
+                        }
+                        MenuButton {
+                            id: downloadButton'''),
+])
+
 # /konachanwallpaper: ii-shim's randomwall (the .sh needs bash, curl and jq).
 edit(path('services', 'LauncherSearch.qml'), [
     ('                Quickshell.execDetached([Quickshell.shellPath("scripts/colors/random/random_konachan_wall.sh")]);',

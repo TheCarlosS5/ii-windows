@@ -336,6 +336,9 @@ int fetch(const std::vector<std::wstring>& args) {
 		if (!output.empty()) {
 			output = outputPath(output);
 			if (keep && existingFile(output)) return 0;
+			// Like `mkdir -p` before curl -o: the folder may not exist yet.
+			std::error_code ignored;
+			std::filesystem::create_directories(std::filesystem::path(output).parent_path(), ignored);
 		}
 		Apartment apartment;
 		http::Client client(agent, testing);
