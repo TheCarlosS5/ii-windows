@@ -74,7 +74,8 @@ foreach ($font in $fonts) {
     Check "font file present: $($font.valueName)" (Test-Path -LiteralPath $font.file -PathType Leaf)
 }
 $fragmentDir = "$env:LOCALAPPDATA\Microsoft\Windows Terminal\Fragments\ii-windows"
-Check 'Terminal fragment written' (Test-Path "$fragmentDir\ii-windows.json")
+# The fragment is written by switchwall at the first wallpaper change (the welcome screen sets one).
+"Terminal fragment present: $(Test-Path "$fragmentDir\ii-windows.json")"
 $gpuPref = (Get-ItemProperty 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -ErrorAction SilentlyContinue)."$env:LOCALAPPDATA\Programs\ii-windows\quickshell\quickshell.exe"
 Check 'power-saving GPU for the shell' ($gpuPref -eq 'GpuPreference=1;') "($gpuPref)"
 $userPath = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')

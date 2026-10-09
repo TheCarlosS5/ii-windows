@@ -166,8 +166,7 @@ if ($remainingFonts.Count -gt 0) {
     $manifest.fonts = $remainingFonts
     try {
         $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath "$manifestPath.tmp" -Encoding UTF8 -ErrorAction Stop
-        if (Test-Path -LiteralPath $manifestPath) { [IO.File]::Replace("$manifestPath.tmp", $manifestPath, $null) }
-        else { [IO.File]::Move("$manifestPath.tmp", $manifestPath) }
+        Move-Item -LiteralPath "$manifestPath.tmp" -Destination $manifestPath -Force -ErrorAction Stop
     } catch { Say "No se pudo actualizar la lista de fuentes: $($_.Exception.Message)" }
     Say "La lista de fuentes pendientes se conserva en $manifestPath para reintentar su retirada."
 }

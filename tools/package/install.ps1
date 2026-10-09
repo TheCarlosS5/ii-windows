@@ -85,8 +85,8 @@ function SaveManifest() {
     $path = Join-Path $dataDir 'install.json'
     $temp = "$path.tmp"
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $temp -Encoding UTF8
-    if (Test-Path -LiteralPath $path) { [IO.File]::Replace($temp, $path, $null) }
-    else { [IO.File]::Move($temp, $path) }
+    # Move-Item, not File.Replace(..., $null): PowerShell 5.1 passes $null as "".
+    Move-Item -LiteralPath $temp -Destination $path -Force
 }
 
 # --- 1. restore point (optional, needs administrator) ------------------------------------------
