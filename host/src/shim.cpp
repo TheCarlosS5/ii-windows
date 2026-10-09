@@ -47,6 +47,9 @@ int cava(const std::vector<std::wstring>& args); // cava.cpp
 int ydotool(const std::vector<std::wstring>& args); // ydotool.cpp
 int secretTool(const std::vector<std::wstring>& args); // secrettool.cpp
 int cliphist(const std::vector<std::wstring>& args); // cliphist.cpp
+int hyprpicker(const std::vector<std::wstring>& args); // hyprpicker.cpp
+int trans(const std::vector<std::wstring>& args); // trans.cpp
+int transShellCommand(const std::wstring& command); // trans.cpp
 int nightlightCommand(const std::vector<std::wstring>& args); // sidebar.cpp
 int powerCommand(const std::vector<std::wstring>& args);
 int systemInfoCommand(const std::vector<std::wstring>& args);
@@ -267,6 +270,11 @@ int bash(const Args& args) {
 	auto last = command.find_last_not_of(L" \t\r\n");
 	if (first == std::wstring::npos) return 127;
 	command = command.substr(first, last - first + 1);
+
+	// ii's translator runs `trans ...` through bash: literal arguments only (trans.cpp).
+	if (command == L"trans" || command.rfind(L"trans ", 0) == 0 || command.rfind(L"trans\t", 0) == 0) {
+		return ::transShellCommand(command);
+	}
 
 	// Settings passes one script path. Recognize only these two names; never run the script.
 	auto script = command;
@@ -510,6 +518,8 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"ydotool") return ydotool(args);
 	if (command == L"secret-tool") return secretTool(args);
 	if (command == L"cliphist") return cliphist(args);
+	if (command == L"hyprpicker") return hyprpicker(args);
+	if (command == L"trans") return trans(args);
 	if (command == L"killall" || command == L"pkill") return killall(args);
 	if (command == L"lock" || (command == L"loginctl" && !args.empty() && args[0] == L"lock-session")) {
 		return LockWorkStation() ? 0 : 1;

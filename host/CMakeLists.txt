@@ -34,7 +34,7 @@ if(NOT MCU_SOURCES)
 endif()
 
 add_executable(ii-shim src/shim.cpp src/brightness.cpp src/capture.cpp src/switchwall.cpp src/randomwall.cpp
-	src/http.h src/http.cpp src/weather.cpp src/cava.cpp src/ydotool.cpp src/secrettool.cpp src/cliphist.cpp src/sidebar.cpp src/fileops.cpp src/nightlight_core.cpp ${MCU_SOURCES})
+	src/http.h src/http.cpp src/weather.cpp src/cava.cpp src/ydotool.cpp src/secrettool.cpp src/cliphist.cpp src/hyprpicker.cpp src/trans.cpp src/sidebar.cpp src/fileops.cpp src/nightlight_core.cpp ${MCU_SOURCES})
 target_include_directories(ii-shim PRIVATE ${MCU_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/compat)
 # M_PI, and the C99 compound literals it uses (build with clang-cl, as Quickshell).
 target_compile_definitions(ii-shim PRIVATE _USE_MATH_DEFINES)

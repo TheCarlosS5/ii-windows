@@ -22,6 +22,9 @@ New-Item -ItemType Directory -Force $hostDir | Out-Null
 Copy-Item C:\ii\host\build\ii-host.exe $hostDir -Force
 Start-Process "$hostDir\ii-host.exe" -ArgumentList '--shell', "`"$dist\quickshell.exe`"", '--config', "`"$local`"" | Out-Null
 Start-Sleep 28
+# Earlier tests may leave Explorer windows: with several, a click cycles them instead.
+(New-Object -ComObject Shell.Application).Windows() | ForEach-Object { $_.Quit() }
+Start-Sleep 1
 Start-Process explorer.exe C:\
 $win = [IntPtr]::Zero
 for ($i = 0; $i -lt 40 -and $win -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 250; $win = [DM.W]::FindWindow('CabinetWClass', [NullString]::Value) }

@@ -215,6 +215,22 @@ Lo que reportaste, y qué se hizo:
 - [x] **Espectro del widget de música**: `cava` para Windows en `ii-shim` (Codex: captura WASAPI loopback, FFT, 60 fps, ~0,2 % de CPU). Solo corre mientras suena música y el escritorio está visible.
 - Nota: el "modo edición con mosaico" y el widget de letras japonesas que recordabas no están en este dotfile de ii; se hicieron nuevos al estilo de ii.
 
+## Hacia la versión 1.0 (2026-10-08 noche)
+Revisión completa del inventario de ii en Linux contra el port: **`docs/INVENTARIO-WINDOWS.md`** (Codex: 517 puntos, cada uno con su estado y evidencia). Decisiones: **Waffle** (la versión "estilo Windows" de ii) queda fuera de alcance, no tiene sentido en Windows; lo que es del compositor Hyprland (tiling, gestos, scratchpad, mover ventanas ajenas entre escritorios) tampoco aplica.
+
+Hecho en esta ronda (todo probado en Sandbox):
+- [x] **Inicio con Windows rápido**: tarea programada "ii-windows" al entrar (el instalador pide administrador una vez; ii corre como tu usuario normal, sin permisos de administrador). Con `--boot`, ii-host y la shell arrancan con prioridad alta (60 s, luego normal para no robar a los juegos), la barra de tareas se vigila cada 200 ms y una pantalla con **tu fondo de ii** tapa el de Explorer hasta que ii está listo (~10 s). Si no das permiso: la clave `Run` como antes. `tests\ii-boot.ps1`, `test-install.ps1` 17/17.
+- [x] **Modo edición**: esquina para cambiar el tamaño arrastrando sin deformar el widget (como una ventana), tamaños de 30 % a 400 % (marcas en 150 % y 200 % en Configuración), el widget que tocas pasa delante. Arreglado: los tamaños no se guardaban salvo en la foto.
+- [x] **Sonidos de la interfaz** hechos para el port (`tools/sounds/make_sounds.py`, sin muestras de terceros): abrir/cerrar paneles, cambiar de escritorio, modo edición, soltar un widget; notificaciones opcional (Windows ya suena). Interruptor y volumen en Configuración > General > Sonidos. Callados con un juego a pantalla completa.
+- [x] **Portapapeles (Win+V de ii)**: el historial de Windows (el mismo de su Win+V), con texto e imágenes, copiar, pegar, borrar, vaciar, y "superpaste". `cliphist` de ii-shim. `tests\ii-tools.ps1`.
+- [x] **Teclado en pantalla** (Win+K): `ydotool` de ii-shim escribe de verdad (teclas, mayúsculas, texto con acentos).
+- [x] **Claves de API** (chat de IA): `secret-tool` de ii-shim, cifradas con DPAPI para tu usuario.
+- [x] **Emojis** (Win+. y `:` en la búsqueda).
+- [x] **Pantalla de bienvenida** en el primer arranque (idioma, barra, estilo, fondo), sin los botones de Windows.
+- [x] **Indicador de distribución de teclado** en la barra (si tienes más de un idioma de teclado), sigue a la app que tienes delante. `tests\ii-kblayout.ps1`.
+- [x] **Win+Ctrl+R** reinicia ii (como Ctrl+Super+R en Linux).
+- [x] `/konachanwallpaper`, descarga de ilustraciones de la galería y suspensión por batería crítica sin bash/curl.
+
 ## Pendiente (en este orden)
 1. Instalar en tu PC la versión con el escritorio nuevo y usarlo a diario.
 2. Probar con hardware real lo que ya está programado: Bluetooth (al conectar tu adaptador), batería (portátil), brillo (monitor con DDC/CI o portátil) y Wi-Fi (solo se ha probado la parte de cable).

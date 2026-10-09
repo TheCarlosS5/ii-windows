@@ -183,6 +183,19 @@ void dispatchShortcut(WPARAM pressed, LPARAM index) {
 	auto* name = keyboard::shortcutName(index);
 	if (name && name[0] == L'@') {
 		if (pressed && wcscmp(name, L"@showDesktop") == 0) desktop::toggleShowDesktop();
+		if (pressed && wcscmp(name, L"@colorPicker") == 0) {
+			// ii's color picker (Super+Shift+C on Linux): ii-shim hyprpicker, next to the shell.
+			auto dir = options.shell.substr(0, options.shell.find_last_of(L"\\/"));
+			auto cmd = L"\"" + dir + L"\\bin\\hyprpicker.exe\" -a";
+			STARTUPINFOW si {};
+			si.cb = sizeof(si);
+			PROCESS_INFORMATION pi {};
+			if (CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+				AllowSetForegroundWindow(pi.dwProcessId);
+				CloseHandle(pi.hThread);
+				CloseHandle(pi.hProcess);
+			}
+		}
 		if (pressed && wcscmp(name, L"@restartShell") == 0) {
 			// ii's "reload widgets" (Ctrl+Super+R on Linux): a fresh shell process.
 			log(L"shell: restart requested");

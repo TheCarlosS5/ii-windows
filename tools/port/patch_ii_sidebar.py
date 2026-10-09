@@ -304,7 +304,7 @@ edit(path('modules', 'ii', 'sidebarRight', 'SidebarRightContent.qml'), [
 # Hide incompatible toggles even if an older config selected them. Keep raw Config indices.
 edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'AndroidQuickPanel.qml'), [
     ('["network", "bluetooth", "idleInhibitor", "easyEffects", "nightLight", "darkMode", "cloudflareWarp", "gameMode", "screenSnip", "colorPicker", "onScreenKeyboard", "mic", "audio", "notifications", "powerProfile","musicRecognition", "antiFlashbang"]',
-     '["network", "bluetooth", "idleInhibitor", "nightLight", "darkMode", "gameMode", "screenSnip", "onScreenKeyboard", "mic", "audio", "notifications", "powerProfile"]'),
+     '["network", "bluetooth", "idleInhibitor", "nightLight", "darkMode", "gameMode", "screenSnip", "colorPicker", "onScreenKeyboard", "mic", "audio", "notifications", "powerProfile"]'),
     ('    readonly property list<var> toggles: Config.ready ? Config.options.sidebar.quickToggles.android.toggles : []', '''    readonly property list<var> toggles: {
         if (!Config.ready) return [];
         const selected = Config.options.sidebar.quickToggles.android.toggles;
