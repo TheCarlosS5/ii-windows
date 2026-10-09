@@ -113,8 +113,15 @@ if ($envKey -and ($envKey.GetValueNames() -contains 'Path')) {
     $entries = @($current.Split(';') | Where-Object { $_ -ne '' })
     if ($entries -contains $pathEntry) {
         $kind = $envKey.GetValueKind('Path')
-        $rest = @($entries | Where-Object { $_ -ne $pathEntry })
-        if ($rest.Count -gt 0) { $envKey.SetValue('Path', ($rest -join ';'), $kind) } else { $envKey.DeleteValue('Path') }
+        $hasBefore = $manifest -and ($manifest.PSObject.Properties.Name -contains 'pathBefore')
+        if ($hasBefore -and $manifest.pathAfter -and $current -eq [string]$manifest.pathAfter) {
+            # Untouched since the install: exactly the value from before.
+            if ($null -eq $manifest.pathBefore) { $envKey.DeleteValue('Path') } else { $envKey.SetValue('Path', [string]$manifest.pathBefore, $kind) }
+        } else {
+            # Changed since then: only our entry goes.
+            $rest = @($entries | Where-Object { $_ -ne $pathEntry })
+            if ($rest.Count -gt 0) { $envKey.SetValue('Path', ($rest -join ';'), $kind) } else { $envKey.DeleteValue('Path') }
+        }
         $out = [IntPtr]::Zero
         [IiUninstall.Win]::SendMessageTimeoutW([IntPtr]0xffff, 0x1A, [IntPtr]::Zero, 'Environment', 2, 3000, [ref]$out) | Out-Null
         Say 'Comando fastfetch quitado del PATH.'

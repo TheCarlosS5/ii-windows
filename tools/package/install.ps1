@@ -169,7 +169,11 @@ if (-not $NoFastfetch -and (Test-Path (Join-Path $binDir 'fastfetch.cmd'))) {
         $kind = if ($envKey.GetValueNames() -contains 'Path') { $envKey.GetValueKind('Path') } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
         $entries = @($current.Split(';') | Where-Object { $_ -ne '' })
         if ($entries -notcontains $binDir) {
-            $envKey.SetValue('Path', (($entries + $binDir) -join ';'), $kind)
+            # The exact value before and after, so the uninstaller can put it back byte for byte.
+            $manifest.pathBefore = if ($envKey.GetValueNames() -contains 'Path') { $current } else { $null }
+            $updated = if ($current -eq '') { $binDir } elseif ($current.EndsWith(';')) { $current + $binDir } else { "$current;$binDir" }
+            $envKey.SetValue('Path', $updated, $kind)
+            $manifest.pathAfter = $updated
             $out = [IntPtr]::Zero
             [IiInstall.Win]::SendMessageTimeoutW([IntPtr]0xffff, 0x1A, [IntPtr]::Zero, 'Environment', 2, 3000, [ref]$out) | Out-Null
         }
