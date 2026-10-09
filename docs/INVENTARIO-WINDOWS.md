@@ -8,6 +8,10 @@ Se compara cada punto de C:\Users\Calos\Downloads\Inventario_dots-hyprland_Linux
 
 La referencia Linux declara el commit c4f0582cbf4ad29607dbf3c20337815de8690b34; README/FEASIBILITY documentan una base del port 33f31a08caddd41422a2d97670adeeb52b4f1e7c. No se verificaron esos identificadores con Git. Se evaluó el árbol local y **build/ii**, el resultado parcheado preparado para ejecutar. Un paquete ya instalado puede tener menos novedades. Durante la revisión aparecieron implementaciones de cliphist, ydotool, secret-tool y empaquetado de emojis, así como correcciones de bienvenida, suspensión crítica, Konachan y recarga; se incorporó su estado en la lectura final, sin compilarlas ni ejecutarlas.
 
+> **Actualización tras la auditoría (8 de octubre, noche; probado en Windows Sandbox).** Estas filas pasan a ✅ por lo implementado y probado después del corte:
+> 2.10 distribución del teclado (`tests/ii-kblayout.ps1`) · 4.12 y 5.9 emojis (`tests/ii-firstrun2.ps1`) · 4.19 `/konachanwallpaper` · 5.1–5.6 portapapeles, 13.8 claves y 23.4 teclado virtual (`tests/ii-tools.ps1` 8/8) · 14.1–14.3 y 14.5 traductor de texto (`trans` de ii-shim, Codex; solo el motor de Google, 14.4 queda 🟡) · 15.8 descarga de ilustraciones · 16.14 cuentagotas, Win+Shift+C (`hyprpicker` de ii-shim, Codex; `tests/ii-picker.ps1` 5/5) · 20.16 suspensión por batería crítica (sin hardware para probarla) · 25.6 bienvenida en el primer arranque · recarga de la shell con Win+Ctrl+R.
+> Decisiones del usuario: **la familia Waffle (§24) queda fuera de alcance** (es la imitación de Windows de ii; en Windows sobra). El indicador de micrófono (9.11) no se hace: ninguna vista de ii usa `Privacy` en esta versión.
+
 Leyenda:
 
 - **✅ Funciona:** implementación completa para la función indicada, o lógica/dibujo QML sin dependencia Linux. No acredita prueba visual de cada opción ni soporte de cualquier hardware.
@@ -614,6 +618,8 @@ Evidencia: Q ii/onScreenKeyboard/{OnScreenKeyboard,OskKey,OskContent}.qml, layou
 | 23.11 | Alternativas primera instalada | 🔧 | launch_first_available.sh no funciona. Resolver ejecutables/AppUserModelIDs con SearchPath/AppsFolder y lanzar primera opción configurada; S. |
 
 ## 24. Funciones específicas de Waffle
+
+> **Fuera de alcance por decisión del usuario:** Waffle imita la interfaz de Windows; en Windows no aporta. La tabla queda como referencia.
 
 Evidencia: Q panelFamilies/WaffleFamily.qml y modules/waffle/{bar,startMenu,taskView,actionCenter,notificationCenter}/; services/{LauncherApps,TaskbarApps}.qml; A/H/V/P/N/M/HW/T. Sin validación completa de esta familia; sus QML simples se deducen por código.
 
