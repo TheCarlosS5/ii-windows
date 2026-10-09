@@ -18,7 +18,7 @@ $installDir = Join-Path $env:LOCALAPPDATA 'Programs\ii-windows'
 $dataDir = Join-Path $env:LOCALAPPDATA 'ii-windows'
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $backupDir = Join-Path $dataDir "backup\$stamp"
-$version = (Get-Content (Join-Path $payload 'VERSION') -ErrorAction SilentlyContinue | Select-Object -First 1)
+$version = [string](Get-Content (Join-Path $payload 'VERSION') -ErrorAction SilentlyContinue | Select-Object -First 1)
 if (-not $version) { $version = 'dev' }
 
 function Say($text) { Write-Host $text }
