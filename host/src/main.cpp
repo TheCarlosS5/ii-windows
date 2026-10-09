@@ -26,6 +26,10 @@ constexpr UINT_PTR TIMER_RESTART_SHELL = 2;
 constexpr UINT_PTR TIMER_AFTER_EXPLORER = 3;
 constexpr UINT_PTR TIMER_BOOT_FAST = 4;
 constexpr UINT_PTR TIMER_BOOT_END = 5;
+constexpr UINT_PTR TIMER_WATCHDOG = 6;
+constexpr ULONGLONG SHELL_READY_TIMEOUT_MS = 90000; // a cold boot with many startup apps is slow
+constexpr ULONGLONG SHELL_HUNG_TIMEOUT_MS = 20000;
+constexpr int SHELL_STUCK_RESTARTS = 3;
 constexpr UINT BOOT_FAST_MS = 200;
 constexpr UINT BOOT_FAST_FOR_MS = 30000;
 constexpr UINT BOOT_HIGH_PRIORITY_MS = 60000;
@@ -56,6 +60,13 @@ bool guardReady = false;
 bool booting = false;
 HANDLE guardProcess = nullptr;
 ULONGLONG crashTimes[3] = {};
+// Watchdog: a shell that never shows its wallpaper, or stops responding, is restarted; with the
+// taskbar and icons hidden, a stuck shell would leave the user in front of a black screen.
+DWORD shellPid = 0;
+ULONGLONG shellStartedAt = 0;
+bool shellReady = false;
+ULONGLONG shellHungSince = 0;
+int stuckRestarts = 0;
 int crashIndex = 0;
 
 std::wstring selfPath() {
@@ -127,6 +138,10 @@ bool startShell() {
 	CloseHandle(pi.hThread);
 
 	shellProcess = pi.hProcess;
+	shellPid = pi.dwProcessId;
+	shellStartedAt = GetTickCount64();
+	shellReady = false;
+	shellHungSince = 0;
 	splash::setShellPid(pi.dwProcessId);
 	RegisterWaitForSingleObject(&shellWait, shellProcess, onShellExit, nullptr, INFINITE, WT_EXECUTEONLYONCE);
 	log(L"shell: started pid %lu: %s", pi.dwProcessId, cmd.c_str());
@@ -215,6 +230,98 @@ void dispatchShortcut(WPARAM pressed, LPARAM index) {
 	SendMessageTimeoutW(sink, WM_COPYDATA, reinterpret_cast<WPARAM>(hostWindow), reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 250, &result);
 }
 
+struct ShellWindows {
+	DWORD pid = 0;
+	bool wallpaper = false; // a visible window covering a whole screen
+	bool hung = false;
+	HWND any = nullptr; // one of its windows, to ping
+};
+
+BOOL CALLBACK inspectShellWindow(HWND hwnd, LPARAM data) {
+	auto* found = reinterpret_cast<ShellWindows*>(data); // NOLINT
+	DWORD pid = 0;
+	GetWindowThreadProcessId(hwnd, &pid);
+	if (pid != found->pid) return TRUE;
+	if (!found->any) found->any = hwnd;
+	if (IsHungAppWindow(hwnd)) found->hung = true;
+	if (IsWindowVisible(hwnd)) {
+		RECT r {};
+		GetWindowRect(hwnd, &r);
+		MONITORINFO info {};
+		info.cbSize = sizeof(info);
+		if (GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &info) && r.left <= info.rcMonitor.left
+		    && r.top <= info.rcMonitor.top && r.right >= info.rcMonitor.right && r.bottom >= info.rcMonitor.bottom)
+		{
+			found->wallpaper = true;
+		}
+	}
+	return TRUE;
+}
+
+bool foregroundIsFullscreenApp() {
+	auto* fg = GetForegroundWindow();
+	if (!fg) return false;
+	DWORD pid = 0;
+	GetWindowThreadProcessId(fg, &pid);
+	if (pid == shellPid || pid == GetCurrentProcessId()) return false;
+	// Windows' own desktop also covers the screen: not a game.
+	wchar_t cls[64] {};
+	GetClassNameW(fg, cls, 64);
+	if (wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0 || wcscmp(cls, L"Shell_TrayWnd") == 0) return false;
+	RECT r {};
+	GetWindowRect(fg, &r);
+	MONITORINFO info {};
+	info.cbSize = sizeof(info);
+	return GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &info) && r.left <= info.rcMonitor.left
+	    && r.top <= info.rcMonitor.top && r.right >= info.rcMonitor.right && r.bottom >= info.rcMonitor.bottom;
+}
+
+void restartStuckShell(const wchar_t* why) {
+	log(L"shell: %s, restarting it", why);
+	if (++stuckRestarts > SHELL_STUCK_RESTARTS) {
+		log(L"shell: stuck %d times, giving up", SHELL_STUCK_RESTARTS);
+		shutdown(2);
+		MessageBoxW(nullptr, L"La shell de ii se quedó colgada varias veces seguidas.\nSe restauró la barra de tareas y el escritorio de Windows.\n\nRegistro: %LOCALAPPDATA%\\ii-windows", L"ii-windows", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+		return;
+	}
+	shellHungSince = 0;
+	TerminateProcess(shellProcess, 1); // onShellExited starts a new one
+}
+
+void watchShell() {
+	if (!shellProcess || shuttingDown) return;
+	ShellWindows found;
+	found.pid = shellPid;
+	EnumWindows(inspectShellWindow, reinterpret_cast<LPARAM>(&found)); // NOLINT
+	// IsHungAppWindow skips tool/layered windows like the shell's: ask one directly.
+	DWORD_PTR result = 0;
+	if (!found.hung && found.any && !SendMessageTimeoutW(found.any, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &result)) {
+		found.hung = true;
+	}
+	auto now = GetTickCount64();
+	if (!shellReady) {
+		// Only until the wallpaper first shows: later the shell hides itself for fullscreen games.
+		if (found.wallpaper && !found.hung) {
+			shellReady = true;
+			stuckRestarts = 0;
+			log(L"shell: ready after %llu ms", now - shellStartedAt);
+		} else if (foregroundIsFullscreenApp()) {
+			// A game in front: the shell steps aside for it, so no wallpaper is expected yet.
+			shellStartedAt = now;
+		} else if (now - shellStartedAt > SHELL_READY_TIMEOUT_MS) {
+			restartStuckShell(L"no wallpaper 90 s after starting");
+		}
+		return;
+	}
+	if (!found.hung) {
+		shellHungSince = 0;
+	} else if (shellHungSince == 0) {
+		shellHungSince = now;
+	} else if (now - shellHungSince > SHELL_HUNG_TIMEOUT_MS) {
+		restartStuckShell(L"not responding for 20 s");
+	}
+}
+
 void onShellExited() {
 	if (!shellProcess || shuttingDown) return;
 	DWORD code = 0;
@@ -289,6 +396,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		} else if (wParam == TIMER_RESTART_SHELL) {
 			KillTimer(hwnd, TIMER_RESTART_SHELL);
 			startShell();
+		} else if (wParam == TIMER_WATCHDOG) {
+			watchShell();
 		} else if (wParam == TIMER_BOOT_FAST) {
 			// Explorer is still starting: hide its taskbar (and icons) as soon as they appear.
 			if (options.taskbar) taskbar::reapply();
@@ -381,6 +490,7 @@ int runHost() {
 	applyAll();
 	watchExplorer();
 	SetTimer(hostWindow, TIMER_REAPPLY, 2000, nullptr);
+	SetTimer(hostWindow, TIMER_WATCHDOG, 5000, nullptr);
 	if (options.hook) keyboard::install(hostWindow);
 	startShell();
 

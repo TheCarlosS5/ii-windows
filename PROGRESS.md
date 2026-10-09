@@ -230,6 +230,7 @@ Hecho en esta ronda (todo probado en Sandbox):
 - [x] **Indicador de distribución de teclado** en la barra (si tienes más de un idioma de teclado), sigue a la app que tienes delante. `tests\ii-kblayout.ps1`.
 - [x] **Win+Ctrl+R** reinicia ii (como Ctrl+Super+R en Linux).
 - [x] `/konachanwallpaper`, descarga de ilustraciones de la galería y suspensión por batería crítica sin bash/curl.
+- [x] **Vigilante de la shell** (tras una pantalla negra en tu PC: la shell se colgó al cargar y ii-host mantenía oculta la barra de Windows). Si la shell no muestra su fondo en 90 s, o deja de responder 20 s, ii-host la reinicia; tras 3 intentos devuelve la barra y el escritorio de Windows con un aviso. No cuenta mientras hay un juego a pantalla completa delante. `tests\ii-watchdog.ps1` 3/3, `test-host.ps1` sin fallos.
 
 ## Pendiente (en este orden)
 1. Instalar en tu PC la versión con el escritorio nuevo y usarlo a diario.
