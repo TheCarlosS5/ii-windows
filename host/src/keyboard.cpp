@@ -169,6 +169,15 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 		return CallNextHookEx(hook, code, wParam, lParam);
 	}
 
+	// A Win key-up can get lost (secure desktop, a virtual desktop switch, a skipped hook call).
+	// Then every later key would count as Win+key and open panels while typing: trust the
+	// real key state over ours.
+	if (down && winDown && !keyHeld(VK_LWIN) && !keyHeld(VK_RWIN)) {
+		winDown = false;
+		chordActive = false;
+		winSolo = false;
+	}
+
 	if (down && winDown && winSolo) {
 		winSolo = false;
 		if (chordActive) post(true, IDX_INTERRUPT);
