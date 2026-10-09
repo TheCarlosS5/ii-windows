@@ -1,6 +1,6 @@
 # Relevo de Claude Code a Codex
 
-Fecha: 2026-10-07. Proyecto: `C:\Users\Calos\Desktop\ii-windows`.
+Fecha: 2026-10-07. Proyecto: `la carpeta del repositorio`.
 
 ## Punto de partida, antes de modificar código
 

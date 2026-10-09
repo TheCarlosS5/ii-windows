@@ -1,8 +1,8 @@
 # Inventario de Illogical Impulse en Windows 11
 
-Revisión de código: **8 de octubre de 2026, corte a las 18:52 (Colombia, UTC−5)**. Proyecto: C:\Users\Calos\Desktop\ii-windows.
+Revisión de código: **8 de octubre de 2026, corte a las 18:52 (Colombia, UTC−5)**. Proyecto: la carpeta del repositorio.
 
-Se compara cada punto de C:\Users\Calos\Downloads\Inventario_dots-hyprland_Linux.md con el port local. Se mantienen las 25 secciones y el orden de sus puntos; se revisan también defaults y atajos. Un punto compuesto recibe una clasificación; su explicación distingue las partes.
+Se compara cada punto de el inventario de funciones de ii en Linux (Inventario_dots-hyprland_Linux.md, aportado por el autor) con el port local. Se mantienen las 25 secciones y el orden de sus puntos; se revisan también defaults y atajos. Un punto compuesto recibe una clasificación; su explicación distingue las partes.
 
 **Auditoría de código, no una nueva prueba de funcionamiento.** No se arrancaron ii, ii-host ni probes; no se compiló, consultó la red, modificó el registro ni operó Git. Las pruebas citadas son archivos existentes y resultados anteriores consignados en PROGRESS/DECISIONS; no se ejecutaron ahora. Sólo se escribe este documento.
 

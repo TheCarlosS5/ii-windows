@@ -67,8 +67,8 @@ Requisitos: Windows 11 (probado en 24H2/25H2), x64.
 Necesitas Visual Studio Build Tools 2022 (con clang-cl), Qt 6.12 MSVC y Python 3.
 
 ```powershell
-git clone <este repo> ii-windows; cd ii-windows
-git clone <fork de quickshell, rama windows> quickshell
+git clone https://github.com/TheCarlosS5/ii-windows; cd ii-windows
+git clone https://github.com/TheCarlosS5/quickshell-windows quickshell
 git clone https://github.com/end-4/dots-hyprland upstream; git -C upstream checkout 33f31a08caddd41422a2d97670adeeb52b4f1e7c
 . .\tools\dev\vsenv.ps1                                   # Qt desde $env:QTDIR
 cmake -S quickshell -B quickshell\build -G Ninja; cmake --build quickshell\build
@@ -87,7 +87,8 @@ Cómo está hecho: [docs/DECISIONS.md](docs/DECISIONS.md). Pruebas en Windows Sa
   de ii no se edita: se copia tal cual y se le aplican parches pequeños y explícitos
   (`tools/port/`) más archivos propios de Windows (`overlay/`).
 - **Quickshell**: [outfoxxed](https://git.outfoxxed.me/quickshell/quickshell) y colaboradores,
-  LGPL-3.0. El fork para Windows conserva esa licencia y su código está publicado.
+  LGPL-3.0. El fork para Windows conserva esa licencia y su código está publicado en
+  [TheCarlosS5/quickshell-windows](https://github.com/TheCarlosS5/quickshell-windows).
 - **material-color-utilities** (Google, Apache-2.0), **Bibata Modern Classic** (GPL-3.0), las
   fuentes e iconos del dotfile: sus licencias van incluidas en el paquete (`licenses/`).
 - Hecho por Carlos con Claude Code (Anthropic) y Codex (OpenAI).

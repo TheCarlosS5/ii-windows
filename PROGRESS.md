@@ -246,17 +246,17 @@ Hecho en esta ronda (todo probado en Sandbox):
 
 ### Compilar
 ```powershell
-. C:\Users\Calos\Desktop\ii-windows\tools\dev\vsenv.ps1
-pwsh -File C:\Users\Calos\Desktop\ii-windows\tools\dev\fetch_mcu.ps1   # una vez: biblioteca de colores de Google (commit fijo)
-cmake --build C:\Users\Calos\Desktop\ii-windows\quickshell\build
-cmake --build C:\Users\Calos\Desktop\ii-windows\host\build
-pwsh -File C:\Users\Calos\Desktop\ii-windows\tools\dev\deploy.ps1      # quickshell + Qt + fuentes → dist\
-pwsh -File C:\Users\Calos\Desktop\ii-windows\tools\dev\stage-ii.ps1    # ii original + overlay → build\ii
+. .\tools\dev\vsenv.ps1
+pwsh -File .\tools\dev\fetch_mcu.ps1   # una vez: biblioteca de colores de Google (commit fijo)
+cmake --build .\quickshell\build
+cmake --build .\host\build
+pwsh -File .\tools\dev\deploy.ps1      # quickshell + Qt + fuentes → dist\
+pwsh -File .\tools\dev\stage-ii.ps1    # ii original + overlay → build\ii
 ```
 
 ### En Windows Sandbox (recomendado, no toca tu sesión)
 ```powershell
-cd C:\Users\Calos\Desktop\ii-windows\tools\sandbox
+cd .\tools\sandbox
 pwsh -File sbx.ps1 start                                    # abre el Sandbox con el agente
 pwsh -File sbx.ps1 run tests\test-host.ps1                  # Hito 2: 28 comprobaciones PASS/FAIL
 pwsh -File sbx.ps1 run tests\test-banners.ps1               # banners de Windows: 15 comprobaciones
@@ -273,12 +273,12 @@ pwsh -File sbx.ps1 run tests\ii-tray.ps1                    # bandeja: iconos, c
 pwsh -File sbx.ps1 run tests\ii-tray-explorer.ps1           # bandeja + reinicio de Explorer
 pwsh -File sbx.ps1 run tests\persist-both.ps1               # autoocultar se restaura bien (2 configuraciones)
 ```
-Las capturas quedan en `C:\Users\Calos\sbx-xchg\outbox\`.
+Las capturas quedan en `%USERPROFILE%\sbx-xchg\outbox\`.
 
 ### Si algo sale mal (en cualquier equipo)
 - **Ctrl+Alt+Shift+R** mientras corre `ii-host`.
 - O doble clic en `tools\rescue\ii-rescue.cmd`.
-- O Ctrl+Shift+Esc → Archivo → Ejecutar nueva tarea → `powershell -ExecutionPolicy Bypass -File "C:\Users\Calos\Desktop\ii-windows\tools\rescue\ii-rescue.ps1" -RestartExplorer`.
+- O Ctrl+Shift+Esc → Archivo → Ejecutar nueva tarea → `powershell -ExecutionPolicy Bypass -File ".\tools\rescue\ii-rescue.ps1" -RestartExplorer`.
 
 ## Problemas conocidos
 - **RAM:** ~500–600 MB en el Sandbox (wallpaper 3840×2400, ~15 ventanas Qt y fuentes de 15 MB). Pendiente de optimizar: reducir el wallpaper al tamaño de la pantalla y cargar en diferido los paneles cerrados.
