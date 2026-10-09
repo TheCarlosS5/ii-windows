@@ -9,6 +9,12 @@ para Windows debajo.
 > Estado: en desarrollo activo. Funciona en el día a día del autor; lee [PROGRESS.md](PROGRESS.md)
 > para ver qué está probado y qué falta.
 
+> **Proyecto no oficial.** ii-windows no tiene relación con end-4 (Illogical Impulse) ni con
+> outfoxxed (Quickshell), y ellos no lo apoyan ni lo mantienen. Está hecho con ayuda de IA
+> (Claude Code y Codex) y Carlos responde por él. Los errores de ii-windows o del fork de
+> Quickshell se reportan [aquí](https://github.com/TheCarlosS5/ii-windows/issues), **nunca** en
+> los repositorios de dots-hyprland o de Quickshell. Este código tampoco se envía a esos proyectos.
+
 *English summary at the end.*
 
 ## Qué incluye
@@ -101,3 +107,9 @@ live previews, sidebars, notifications, desktop widgets, Material 3 colours from
 Windows' own theme follows. It doesn't manage windows. Everything is per-user and reversible
 (restore point, `.reg` backups, panic hotkey `Ctrl+Alt+Shift+R`, rescue shortcut, clean uninstall).
 GPL-3.0; Quickshell fork LGPL-3.0. Credits above.
+
+**Unofficial project.** ii-windows is not affiliated with or endorsed by end-4 (Illogical Impulse)
+or outfoxxed (Quickshell). It was built with AI assistance (Claude Code and Codex), and its author
+is responsible for it. Please report bugs of ii-windows or of the Quickshell fork
+[here](https://github.com/TheCarlosS5/ii-windows/issues), never to dots-hyprland or Quickshell.
+None of this code is submitted to those projects.
