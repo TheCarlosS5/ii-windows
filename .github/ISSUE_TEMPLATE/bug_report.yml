@@ -1,0 +1,87 @@
+name: Reportar un fallo / Report a bug
+description: Algo de ii-windows no funciona, se ve mal o se cierra. / Something in ii-windows breaks, looks wrong or crashes.
+labels: ["fallo / bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar. Atajo: **menú Inicio > ii-windows > Reportar un problema** guarda un archivo de diagnóstico en tu Escritorio (sin tu nombre de usuario) y abre este formulario con la versión ya puesta.
+        Si ii te dejó sin escritorio: **Ctrl+Alt+Shift+R** o *menú Inicio > ii-windows > Rescate de ii*.
+
+        Thanks for reporting. Shortcut: **Start menu > ii-windows > Reportar un problema** saves a diagnostics file to your Desktop (no user name) and opens this form with the version filled in.
+        ii-windows is an unofficial port: please report its problems here, not to end-4/dots-hyprland or Quickshell.
+  - type: input
+    id: version
+    attributes:
+      label: Versión de ii-windows / ii-windows version
+      description: Menú Inicio > ii-windows > Reportar un problema la llena sola. / Filled in by the Start menu shortcut.
+      placeholder: 0.1.1
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: Windows 11 Pro 25H2 (build 26200)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: ¿Dónde falla? / Where does it fail?
+      multiple: true
+      options:
+        - Instalar / desinstalar (install / uninstall)
+        - Arranque con Windows (startup)
+        - Barra / bandeja del sistema (bar / tray)
+        - Lanzador / vista general (launcher / overview)
+        - Dock
+        - Paneles laterales (sidebars)
+        - Notificaciones (notifications)
+        - Escritorio / widgets (desktop / widgets)
+        - Fondos y colores (wallpapers / colors)
+        - Audio / multimedia (audio / media)
+        - Teclado / atajos (keyboard / shortcuts)
+        - Juegos a pantalla completa (fullscreen games)
+        - Varios monitores / DPI (multi-monitor / scaling)
+        - Rendimiento (performance)
+        - Otro (other)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: ¿Qué pasa? / What happens?
+      description: Lo que viste y lo que esperabas ver. / What you saw and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para que pase / Steps to reproduce
+      placeholder: |
+        1. Abro el lanzador con la tecla Windows
+        2. Escribo ...
+        3. ...
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: ¿Cada cuánto? / How often?
+      options:
+        - Siempre (always)
+        - A veces (sometimes)
+        - Pasó una vez (once)
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnóstico y capturas / Diagnostics and screenshots
+      description: |
+        Arrastra aquí el archivo `ii-windows-reporte-*.txt` del Escritorio y, si puedes, una captura o un video corto.
+        Drag the `ii-windows-reporte-*.txt` file from your Desktop here, plus a screenshot or short video if you can.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Antes de enviar / Before sending
+      options:
+        - label: Busqué en los reportes abiertos y no está repetido. / I searched the open issues and it is not a duplicate.
+          required: true

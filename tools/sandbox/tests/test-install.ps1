@@ -24,7 +24,8 @@ function Snapshot() {
     $t = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
     $d = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\DWM'
     $run = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).'ii-windows'
-    "cursor=$($c.Arrow)|$($c.'(default)')|$($c.Wait) theme=$($t.AppsUseLightTheme)/$($t.SystemUsesLightTheme) dwm=$($d.AccentColor)/$($d.ColorPrevalence) run=$run taskbar=$(TaskbarVisible)"
+    $userPath = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment').GetValue('Path', '<none>', 'DoNotExpandEnvironmentNames')
+    "cursor=$($c.Arrow)|$($c.'(default)')|$($c.Wait) theme=$($t.AppsUseLightTheme)/$($t.SystemUsesLightTheme) dwm=$($d.AccentColor)/$($d.ColorPrevalence) run=$run taskbar=$(TaskbarVisible) path=$userPath"
 }
 
 Get-Process ii-host, quickshell -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -49,9 +50,18 @@ Check 'autostart: logon task with --boot' ($task -and $task.Actions[0].Arguments
 Check 'autostart: no Run entry when the task exists' (-not (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).'ii-windows')
 Check 'Bibata cursor applied' ((Get-ItemProperty 'HKCU:\Control Panel\Cursors').Arrow -like "*Bibata*")
 Check 'Apps & features entry' (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows')
-Check 'Start menu shortcuts' ((Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ii-windows" -Filter *.lnk).Count -eq 3)
+Check 'Start menu shortcuts' ((Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ii-windows" -Filter *.lnk).Count -eq 4)
 Check 'registry exported before changes' ((Get-ChildItem "$env:LOCALAPPDATA\ii-windows\backup" -Recurse -Filter *.reg).Count -ge 5)
 Check 'manifest written' (Test-Path "$env:LOCALAPPDATA\ii-windows\install.json")
+$userPath = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+Check 'fastfetch folder appended to the user PATH' ($userPath.Split(';')[-1] -eq "$dir\bin") "($userPath)"
+$ff = & cmd.exe /c "`"$dir\bin\fastfetch.cmd`" --pipe true" 2>&1 | Out-String
+Check 'fastfetch runs with ii''s config and logo' ($ff -match 'illogical impulse' -and $ff.Contains([string][char]0x2588 * 4)) ("(" + ($ff -split "`n")[0].Trim() + ")")
+& powershell -NoProfile -ExecutionPolicy Bypass -File "$dir\rescue\ii-report.ps1" -NoBrowser | Out-Null
+$rep = Get-ChildItem ([Environment]::GetFolderPath('Desktop')) -Filter 'ii-windows-reporte-*.txt' | Select-Object -Last 1
+$repText = if ($rep) { Get-Content $rep.FullName -Raw } else { '' }
+Check 'report written, without the user or PC name' ($rep -and $repText -match 'Version:' -and $repText -notmatch [regex]::Escape($env:USERNAME) -and $repText -notmatch [regex]::Escape($env:COMPUTERNAME))
+if ($rep) { Move-Item $rep.FullName "$out\report-sample.txt" -Force }
 & "$dev\screenshot.ps1" -Out "$out\installed.png" | Out-Null
 
 # --- uninstall, from the installed copy (as the Start menu shortcut does) ---

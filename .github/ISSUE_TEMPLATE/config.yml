@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Rescate / Rescue (ii me dejó sin escritorio / ii left me without a desktop)
+    url: https://github.com/TheCarlosS5/ii-windows#seguridad-primero
+    about: Ctrl+Alt+Shift+R devuelve la barra de tareas y todo lo demás. / Ctrl+Alt+Shift+R gives back the taskbar and everything else.

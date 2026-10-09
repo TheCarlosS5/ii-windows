@@ -5,10 +5,11 @@
 #   install.ps1 -NoCursor       keep the current mouse cursor
 #   install.ps1 -NoAutostart    do not start ii with Windows
 #   install.ps1 -StartNow       start ii right after installing
+#   install.ps1 -NoFastfetch    do not add the `fastfetch` command (ii's config) to the user's PATH
 #
 # Everything it creates or changes is written to install.json (shown by the uninstaller), and the
 # registry keys it touches are exported to .reg files first.
-param([switch]$Yes, [switch]$RestorePoint, [switch]$NoCursor, [switch]$NoAutostart, [switch]$StartNow)
+param([switch]$Yes, [switch]$RestorePoint, [switch]$NoCursor, [switch]$NoAutostart, [switch]$StartNow, [switch]$NoFastfetch)
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -53,7 +54,8 @@ Say "  - copiar la shell a $installDir"
 Say '  - exportar antes a archivos .reg las claves de tu usuario (HKCU) que se tocan'
 if (-not $NoCursor) { Say '  - poner el cursor Bibata (guardando el actual para el desinstalador)' }
 if (-not $NoAutostart) { Say '  - iniciar ii con Windows (solo tu usuario; una tarea al entrar, pide permiso de administrador una vez)' }
-Say '  - crear accesos en el menu Inicio: rescate y desinstalar'
+if (-not $NoFastfetch) { Say '  - agregar el comando fastfetch con el estilo de ii (al final de tu PATH de usuario)' }
+Say '  - crear accesos en el menu Inicio: rescate, reportar un problema y desinstalar'
 Say 'Mientras ii corre: oculta la barra de tareas y los iconos del escritorio, y Windows sigue sus colores.'
 Say 'Todo se deshace al salir de ii, con Ctrl+Alt+Shift+R, con el rescate o desinstalando.'
 if (-not (Ask 'Continuar?' $true)) { Say 'Cancelado.'; exit 1 }
@@ -88,7 +90,8 @@ $keys = @(
     'HKCU\Software\Microsoft\Windows\DWM',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent',
     'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StuckRects3',
-    'HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings'
+    'HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings',
+    'HKCU\Environment'
 )
 foreach ($key in $keys) {
     $file = Join-Path $backupDir (($key -replace '^HKCU\\', '' -replace '[\\ ]', '_') + '.reg')
@@ -153,6 +156,28 @@ if (-not $NoCursor) {
     } else { Say 'Se mantiene el cursor actual.' }
 }
 
+# --- 4b. fastfetch command -----------------------------------------------------------------------
+$binDir = Join-Path $installDir 'bin'
+if (-not $NoFastfetch -and (Test-Path (Join-Path $binDir 'fastfetch.cmd'))) {
+    Step 'fastfetch'
+    if (Ask 'Agregar el comando fastfetch con el estilo de ii? (si ya tienes otro fastfetch, el tuyo sigue mandando)' $true) {
+        # Appended, never prepended: a fastfetch the user installed keeps winning. The raw value
+        # keeps its %VARIABLES% and its type.
+        $envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+        $current = [string]$envKey.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+        $kind = if ($envKey.GetValueNames() -contains 'Path') { $envKey.GetValueKind('Path') } else { [Microsoft.Win32.RegistryValueKind]::ExpandString }
+        $entries = @($current.Split(';') | Where-Object { $_ -ne '' })
+        if ($entries -notcontains $binDir) {
+            $envKey.SetValue('Path', (($entries + $binDir) -join ';'), $kind)
+            $out = [IntPtr]::Zero
+            [IiInstall.Win]::SendMessageTimeoutW([IntPtr]0xffff, 0x1A, [IntPtr]::Zero, 'Environment', 2, 3000, [ref]$out) | Out-Null
+        }
+        $envKey.Close()
+        $manifest.pathEntry = $binDir
+        $manifest.registry += "HKCU\Environment\Path (se agrego $binDir)"
+        Say 'Listo: abre una terminal nueva y escribe fastfetch.'
+    } else { Say 'Omitido.' }
+}
 # --- 5. autostart, shortcuts, uninstall entry ---------------------------------------------------
 Step 'Inicio con Windows y accesos'
 $hostExe = Join-Path $installDir 'ii-host.exe'
@@ -185,6 +210,9 @@ if (-not $NoAutostart -and (Ask 'Iniciar ii automaticamente al entrar en Windows
     }
 }
 
+# Updating with -NoAutostart: a logon task from an earlier install stays and stays recorded.
+if (-not $manifest.task -and (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue)) { $manifest.task = 'ii-windows' }
+
 $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows'
 New-Item -ItemType Directory -Force $menu | Out-Null
 $shell = New-Object -ComObject WScript.Shell
@@ -199,6 +227,7 @@ function Shortcut($name, $target, $arguments, $description) {
 }
 Shortcut 'Iniciar ii' $hostExe "--shell `"$installDir\quickshell\quickshell.exe`" --config `"$installDir\ii`"" 'Inicia la shell ii'
 Shortcut 'Rescate de ii (restaurar Windows)' (Join-Path $installDir 'rescue\ii-rescue.cmd') '' 'Devuelve la barra de tareas, los iconos y todo lo demas'
+Shortcut 'Reportar un problema de ii' (Join-Path $installDir 'rescue\ii-report.cmd') '' 'Guarda un diagnostico en el Escritorio y abre el formulario de fallos'
 Shortcut 'Desinstalar ii-windows' (Join-Path $installDir 'uninstall.cmd') '' 'Quita ii-windows y restaura Windows'
 
 $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'

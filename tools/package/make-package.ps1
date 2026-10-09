@@ -4,14 +4,16 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot)
 $commit = (git -C $root rev-parse --short HEAD).Trim()
 $qsCommit = (git -C (Join-Path $root 'quickshell') rev-parse --short HEAD).Trim()
-$version = "0.1.0-$(Get-Date -Format yyyyMMdd)-$commit"
+$baseVersion = '0.1.1'
+$version = "$baseVersion-$(Get-Date -Format yyyyMMdd)-$commit"
 $name = "ii-windows-$version"
 $outRoot = Join-Path $root 'out'
 $pkg = Join-Path $outRoot $name
 $app = Join-Path $pkg 'app'
 
 foreach ($required in 'dist\quickshell\quickshell.exe', 'dist\quickshell\bin\ii-shim.exe', 'host\build\ii-host.exe',
-                       'build\ii\shell.qml', 'third_party\cursors\Bibata-Modern-Classic\Pointer.cur') {
+                       'build\ii\shell.qml', 'third_party\cursors\Bibata-Modern-Classic\Pointer.cur',
+                       'third_party\fastfetch\fastfetch.exe') {
     if (-not (Test-Path (Join-Path $root $required))) { throw "missing $required (build, deploy, stage, fetch first)" }
 }
 
@@ -25,7 +27,13 @@ Mirror 'dist\quickshell' 'quickshell'
 Mirror 'build\ii' 'ii'
 Mirror 'third_party\cursors\Bibata-Modern-Classic' 'cursors\Bibata-Modern-Classic'
 New-Item -ItemType Directory -Force (Join-Path $app 'rescue') | Out-Null
-Copy-Item (Join-Path $root 'tools\rescue\ii-rescue.ps1'), (Join-Path $root 'tools\rescue\ii-rescue.cmd') (Join-Path $app 'rescue')
+Copy-Item (Join-Path $root 'tools\rescue\ii-rescue.ps1'), (Join-Path $root 'tools\rescue\ii-rescue.cmd'),
+          (Join-Path $root 'tools\rescue\ii-report.ps1'), (Join-Path $root 'tools\rescue\ii-report.cmd') (Join-Path $app 'rescue')
+# fastfetch with ii's config, as the `fastfetch` command (app\bin goes on the user's PATH if they agree)
+Mirror 'third_party\fastfetch' 'fastfetch'
+Copy-Item (Join-Path $root 'extras\fastfetch\ii.jsonc'), (Join-Path $root 'extras\fastfetch\ii-logo.txt') (Join-Path $app 'fastfetch')
+New-Item -ItemType Directory -Force (Join-Path $app 'bin') | Out-Null
+Copy-Item (Join-Path $root 'extras\fastfetch\fastfetch.cmd') (Join-Path $app 'bin')
 Copy-Item (Join-Path $root 'host\build\ii-host.exe') $app
 "$version`nii-windows $commit, quickshell $qsCommit" | Set-Content (Join-Path $app 'VERSION') -Encoding ASCII
 
@@ -37,6 +45,7 @@ Copy-Item (Join-Path $root 'upstream\LICENSE') (Join-Path $lic 'illogical-impuls
 Copy-Item (Join-Path $root 'quickshell\LICENSE') (Join-Path $lic 'quickshell-and-Qt-LGPL-3.0.txt')
 Copy-Item (Join-Path $root 'quickshell\LICENSE-GPL') (Join-Path $lic 'GPL-3.0.txt')
 Copy-Item (Join-Path $root 'third_party\material-color-utilities\LICENSE') (Join-Path $lic 'material-color-utilities-Apache-2.0.txt')
+Copy-Item (Join-Path $root 'third_party\fastfetch\LICENSE') (Join-Path $lic 'fastfetch-MIT.txt')
 Get-ChildItem (Join-Path $root 'third_party\fonts') -Filter 'LICENSE-*' | Copy-Item -Destination $lic
 Get-ChildItem (Join-Path $root 'third_party\icons\LICENSES') | Copy-Item -Destination $lic
 @"
@@ -48,6 +57,7 @@ Quickshell (fork con backend Windows) ........... LGPL-3.0  https://git.outfoxxe
 Qt 6.12 (DLL en app\quickshell, reemplazables) .. LGPL-3.0  https://download.qt.io/  (fuente: qt-everywhere-src-6.12.0)
 material-color-utilities (en ii-shim.exe) ....... Apache-2.0 https://github.com/material-foundation/material-color-utilities
 Bibata Modern Classic (cursores) ................ GPL-3.0   https://github.com/ful1e5/Bibata_Cursor (v2.0.7)
+fastfetch 2.69.0 (app\fastfetch) ................ MIT       https://github.com/fastfetch-cli/fastfetch
 Google Sans Flex, Readex Pro, Space Grotesk, Rubik, JetBrains Mono Nerd Font ... SIL OFL 1.1
 Material Symbols ................................ Apache-2.0
 Breeze / Breeze Plus (iconos) ................... LGPL-3.0 / LGPL-2.1

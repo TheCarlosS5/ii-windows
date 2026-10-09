@@ -24,6 +24,7 @@ Add-Type -Namespace IiUninstall -Name Win -MemberDefinition @'
 [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern System.IntPtr FindWindow(string cls, string title);
 [DllImport("user32.dll")] public static extern bool PostMessageW(System.IntPtr h, uint msg, System.IntPtr w, System.IntPtr l);
 [DllImport("user32.dll")] public static extern bool SystemParametersInfoW(uint action, uint param, System.IntPtr data, uint flags);
+[DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern System.IntPtr SendMessageTimeoutW(System.IntPtr h, uint msg, System.IntPtr w, string l, uint flags, uint timeout, out System.IntPtr result);
 '@
 
 $manifest = $null
@@ -103,6 +104,23 @@ Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-window
 Remove-Item (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows') -Recurse -Force -ErrorAction SilentlyContinue
 Say 'Inicio automatico, entrada de Aplicaciones y accesos quitados.'
 
+# 3b. the fastfetch folder on the user's PATH: only that entry goes, the rest stays as it is
+$pathEntry = Join-Path $installDir 'bin'
+if ($manifest -and $manifest.pathEntry) { $pathEntry = [string]$manifest.pathEntry }
+$envKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+if ($envKey -and ($envKey.GetValueNames() -contains 'Path')) {
+    $current = [string]$envKey.GetValue('Path', '', 'DoNotExpandEnvironmentNames')
+    $entries = @($current.Split(';') | Where-Object { $_ -ne '' })
+    if ($entries -contains $pathEntry) {
+        $kind = $envKey.GetValueKind('Path')
+        $rest = @($entries | Where-Object { $_ -ne $pathEntry })
+        if ($rest.Count -gt 0) { $envKey.SetValue('Path', ($rest -join ';'), $kind) } else { $envKey.DeleteValue('Path') }
+        $out = [IntPtr]::Zero
+        [IiUninstall.Win]::SendMessageTimeoutW([IntPtr]0xffff, 0x1A, [IntPtr]::Zero, 'Environment', 2, 3000, [ref]$out) | Out-Null
+        Say 'Comando fastfetch quitado del PATH.'
+    }
+}
+if ($envKey) { $envKey.Close() }
 # 4. files (this script may live in the folder it deletes: finish from a temporary copy)
 if (-not $KeepConfig) {
     Remove-Item (Join-Path $env:LOCALAPPDATA 'quickshell') -Recurse -Force -ErrorAction SilentlyContinue

@@ -1,0 +1,32 @@
+// ii-windows: fastfetch with illogical impulse's spark. Uses the terminal's ANSI colours, so it
+// follows the scheme ii generates from the wallpaper. Your own config: run fastfetch.exe directly
+// from this folder, or `fastfetch -c <file>`.
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "file",
+    "source": "ii-logo.txt",
+    "color": { "1": "magenta" },
+    "padding": { "top": 2, "left": 2, "right": 4 }
+  },
+  "display": {
+    "separator": "  ",
+    "color": { "keys": "magenta", "title": "magenta" },
+    "key": { "width": 11 }
+  },
+  "modules": [
+    "title",
+    { "type": "custom", "format": "────────────────────────────" },
+    { "type": "os", "key": "󰍲 os" },
+    { "type": "custom", "key": "󰖯 shell", "format": "illogical impulse · ii-windows" },
+    { "type": "uptime", "key": "󰅐 uptime" },
+    { "type": "display", "key": "󰍹 display" },
+    { "type": "terminal", "key": " terminal" },
+    { "type": "cpu", "key": "󰻠 cpu" },
+    { "type": "gpu", "key": "󰢮 gpu" },
+    { "type": "memory", "key": "󰍛 memory" },
+    { "type": "disk", "key": "󰋊 disk", "folders": "C:\\" },
+    "break",
+    "colors"
+  ]
+}
