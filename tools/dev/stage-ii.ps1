@@ -48,6 +48,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 # Settings: hide what does nothing on Windows (Codex).
 & python -I "$root\tools\port\patch_ii_settings.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_settings.py failed" }
 & python -I "$root\tools\port\patch_ii_ai.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ai.py failed" }
+# Timers: monotonic guard against clock changes, refresh only what is on screen (P11).
+& python -I "$root\tools\port\patch_ii_timers.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_timers.py failed" }
 # Secrets: the Gelbooru key moves from config.json to the per-user secret store (R11).
 & python -I "$root\tools\port\patch_ii_secrets.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_secrets.py failed" }
 "staged ii -> $dest ($n overlay files)"
