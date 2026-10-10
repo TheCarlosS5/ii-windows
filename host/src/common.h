@@ -107,6 +107,24 @@ void watch();              // fades out once the shell's wallpaper is up (polled
 void close();
 } // namespace splash
 
+// Host <-> shell health channel (see health.cpp). The shell reports what its services really do;
+// the host acts on it, e.g. Windows' notification banners are only switched off while the shell's
+// listener is confirmed to be receiving them.
+namespace health {
+constexpr ULONG_PTR COPYDATA_SERVICE_STATE = 0x49490020;
+constexpr int PROTOCOL_VERSION = 1;
+constexpr ULONGLONG EXPIRY_MS = 3000; // a heartbeat every 1 s; three missed ones mean failure
+struct Status {
+	bool operational = false;
+	std::wstring reason;
+};
+void prepareLaunch(HWND hostWindow); // before CreateProcess: the shell inherits the instance id
+void shellStarted(DWORD shellPid);   // after: only this process may report
+void reset();                        // the shell is gone
+bool receive(HWND sender, const void* data, DWORD bytes); // true: handled (accepted or rejected)
+Status notifications(ULONGLONG nowMs);
+} // namespace health
+
 namespace banners {
 void hide();    // records, then turns off Windows' own notification banners per app (cheap to repeat)
 void restore(); // puts every recorded ShowBanner value back

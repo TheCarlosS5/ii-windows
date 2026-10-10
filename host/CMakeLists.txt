@@ -18,6 +18,7 @@ add_executable(ii-host WIN32
 	src/nightlight.cpp
 	src/nightlight_core.cpp
 	src/splash.cpp
+	src/health.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -51,3 +52,9 @@ add_executable(ii-sidebar-test src/nightlight_test.cpp src/nightlight_core.cpp)
 add_executable(ii-fake-shell WIN32 ../tools/sandbox/fixtures/fake-shell/fake-shell.cpp)
 target_compile_definitions(ii-fake-shell PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
 target_link_libraries(ii-fake-shell PRIVATE user32 shell32)
+
+# R03: the lock contract of quickshell-windows (WlSessionLock) as a plain state machine.
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../quickshell/src/win32/compat/lockstate.hpp)
+	add_executable(ii-lockstate-test src/lockstate_test.cpp)
+	target_compile_options(ii-lockstate-test PRIVATE /EHsc)
+endif()

@@ -26,9 +26,18 @@ edit(path('modules', 'common', 'panels', 'lock', 'LockScreen.qml'), [
         id: lock
         locked: GlobalStates.screenLocked
         surface: root.sessionLockSurface
-        // ii-windows: Windows' own lock screen follows and leads ii's locked state.
+        // ii-windows: Windows' own lock screen follows and leads ii's locked state. `secure` is
+        // Windows' word that the session is locked; GlobalStates.screenLocked is only ii's look.
         onWindowsLocked: GlobalStates.screenLocked = true
         onWindowsUnlocked: GlobalStates.screenLocked = false
+        // The lock call failed, or Windows never confirmed it: ii must not keep presenting a
+        // lock that is not there.
+        onLockFailed: reason => {
+            console.warn("[lock] Windows did not lock the session: " + reason);
+            GlobalStates.screenLocked = false;
+        }
+        // Started inside an already locked session.
+        Component.onCompleted: if (lock.secure) GlobalStates.screenLocked = true
     }'''),
 ])
 

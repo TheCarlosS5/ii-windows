@@ -21,16 +21,13 @@ Singleton {
         Quickshell.execDetached(["explorer.exe", "ms-settings:signinoptions"]);
     }
 
-    // ii's lock animation first (LockScreen.qml's WlSessionLock locks Windows right after);
-    // if that path isn't there, Windows locks directly a moment later anyway.
+    // One request, no timers: LockScreen.qml's WlSessionLock asks Windows to lock the moment this
+    // property changes, and decides from Windows' own session events (not from this flag, nor
+    // from an animation) whether the session is really locked. It fires lockFailed if Windows
+    // refuses or never confirms, which resets this flag. A second delayed request would lock
+    // again after a quick unlock (Windows Hello can be faster than any timer).
     function lock() {
         GlobalStates.screenLocked = true;
-        lockFallback.restart();
-    }
-    property Timer lockFallback: Timer {
-        interval: 2000
-        // Not after a quick unlock (Windows Hello can be faster than this): unlocking resets it.
-        onTriggered: if (GlobalStates.screenLocked) Quickshell.execDetached(["ii-shim", "lock"])
     }
 
     function suspend() {

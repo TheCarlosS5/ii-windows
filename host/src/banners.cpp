@@ -84,6 +84,7 @@ void hideIn(HKEY key, const std::wstring& path) {
 } // namespace
 
 void hide() {
+	if (noUi()) return; // test instances never touch the real user's notification settings
 	HKEY settings = nullptr;
 	if (RegOpenKeyExW(HKEY_CURRENT_USER, SETTINGS_KEY, 0, KEY_READ | KEY_SET_VALUE, &settings) != ERROR_SUCCESS) return;
 	auto before = recorded().size();
@@ -94,6 +95,7 @@ void hide() {
 }
 
 void restore() {
+	if (noUi()) return;
 	auto* f = _wfopen(backupPath().c_str(), L"rt, ccs=UTF-8");
 	if (!f) {
 		state::set(L"bannersHidden", 0);

@@ -29,6 +29,7 @@ constexpr UINT_PTR TIMER_AFTER_EXPLORER = 3;
 constexpr UINT_PTR TIMER_BOOT_FAST = 4;
 constexpr UINT_PTR TIMER_BOOT_END = 5;
 constexpr UINT_PTR TIMER_WATCHDOG = 6;
+constexpr UINT_PTR TIMER_HEALTH = 7;
 // Proposed defaults (TASKS_ii_windows 9.7), to be tuned with the B02 measurements: the shell
 // must show its wallpaper within this long; the very first start compiles the QML and gets more.
 constexpr ULONGLONG SHELL_READY_TIMEOUT_MS = 45000;
@@ -93,6 +94,9 @@ bool slowLogged = false;
 // The host itself ended the shell (stuck or hung): its exit is not a crash for the crash counter,
 // the stuck-restart counter already limits those.
 bool endedByWatchdog = false;
+// Windows' own notification banners are switched off right now. Only while the shell's listener
+// is confirmed to be receiving notifications (health channel); never on the shell's mere existence.
+bool bannersSuppressed = false;
 
 struct MonitorCover {
 	RECT rect {};
@@ -150,6 +154,30 @@ ULONGLONG readyTimeoutMs() {
 	return coldStart ? SHELL_READY_TIMEOUT_COLD_MS : SHELL_READY_TIMEOUT_MS;
 }
 
+// Windows' banners go off only while the shell's listener is confirmed (permission granted,
+// subscribed, heartbeat fresh), and come back the moment it is not: permission denied or revoked,
+// a stopped or hung shell, an unknown protocol, another shell's messages. A first start where
+// the listener is not ready yet therefore keeps Windows' banners as the working channel.
+void evaluateBanners() {
+	if (!options.banners || shuttingDown) {
+		if (bannersSuppressed) {
+			banners::restore();
+			bannersSuppressed = false;
+		}
+		return;
+	}
+	auto status = health::notifications(GetTickCount64());
+	if (status.operational) {
+		if (!bannersSuppressed) log(L"banners: Windows' own switched off (%s)", status.reason.c_str());
+		bannersSuppressed = true;
+		banners::hide(); // cheap to repeat: apps that send their first toast later get caught
+	} else if (bannersSuppressed) {
+		log(L"banners: Windows' own back on (%s)", status.reason.c_str());
+		banners::restore();
+		bannersSuppressed = false;
+	}
+}
+
 UINT watchdogMs() {
 	wchar_t value[16];
 	if (GetEnvironmentVariableW(L"II_TEST_WATCHDOG_MS", value, _countof(value)) > 0) {
@@ -177,6 +205,7 @@ bool startShell() {
 		return false;
 	}
 
+	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
 	STARTUPINFOW si {};
 	si.cb = sizeof(si); // no STARTF_USESHOWWINDOW: it would hide the shell's first window
 	PROCESS_INFORMATION pi {};
@@ -218,6 +247,7 @@ bool startShell() {
 	slowLogged = false;
 	launchFailures = 0;
 	instance::recordShell(shellPid, options.config);
+	health::shellStarted(shellPid);
 	splash::setShellPid(pi.dwProcessId);
 	RegisterWaitForSingleObject(&shellWait, shellProcess, onShellExit, nullptr, INFINITE, WT_EXECUTEONLYONCE);
 	setPhase(Phase::AwaitingReady, L"shell process started");
@@ -234,6 +264,8 @@ void stopShell() {
 	CloseHandle(shellProcess);
 	shellProcess = nullptr;
 	instance::clearShell();
+	health::reset();
+	evaluateBanners();
 }
 
 // --- apply / restore -----------------------------------------------------------------------
@@ -242,7 +274,7 @@ void applyAll() {
 	uiHidden = true;
 	if (options.taskbar) taskbar::hide();
 	if (options.icons) desktop::hideIcons();
-	if (options.banners) banners::hide();
+	// Banners are not touched here: see evaluateBanners().
 	if (options.theme) theme::start();
 }
 
@@ -528,6 +560,8 @@ void onShellExited() {
 	shellProcess = nullptr;
 	shellWait = nullptr;
 	instance::clearShell();
+	health::reset();
+	evaluateBanners();
 	log(L"shell: exited with code %lu (%s)", code, shellReady ? L"after it was up" : L"before it was up");
 	nightlight::restore();
 	if (options.nightlight) nightlight::start(guardReady);
@@ -572,6 +606,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
 		if (!shuttingDown && data && data->dwData == nightlight::COPYDATA)
 			return nightlight::receive(data->lpData, data->cbData);
+		if (!shuttingDown && data && data->dwData == health::COPYDATA_SERVICE_STATE) {
+			health::receive(reinterpret_cast<HWND>(wParam), data->lpData, data->cbData); // NOLINT
+			evaluateBanners();
+			return TRUE;
+		}
 		return 0;
 	}
 	case keyboard::WM_II_SHORTCUT: dispatchShortcut(wParam, lParam); return 0;
@@ -593,14 +632,14 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (uiHidden) {
 				if (options.taskbar) taskbar::reapply();
 				if (options.icons) desktop::reapplyIcons();
-				// Apps that send their first toast get a settings key then; catch those too.
-				if (options.banners) banners::hide();
 			}
 			// Wallpaper changes rewrite ii's palette; Windows follows.
 			if (options.theme) theme::apply();
 		} else if (wParam == TIMER_RESTART_SHELL) {
 			KillTimer(hwnd, TIMER_RESTART_SHELL);
 			if (!shuttingDown && !startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
+		} else if (wParam == TIMER_HEALTH) {
+			evaluateBanners();
 		} else if (wParam == TIMER_WATCHDOG) {
 			watchShell();
 		} else if (wParam == TIMER_BOOT_FAST) {
@@ -729,6 +768,7 @@ int runHost() {
 	watchExplorer();
 	SetTimer(hostWindow, TIMER_REAPPLY, 2000, nullptr);
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr);
+	SetTimer(hostWindow, TIMER_HEALTH, 1000, nullptr); // heartbeat expiry is judged on the host's own clock
 	if (options.hook) keyboard::install(hostWindow);
 
 	MSG msg;

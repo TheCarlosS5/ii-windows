@@ -1,9 +1,19 @@
 // Stand-in for quickshell.exe in the host tests. Never part of a package.
 //   fake-shell.exe -p <mode>
-//     exit:<n>   exits at once with code n
-//     hang       stays alive and shows nothing (a QML that never renders)
-//     window     shows one almost-invisible, click-through window per monitor (a shell that is up)
-//     slow:<ms>  hangs for <ms>, then behaves like "window"
+//     exit:<n>      exits at once with code n
+//     hang          stays alive and shows nothing (a QML that never renders)
+//     window        shows one almost-invisible, click-through window per monitor (a shell that is up)
+//     slow:<ms>     hangs for <ms>, then behaves like "window"
+//     hb:<variant>  like "window", and reports the notification listener's health to the host once
+//                   a second, the way the real shell does (host/src/health.cpp, protocol v1):
+//         ok           available / granted / subscribed
+//         denied       permission-required / denied / not subscribed
+//         badinstance  a wrong instance id (must be ignored)
+//         badversion   protocol version 99 (must be ignored)
+//         silent2      two good heartbeats, then silence (the listener hung)
+//         revoke2      two good heartbeats, then permission-required / denied (revoked)
+//         foreign      like ok, but this is not the process the host started (must be ignored);
+//                      the test passes II_HOST_HWND and a guessed II_INSTANCE_ID in the environment
 // The host starts its shell as: "<shell>" -p "<config>", so the mode travels as the config.
 #include <windows.h>
 
@@ -15,6 +25,57 @@
 namespace {
 
 std::vector<HWND> windows;
+std::wstring variant;
+int beats = 0;
+
+std::wstring env(const wchar_t* name) {
+	wchar_t buffer[512];
+	auto n = GetEnvironmentVariableW(name, buffer, _countof(buffer));
+	return n > 0 && n < _countof(buffer) ? std::wstring(buffer, n) : std::wstring();
+}
+
+void sendHeartbeat(HWND self) {
+	auto hostText = env(L"II_HOST_HWND");
+	auto* host = reinterpret_cast<HWND>(static_cast<ULONG_PTR>(_wcstoui64(hostText.c_str(), nullptr, 10))); // NOLINT
+	if (!host) return;
+	++beats;
+	if (variant == L"silent2" && beats > 2) return;
+
+	std::wstring state = L"available";
+	std::wstring permission = L"granted";
+	bool subscribed = true;
+	std::wstring version = L"1";
+	auto id = env(L"II_INSTANCE_ID");
+	if (variant == L"denied" || (variant == L"revoke2" && beats > 2)) {
+		state = L"permission-required";
+		permission = L"denied";
+		subscribed = false;
+	} else if (variant == L"badinstance") {
+		id = L"{00000000-0000-0000-0000-000000000000}";
+	} else if (variant == L"badversion") {
+		version = L"99";
+	}
+	DWORD session = 0;
+	ProcessIdToSessionId(GetCurrentProcessId(), &session);
+	std::wstring json = L"{\"protocolVersion\":" + version + L",\"instanceId\":\"" + id + L"\",\"sessionId\":" + std::to_wstring(session)
+	                  + L",\"requestId\":\"" + std::to_wstring(beats) + L"\",\"messageType\":\"service-state\",\"service\":\"notifications\",\"state\":\""
+	                  + state + L"\",\"permission\":\"" + permission + L"\",\"subscribed\":" + (subscribed ? L"true" : L"false")
+	                  + L",\"observedAtMonotonicMs\":" + std::to_wstring(GetTickCount64()) + L",\"error\":null}";
+	COPYDATASTRUCT data {};
+	data.dwData = 0x49490020; // COPYDATA_SERVICE_STATE
+	data.cbData = static_cast<DWORD>((json.size() + 1) * sizeof(wchar_t));
+	data.lpData = json.data();
+	DWORD_PTR result = 0;
+	SendMessageTimeoutW(host, WM_COPYDATA, reinterpret_cast<WPARAM>(self), reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 500, &result);
+}
+
+LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+	if (msg == WM_TIMER && wParam == 1) {
+		sendHeartbeat(hwnd);
+		return 0;
+	}
+	return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
 
 BOOL CALLBACK onMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM) {
 	MONITORINFO info {};
@@ -44,11 +105,12 @@ BOOL CALLBACK onMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM) {
 
 void showWindowsAndWait() {
 	WNDCLASSW wc {};
-	wc.lpfnWndProc = DefWindowProcW;
+	wc.lpfnWndProc = windowProc;
 	wc.hInstance = GetModuleHandleW(nullptr);
 	wc.lpszClassName = L"IiFakeShell";
 	RegisterClassW(&wc);
 	EnumDisplayMonitors(nullptr, nullptr, onMonitor, 0);
+	if (!variant.empty() && !windows.empty()) SetTimer(windows.front(), 1, 1000, nullptr);
 	MSG msg;
 	while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
 		TranslateMessage(&msg);
@@ -77,6 +139,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		showWindowsAndWait();
 		return 0;
 	}
+	if (mode.rfind(L"hb:", 0) == 0) variant = mode.substr(3);
 	showWindowsAndWait();
 	return 0;
 }
