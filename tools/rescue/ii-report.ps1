@@ -1,16 +1,26 @@
 # ii-windows: "Report a problem". Writes a diagnostics file to the Desktop (no user name, no
 # settings contents) and opens the GitHub bug form with the version and Windows build filled in.
 # Nothing is sent anywhere by this script: the user attaches the file to the form if they want.
-param([switch]$NoBrowser)
+#   -DataDir / -QsLogDir / -OutFile  where to read ii's logs and where to write (tests; the defaults are the real ones)
+#   -IncludePrivate  keep notification and chat text, tokens and keys in the report. Off by default: a
+#                    report is meant to be attached to a public issue.
+param([switch]$NoBrowser, [string]$DataDir = '', [string]$QsLogDir = '', [string]$OutFile = '', [switch]$IncludePrivate)
 $ErrorActionPreference = 'Continue'
 $installDir = Split-Path $PSScriptRoot
-$dataDir = Join-Path $env:LOCALAPPDATA 'ii-windows'
+$dataDir = if ($DataDir) { $DataDir } elseif ($env:II_DATA_DIR) { $env:II_DATA_DIR } else { Join-Path $env:LOCALAPPDATA 'ii-windows' }
 $repo = 'https://github.com/TheCarlosS5/ii-windows'
 
 # Anything that could identify the person: user name, profile path, computer name.
 $secrets = @($env:USERPROFILE, $env:USERNAME, $env:COMPUTERNAME) | Where-Object { $_ -and $_.Length -ge 2 } | Sort-Object Length -Descending
 function Scrub([string]$text) {
     foreach ($s in $secrets) { $text = $text -ireplace [regex]::Escape($s), $(if ($s -eq $env:USERPROFILE) { '<home>' } elseif ($s -eq $env:COMPUTERNAME) { '<pc>' } else { '<user>' }) }
+    if ($IncludePrivate) { return $text }
+    # Private by default (R11): credentials of any shape, and what people wrote to each other.
+    $text = $text -replace '(?im)(authorization|proxy-authorization|x-api-key|api[-_ ]?key|apikey|access[-_ ]?token|refresh[-_ ]?token|id[-_ ]?token|bearer|secret|password|passwd|client[-_ ]?secret)(["'']?\s*[:=]\s*["'']?)(?:bearer\s+)?[^\s"'',;&}]+', '$1$2<redacted>'
+    $text = $text -replace '(?i)\b(api_key|user_id|key|token|access_token)=[^&\s"'']+', '$1=<redacted>'
+    $text = $text -replace '\b(sk|pk|rk|ghp|gho|github_pat|xox[abps]|AIza|ya29)[-_A-Za-z0-9.]{12,}', '<redacted-key>'
+    $text = $text -replace '(?m)(Notification \d+ from [^\r\n:]*?) : .*$', '$1 : <text omitted>'
+    $text = $text -replace '(?im)^(.*(?:message|prompt|content|summary|body)\s*[:=]\s*).+$', '$1<text omitted>'
     $text
 }
 function Tail($path, $lines) {
@@ -27,7 +37,8 @@ $screens = ([System.Windows.Forms.Screen]::AllScreens | ForEach-Object { "$($_.B
 $dpi = (Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -ErrorAction SilentlyContinue).AppliedDPI
 $gpus = (Get-CimInstance Win32_VideoController | ForEach-Object { "$($_.Name) (driver $($_.DriverVersion))" }) -join '; '
 $running = (Get-Process quickshell, ii-host -ErrorAction SilentlyContinue | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', '
-$qsLog = Get-ChildItem (Join-Path $env:TEMP 'quickshell\by-id') -Filter log.log -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$qsLogRoot = if ($QsLogDir) { $QsLogDir } else { Join-Path $env:TEMP 'quickshell\by-id' }
+$qsLog = Get-ChildItem $qsLogRoot -Filter log.log -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
 $report = @"
 ii-windows - reporte de diagnostico ($(Get-Date -Format 'yyyy-MM-dd HH:mm'))
@@ -48,7 +59,7 @@ $(if ($qsLog) { Tail $qsLog.FullName 200 } else { '(sin log)' })
 "@
 
 $desktop = [Environment]::GetFolderPath('Desktop')
-$file = Join-Path $desktop "ii-windows-reporte-$(Get-Date -Format 'yyyyMMdd-HHmmss').txt"
+$file = if ($OutFile) { $OutFile } else { Join-Path $desktop "ii-windows-reporte-$(Get-Date -Format 'yyyyMMdd-HHmmss').txt" }
 Scrub $report | Set-Content $file -Encoding UTF8
 Write-Host "Diagnostico guardado en: $file"
 

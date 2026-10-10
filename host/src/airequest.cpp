@@ -1,5 +1,6 @@
 // Streaming POST transport for Ai.qml. Credentials stay in the process environment.
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -98,10 +99,38 @@ json::JsonObject readRequest(std::wstring path) {
 	std::string text(static_cast<size_t>(size), '\0');
 	file.seekg(0);
 	require(static_cast<bool>(file.read(text.data(), static_cast<std::streamsize>(text.size()))), "cannot read request file");
+	file.close(); // Windows will not delete a file that is still open
 	if (text.rfind("\xEF\xBB\xBF", 0) == 0) text.erase(0, 3);
 	json::JsonObject request;
 	require(json::JsonObject::TryParse(winrt::to_hstring(text), request), "invalid request JSON");
+	// The request is in memory now; its file held the prompt and must not outlive this call (the
+	// credentials never were in it: headers name environment variables). II_KEEP_REQUEST=1 keeps
+	// it for debugging.
+	if (environment(L"II_KEEP_REQUEST") != L"1") {
+		std::error_code ignored;
+		std::filesystem::remove(std::filesystem::path(path), ignored);
+	}
 	return request;
+}
+
+// Requests whose process never got to read them (a crash, a killed shell) would otherwise stay
+// for ever. Only files named exactly like ours (request.<instance>.json) in the same folder, older
+// than an hour, and at most 50 per call: nothing else is ever touched.
+void sweepStaleRequests(std::wstring path) {
+	if (path.size() > 3 && path[0] == L'/' && path[2] == L':' && nameStart(path[1])) path.erase(0, 1);
+	std::error_code error;
+	auto folder = std::filesystem::path(path).parent_path();
+	if (folder.empty() || !std::filesystem::is_directory(folder, error)) return;
+	auto now = std::filesystem::file_time_type::clock::now();
+	int removed = 0;
+	for (const auto& entry: std::filesystem::directory_iterator(folder, error)) {
+		if (removed >= 50) break;
+		if (!entry.is_regular_file(error)) continue;
+		auto name = entry.path().filename().wstring();
+		if (name.size() <= 13 || name.rfind(L"request.", 0) != 0 || name.compare(name.size() - 5, 5, L".json") != 0) continue;
+		auto written = entry.last_write_time(error);
+		if (!error && now - written > std::chrono::hours(1) && std::filesystem::remove(entry.path(), error)) ++removed;
+	}
 }
 
 } // namespace
@@ -110,6 +139,7 @@ int aiRequest(const std::vector<std::wstring>& args) {
 	try {
 		require(args.size() == 1, "usage: ai-request <request.json>");
 		Apartment apartment;
+		sweepStaleRequests(args[0]);
 		auto data = readRequest(args[0]);
 		auto url = expandEnvironment(std::wstring(data.GetNamedString(L"url")));
 		auto body = winrt::to_string(data.GetNamedString(L"body"));

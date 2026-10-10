@@ -17,3 +17,5 @@ host/build/
 dist/
 third_party/
 out/
+host/build-*/
+quickshell/build-*/
