@@ -17,6 +17,23 @@ std::wstring dataDirOverride() {
 }
 } // namespace
 
+namespace {
+LARGE_INTEGER processStart = [] {
+	LARGE_INTEGER v {};
+	QueryPerformanceCounter(&v);
+	return v;
+}();
+} // namespace
+
+void bench(const wchar_t* event, const wchar_t* detail) {
+	LARGE_INTEGER now {};
+	LARGE_INTEGER frequency {};
+	QueryPerformanceCounter(&now);
+	QueryPerformanceFrequency(&frequency);
+	auto ms = static_cast<double>(now.QuadPart - processStart.QuadPart) * 1000.0 / static_cast<double>(frequency.QuadPart);
+	log(L"bench: +%.1f ms %s %s", ms, event, detail);
+}
+
 bool noUi() {
 	wchar_t value[8];
 	return GetEnvironmentVariableW(L"II_NO_UI", value, _countof(value)) > 0 && value[0] == L'1';

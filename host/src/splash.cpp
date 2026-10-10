@@ -380,6 +380,7 @@ void watch() {
 		// Give the shell's wallpaper a moment to paint on that screen, then fade that cover only.
 		if (c.readySince && now - c.readySince > 700) {
 			log(L"splash: screen %zu ready after %llu ms", i, now - shownAt);
+			bench(L"splash-screen-fading", std::to_wstring(i).c_str());
 			startFading(c);
 		}
 	}
@@ -406,6 +407,7 @@ void watch() {
 }
 
 void close() {
+	if (!covers.empty()) bench(L"splash-closed");
 	if (controller) {
 		KillTimer(controller, TIMER_WATCH);
 		KillTimer(controller, TIMER_SPIN);

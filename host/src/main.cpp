@@ -9,7 +9,9 @@
 //
 // Panic shortcut while running: Ctrl+Alt+Shift+R (restores Windows UI, stops the shell, exits).
 
+#include <algorithm>
 #include <string>
+#include <vector>
 
 #include "common.h"
 #include "nightlight.h"
@@ -91,6 +93,7 @@ Phase phase = Phase::Preparing;
 ULONGLONG partialSince = 0;
 bool coldStart = false;   // no compiled QML cache yet: the first start is slow, give it longer
 bool slowLogged = false;
+std::vector<bool> monitorMarked; // per monitor: its first covered moment was written to the timeline
 // The host itself ended the shell (stuck or hung): its exit is not a crash for the crash counter,
 // the stuck-restart counter already limits those.
 bool endedByWatchdog = false;
@@ -245,9 +248,14 @@ bool startShell() {
 	shellHungSince = 0;
 	partialSince = 0;
 	slowLogged = false;
+	monitorMarked.clear();
 	launchFailures = 0;
 	instance::recordShell(shellPid, options.config);
 	health::shellStarted(shellPid);
+	bench(L"shell-launched");
+	// Until the shell is up, look often (cheap): a ready shell is noticed within 250 ms and the
+	// splash is not kept waiting for the 5 s housekeeping tick.
+	SetTimer(hostWindow, TIMER_WATCHDOG, std::min<UINT>(250, watchdogMs()), nullptr);
 	splash::setShellPid(pi.dwProcessId);
 	RegisterWaitForSingleObject(&shellWait, shellProcess, onShellExit, nullptr, INFINITE, WT_EXECUTEONLYONCE);
 	setPhase(Phase::AwaitingReady, L"shell process started");
@@ -493,6 +501,8 @@ void restartStuckShell(const wchar_t* why) {
 void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 	shellReady = true;
 	stuckRestarts = 0;
+	bench(covered < total ? L"ready-partial" : L"ready");
+	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr); // back to the slow housekeeping tick
 	setPhase(Phase::Active, L"shell is up");
 	if (covered < total) {
 		log(L"shell: ready after %llu ms with %zu of %zu monitors showing it (the rest never did)", now - shellStartedAt, covered, total);
@@ -519,6 +529,13 @@ void watchShell() {
 	}
 	auto now = GetTickCount64();
 	if (!shellReady) {
+		if (monitorMarked.size() != found.monitors.size()) monitorMarked.assign(found.monitors.size(), false);
+		for (size_t i = 0; i < found.monitors.size(); ++i) {
+			if (found.monitors[i].covered && !monitorMarked[i]) {
+				monitorMarked[i] = true;
+				bench(L"monitor-covered", std::to_wstring(i).c_str());
+			}
+		}
 		if (!slowLogged && now - shellStartedAt > 15000) {
 			slowLogged = true;
 			log(L"shell: still starting after 15 s (%zu of %zu monitors covered)", found.covered(), found.monitors.size());
@@ -740,6 +757,7 @@ int runHost() {
 	coldStart = coldQmlCache();
 	setPhase(Phase::Preparing, options.shell.empty() ? L"no shell requested" : L"shell requested");
 	instance::recordHost();
+	bench(L"host-ready-to-launch");
 	guardReady = spawnGuard();
 
 	if (!RegisterHotKey(hostWindow, HOTKEY_PANIC, MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, 'R')) {

@@ -11,7 +11,9 @@
 param([switch]$RestartExplorer)
 
 $ErrorActionPreference = 'Continue'
-$dataDir = Join-Path $env:LOCALAPPDATA 'ii-windows'
+# II_DATA_DIR / II_NO_UI are test switches (tools/sandbox/tests): an isolated data folder, and
+# "only decide which processes to stop, leave Explorer, the registry and the displays alone".
+$dataDir = if ($env:II_DATA_DIR) { $env:II_DATA_DIR } else { Join-Path $env:LOCALAPPDATA 'ii-windows' }
 $stateFile = Join-Path $dataDir 'state.ini'
 $logFile = Join-Path $dataDir 'host.log'
 New-Item -ItemType Directory -Force $dataDir | Out-Null
@@ -53,10 +55,51 @@ function Write-State($key, $value) {
 
 Log 'rescue started'
 
-# 1. stop ii (host first, so it cannot re-hide anything)
-foreach ($name in 'ii-host', 'quickshell') {
-    Get-Process $name -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process $_ -Force; Log "stopped $name ($($_.Id))" }
+# 1. stop ii (host first, so it cannot re-hide anything): only the processes of THIS installation.
+# A quickshell.exe that is somebody's other shell, or an ii-host.exe from another folder, is not ii's
+# and is left alone. A process counts as ours if it is the one the host recorded in state.ini (same
+# PID, creation time, executable path and session: a recycled PID fails that), or if its
+# executable lives under this installation's folder (rescue\.. is the install folder).
+function Read-StateText($key) {
+    if (-not (Test-Path $stateFile)) { return '' }
+    $m = Select-String -Path $stateFile -Pattern "^$key=(.*)$" | Select-Object -First 1
+    if ($m) { $m.Matches[0].Groups[1].Value.Trim() } else { '' }
 }
+$mySession = (Get-Process -Id $PID).SessionId
+$installDir = [IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent)).TrimEnd('')
+function Test-Under($path, $dir) {
+    if (-not $path -or -not $dir -or $dir.Length -le 3) { return $false }
+    [IO.Path]::GetFullPath($path).StartsWith($dir + '', [StringComparison]::OrdinalIgnoreCase)
+}
+$stopped = @{}
+function Stop-Ours($p, $why) {
+    if ($stopped.ContainsKey($p.Id)) { return }
+    $stopped[$p.Id] = $true
+    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+    Log "stopped $($p.ProcessName) ($($p.Id)): $why"
+}
+foreach ($role in 'host', 'shell') {
+    $recordedPid = Read-StateText "${role}Pid"
+    if (-not $recordedPid) { continue }
+    $p = Get-Process -Id ([int]$recordedPid) -ErrorAction SilentlyContinue
+    $same = $false
+    if ($p) {
+        try {
+            $same = ($p.StartTime.ToFileTimeUtc().ToString() -eq (Read-StateText "${role}Created")) -and
+                    ($p.Path -ieq (Read-StateText "${role}Path")) -and ($p.SessionId -eq $mySession)
+        } catch { $same = $false }
+    }
+    if ($same) { Stop-Ours $p "recorded $role" }
+    else { Log "recorded $role $recordedPid is not running any more (or its PID was reused): not touching it" }
+}
+foreach ($p in @(Get-Process -Name 'ii-host', 'quickshell' -ErrorAction SilentlyContinue)) {
+    $path = $null
+    try { $path = $p.Path } catch {}
+    if ($p.SessionId -eq $mySession -and (Test-Under $path $installDir)) { Stop-Ours $p 'its executable is in this installation' }
+    else { Log "left alone: $($p.ProcessName) ($($p.Id)), not from this installation" }
+}
+
+if ($env:II_NO_UI -eq '1') { Log 'II_NO_UI: process selection only, nothing else restored'; exit 0 }
 
 # 2. taskbars visible
 # Gamma originals must survive even when the host binary is missing. Same journal/mutex as

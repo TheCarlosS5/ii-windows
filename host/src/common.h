@@ -27,6 +27,11 @@ bool noUi();
 // A message to the user; logged instead when noUi().
 void alertUser(const std::wstring& text);
 
+// A timeline mark for startup measurements (B02): "bench: +<ms> <event> <detail>" in host.log,
+// milliseconds on a monotonic clock since this process started. Cheap, a few lines per start;
+// tools/dev/bench-startup.ps1 turns them into per-phase distributions.
+void bench(const wchar_t* event, const wchar_t* detail = L"");
+
 // Appends a timestamped line to %LOCALAPPDATA%\ii-windows\host.log
 void log(const wchar_t* fmt, ...);
 
