@@ -3,13 +3,19 @@
 #
 #   uninstall.cmd               shows the list and asks
 #   uninstall.ps1 -Yes          no questions
-#   uninstall.ps1 -KeepConfig   keep ii's settings and generated colors
-param([switch]$Yes, [switch]$KeepConfig)
+#   uninstall.ps1 -KeepConfig   keep ii's settings, generated colors, notification history and saved keys
+#   uninstall.ps1 -KeepSecrets  delete the rest but keep the saved keys (DPAPI) for a reinstall
+# Only ii's own folders are ever deleted (see ii-ownership.ps1); other Quickshell configurations in
+# %LOCALAPPDATA%\quickshell are never touched, with or without -KeepConfig.
+param([switch]$Yes, [switch]$KeepConfig, [switch]$KeepSecrets)
 
 $ErrorActionPreference = 'Continue'
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\ii-windows'
 $dataDir = Join-Path $env:LOCALAPPDATA 'ii-windows'
 $manifestPath = Join-Path $dataDir 'install.json'
+$ownership = Join-Path $PSScriptRoot 'ii-ownership.ps1'
+if (-not (Test-Path -LiteralPath $ownership)) { throw "Falta ii-ownership.ps1 junto al desinstalador; no se borra nada sin la lista de lo que es de ii." }
+. $ownership
 
 function Say($text) { Write-Host $text }
 function Ask($question, $default) {
@@ -40,7 +46,13 @@ if ($manifest) { foreach ($s in $manifest.shortcuts) { Say "  - borrar el acceso
 if ($manifest) { foreach ($font in $manifest.fonts) { Say "  - borrar la fuente $($font.file)" } }
 Say '  - borrar los perfiles y colores de ii en Windows Terminal'
 Say "  - borrar la carpeta $installDir"
-if (-not $KeepConfig) { Say "  - borrar la configuracion de ii ($env:LOCALAPPDATA\quickshell)" }
+foreach ($owned in (Get-IiOwnedPaths $env:LOCALAPPDATA)) {
+    $kept = switch ($owned.Kind) { 'secrets' { $KeepConfig -or $KeepSecrets } default { [bool]$KeepConfig } }
+    if (Test-Path -LiteralPath $owned.Path) {
+        if ($kept) { Say "  - conservar $($owned.What) ($($owned.Path))" } else { Say "  - borrar $($owned.What) ($($owned.Path))" }
+    }
+}
+Say '  - no se toca nada mas de Quickshell: otras configuraciones suyas siguen como estaban'
 Say "Se conservan las copias del registro de la instalacion en $dataDir\backup"
 if (-not (Ask 'Continuar?' $true)) { Say 'Cancelado.'; exit 1 }
 
@@ -52,7 +64,7 @@ if ($hostWindow -ne [IntPtr]::Zero) {
 }
 $rescue = Join-Path $installDir 'rescue\ii-rescue.ps1'
 if (Test-Path $rescue) { & powershell -NoProfile -ExecutionPolicy Bypass -File $rescue | Out-Null }
-Get-Process quickshell, ii-host -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$installDir*" } | Stop-Process -Force
+Get-IiInstalledProcesses $installDir | Stop-Process -Force
 Say 'Windows restaurado.'
 
 # 2. the user's own cursor scheme, exactly as recorded
@@ -179,10 +191,7 @@ if (Test-Path -LiteralPath $fragmentDir) {
 }
 
 # 4. files (this script may live in the folder it deletes: finish from a temporary copy)
-if (-not $KeepConfig) {
-    Remove-Item (Join-Path $env:LOCALAPPDATA 'quickshell') -Recurse -Force -ErrorAction SilentlyContinue
-    Say 'Configuracion de ii borrada.'
-}
+foreach ($line in (Invoke-IiDataRemoval -LocalAppData $env:LOCALAPPDATA -KeepConfig:$KeepConfig -KeepSecrets:$KeepSecrets)) { Say $line }
 foreach ($f in 'state.ini', 'install.json', 'banners.txt', 'theme.txt') {
     if ($f -eq 'install.json' -and $remainingFonts.Count -gt 0) { continue }
     Remove-Item (Join-Path $dataDir $f) -ErrorAction SilentlyContinue

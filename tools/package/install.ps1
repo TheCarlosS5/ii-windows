@@ -134,12 +134,14 @@ if ($hostWindow -ne [IntPtr]::Zero) {
     [IiInstall.Win]::PostMessageW($hostWindow, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     Start-Sleep 4
 }
-Get-Process quickshell, ii-host -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$installDir*" } | Stop-Process -Force
+. (Join-Path $here 'ii-ownership.ps1')
+Get-IiInstalledProcesses $installDir | Stop-Process -Force
 New-Item -ItemType Directory -Force $installDir | Out-Null
 & robocopy $payload $installDir /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:1 | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "No se pudieron copiar los archivos (robocopy $LASTEXITCODE)" }
 Copy-Item (Join-Path $here 'uninstall.ps1') $installDir -Force
 Copy-Item (Join-Path $here 'uninstall.cmd') $installDir -Force
+Copy-Item (Join-Path $here 'ii-ownership.ps1') $installDir -Force
 Copy-Item (Join-Path $here 'autostart-task.ps1') $installDir -Force
 Say "Copiado a $installDir"
 
