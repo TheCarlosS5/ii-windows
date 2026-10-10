@@ -1,0 +1,34 @@
+Registro vivo de lo ejecutado a partir de este documento. Cada ficha sale de `docs/seguimiento/<ID>.md`
+y se vuelca aquí con `python tools/dev/tasks_status.py sync` (que también marca el índice de la sección 5).
+Los estados son los de la sección 3.4; las casillas del índice reflejan este registro, no la redacción original.
+
+**Alcance de esta ejecución (10 de octubre de 2026, rama `work/tasks-ii-windows`; fork en `ii-tasks`):**
+fases 0–2 (base, recuperación, propiedad) en la medida indicada ficha a ficha, parte de la fase 3, F01 y las
+tareas de las fases 4–6 que figuran abajo. Las tareas sin ficha en esta sección siguen en `TODO`: **no están
+hechas y este documento no debe leerse como cumplimiento completo** (sección 4, «Puede entregarse un paquete
+correctivo…»). Las ideas (fase 8) no se han tocado.
+
+**Entorno:** Windows 11 Pro 10.0.28000, equipo de pruebas del usuario con su ii real
+instalado y en ejecución. Ese ii **no se tocó**: todo se probó en carpetas temporales, con instancias aisladas
+de `ii-host` (`II_DATA_DIR`, `II_NO_UI=1`, sin ocultar nada) y un shell falso (`ii-fake-shell`). No se probaron GPU
+dedicada, segunda pantalla, Wallpaper Engine, Lively, tacto, RDP ni batería; los escenarios que los
+necesitan quedan como pendientes de validación, no como PASS.
+
+**Cadena de herramientas (sin administrador, nada instalado en el sistema):** MSVC 14.44 + Windows SDK 26100 en
+`dev\toolchain\msvc` (extracción portátil de los paquetes oficiales de Microsoft con `portable-msvc.py`), clang-cl
+23.1.3 (LLVM oficial), Qt 6.12 oficial (`tools/dev/fetch_qt.py`), CLI11 2.5.0, CMake/Ninja de pip. `tools/dev/vsenv-portable.ps1`
+activa el entorno. Compilados: `ii-host`, `ii-fake-shell`, `ii-lockstate-test`, `ii-sidebar-test` y el fork de
+Quickshell completo (Release, preset `windows-release`).
+
+**Cómo reproducir las pruebas:**
+`powershell -File tools\sandbox\runner-selftest.ps1` (el runner) ·
+`powershell -File tools\sandbox\run-tests.ps1 -Path tools\sandbox\tests\test-host-launch.ps1 -RequireAssertions` (una prueba) ·
+`powershell -File tools\sandbox\run-tests.ps1 -Suite tools\sandbox\tests -Filter "test-*.ps1" -RequireAssertions` (la suite nueva).
+Las pruebas `test-host-*`, `test-bench`, `test-rescue-ps` necesitan `cmake --build host\build --target ii-host ii-fake-shell` antes.
+Cada ejecución escribe `results.json` con passed/failed/timeout/skipped por prueba; un skip nunca cuenta como PASS.
+
+**Decisiones propuestas adoptadas (no aprobadas por Carlos, ajustables):** timeouts de arranque 45 s (90 s en
+primer arranque sin caché QML) en lugar de 30 s, a afinar con B02; reintento de `CreateProcess` 3 veces con espera
+1/2/4 s; una pantalla sin fondo de la shell tras 10 s de que otra ya lo tenga cuenta como «listo parcial» y su
+cubierta se retira; `restore` solo deshace lo que este ii ocultó (el rescate fuerza); `-KeepConfig` conserva también
+las claves guardadas y existe `-KeepSecrets`; el desinstalador ya no borra `%LOCALAPPDATA%\quickshell` entero.

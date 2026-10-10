@@ -120,14 +120,14 @@ Todas las casillas están pendientes a fecha de redacción. No son resultados de
 
 | Estado | ID | Tarea | Fase | Prioridad | Alcance | Dependencias mínimas |
 | --- | --- | --- | --- | --- | --- | --- |
-| [ ] TODO | B00 | Confirmar HEAD, arquitectura y mapa de reproducción | 0 | P0 | VALIDACIÓN | — |
-| [ ] TODO | B01 | Hacer fiable el runner de pruebas | 0 | P0 | VALIDACIÓN | B00 |
-| [ ] TODO | B02 | Instrumentar arranque, frames y consumo antes de optimizar | 0 | P1 | VALIDACIÓN | B01 |
-| [ ] TODO | R01 | Coordinar permisos y salud antes de ocultar notificaciones | 1 | P0 | CORE | B02 |
-| [ ] TODO | R02 | Lanzar y activar la shell como operación recuperable | 1 | P0 | CORE | B02 |
-| [ ] TODO | R03 | Corregir el contrato de bloqueo solicitado y confirmado | 1 | P0 | CORE | B02 |
-| [ ] TODO | R04 | Limitar desinstalación a datos propiedad de ii | 1 | P0 | CORE | B01 |
-| [ ] TODO | R05 | Rescatar solo los procesos de la instancia supervisada | 2 | P1 | CORE | R02 |
+| [x] VERIFICADA | B00 | Confirmar HEAD, arquitectura y mapa de reproducción | 0 | P0 | VALIDACIÓN | — |
+| [x] VERIFICADA | B01 | Hacer fiable el runner de pruebas | 0 | P0 | VALIDACIÓN | B00 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | B02 | Instrumentar arranque, frames y consumo antes de optimizar | 0 | P1 | VALIDACIÓN | B01 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | R01 | Coordinar permisos y salud antes de ocultar notificaciones | 1 | P0 | CORE | B02 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | R02 | Lanzar y activar la shell como operación recuperable | 1 | P0 | CORE | B02 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | R03 | Corregir el contrato de bloqueo solicitado y confirmado | 1 | P0 | CORE | B02 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | R04 | Limitar desinstalación a datos propiedad de ii | 1 | P0 | CORE | B01 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | R05 | Rescatar solo los procesos de la instancia supervisada | 2 | P1 | CORE | R02 |
 | [ ] TODO | R06 | Hacer autostart independiente por usuario y dueño | 2 | P1 | CORE | R04 |
 | [ ] TODO | R07 | Instalar y actualizar runtime con activación y rollback | 2 | P1 | CORE | R02, R04 |
 | [ ] TODO | R08 | Preservar propiedad y decisiones del usuario entre upgrades | 2 | P1 | CORE | R04, R07 |
@@ -148,9 +148,9 @@ Todas las casillas están pendientes a fecha de redacción. No son resultados de
 | [ ] TODO | P12 | Sustituir sondeo redundante y mantener hook barato | 3 | P1 | CORE | B02 |
 | [ ] TODO | P13 | Optimizar búsqueda y descartar resultados viejos | 3 | P1 | CORE | B02 |
 | [ ] TODO | P14 | Reducir FBO y hacer texto nítido en escalado/DPI | 3 | P1 | CORE | B02 |
-| [ ] TODO | P15 | Hacer splash barato y retirarlo por readiness real | 3 | P1 | CORE | R02, B02 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | P15 | Hacer splash barato y retirarlo por readiness real | 3 | P1 | CORE | R02, B02 |
 | [ ] TODO | P16 | Aplicar prioridad y perfiles por estado, sin trucos globales | 3 | P1 | CORE | R02, B02, R08 |
-| [ ] TODO | P17 | Conservar caché QML y hacer reproducibles builds Windows Release | 3 | P1 | CORE | B00, B01 |
+| [~] EN_CURSO | P17 | Conservar caché QML y hacer reproducibles builds Windows Release | 3 | P1 | CORE | B00, B01 |
 | [ ] TODO | P18 | Aplicar presupuestos de reposo y demostrar fluidez sostenida | 3 | P1 | VALIDACIÓN | B02, P02, P03, P04, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17 |
 | [ ] TODO | U01 | Crear catálogo de acciones/capacidades y política de UI ii | 4 | P1 | CORE | R01, R02, R03 |
 | [ ] TODO | U02 | Enrutar atajos completos con política por aplicación | 4 | P1 | CORE | U01, P12, R09 |
@@ -2392,3 +2392,123 @@ Las rutas y enlaces de la siguiente tabla quedan fijados a las revisiones examin
 ## 14. Regla de cierre
 
 Este documento es una lista de trabajo con criterios de verificación, no una certificación del estado actual. El agente debe mantener visible la diferencia entre código implementado, conducta probada y límite de plataforma. El resultado esperado es una base ii fiable y fluida con ampliaciones seleccionadas, sin comprometer recuperación ni autenticación para aparentar que Windows ha desaparecido.
+
+## 15. Registro de ejecución
+
+Registro vivo de lo ejecutado a partir de este documento. Cada ficha sale de `docs/seguimiento/<ID>.md`
+y se vuelca aquí con `python tools/dev/tasks_status.py sync` (que también marca el índice de la sección 5).
+Los estados son los de la sección 3.4; las casillas del índice reflejan este registro, no la redacción original.
+
+**Alcance de esta ejecución (10 de octubre de 2026, rama `work/tasks-ii-windows`; fork en `ii-tasks`):**
+fases 0–2 (base, recuperación, propiedad) en la medida indicada ficha a ficha, parte de la fase 3, F01 y las
+tareas de las fases 4–6 que figuran abajo. Las tareas sin ficha en esta sección siguen en `TODO`: **no están
+hechas y este documento no debe leerse como cumplimiento completo** (sección 4, «Puede entregarse un paquete
+correctivo…»). Las ideas (fase 8) no se han tocado.
+
+**Entorno:** Windows 11 Pro 10.0.28000, equipo de pruebas del usuario con su ii real
+instalado y en ejecución. Ese ii **no se tocó**: todo se probó en carpetas temporales, con instancias aisladas
+de `ii-host` (`II_DATA_DIR`, `II_NO_UI=1`, sin ocultar nada) y un shell falso (`ii-fake-shell`). No se probaron GPU
+dedicada, segunda pantalla, Wallpaper Engine, Lively, tacto, RDP ni batería; los escenarios que los
+necesitan quedan como pendientes de validación, no como PASS.
+
+**Cadena de herramientas (sin administrador, nada instalado en el sistema):** MSVC 14.44 + Windows SDK 26100 en
+`dev\toolchain\msvc` (extracción portátil de los paquetes oficiales de Microsoft con `portable-msvc.py`), clang-cl
+23.1.3 (LLVM oficial), Qt 6.12 oficial (`tools/dev/fetch_qt.py`), CLI11 2.5.0, CMake/Ninja de pip. `tools/dev/vsenv-portable.ps1`
+activa el entorno. Compilados: `ii-host`, `ii-fake-shell`, `ii-lockstate-test`, `ii-sidebar-test` y el fork de
+Quickshell completo (Release, preset `windows-release`).
+
+**Cómo reproducir las pruebas:**
+`powershell -File tools\sandbox\runner-selftest.ps1` (el runner) ·
+`powershell -File tools\sandbox\run-tests.ps1 -Path tools\sandbox\tests\test-host-launch.ps1 -RequireAssertions` (una prueba) ·
+`powershell -File tools\sandbox\run-tests.ps1 -Suite tools\sandbox\tests -Filter "test-*.ps1" -RequireAssertions` (la suite nueva).
+Las pruebas `test-host-*`, `test-bench`, `test-rescue-ps` necesitan `cmake --build host\build --target ii-host ii-fake-shell` antes.
+Cada ejecución escribe `results.json` con passed/failed/timeout/skipped por prueba; un skip nunca cuenta como PASS.
+
+**Decisiones propuestas adoptadas (no aprobadas por Carlos, ajustables):** timeouts de arranque 45 s (90 s en
+primer arranque sin caché QML) en lugar de 30 s, a afinar con B02; reintento de `CreateProcess` 3 veces con espera
+1/2/4 s; una pantalla sin fondo de la shell tras 10 s de que otra ya lo tenga cuenta como «listo parcial» y su
+cubierta se retira; `restore` solo deshace lo que este ii ocultó (el rescate fuerza); `-KeepConfig` conserva también
+las claves guardadas y existe `-KeepSecrets`; el desinstalador ya no borra `%LOCALAPPDATA%\quickshell` entero.
+
+### ID: B00 — Confirmar HEAD, arquitectura y mapa de reproducción
+
+**Estado:** VERIFICADA
+- **Base:** ii-windows `22dec54` (= revisión auditada, sin diferencias); quickshell-windows `39428f7` (= auditada); upstream `33f31a0` (= auditada, sin modificar). Hallazgos R01–R05 y P15 siguen vigentes en HEAD; ninguno estaba ya resuelto.
+- **Cambios:** `tools/sandbox/tests/test-staging.ps1`; `tools/dev/vsenv-portable.ps1`; rama de trabajo `work/tasks-ii-windows` (ii) e `ii-tasks` (fork); upstream clonado en `upstream/` (ignorado por git).
+- **Pruebas (PASS):** `test-staging` (11 aserciones): dos stagings limpios dan árboles idénticos byte a byte (942 archivos, hash de árbol `C9A816DF…F75A`); `upstream/` no cambia; un upstream movido (texto esperado por `patch_ii_lock.py` alterado) hace fallar el parche con `expected 1 match(es), found 0` y el nombre del archivo.
+- **Pendiente:** el mapa ficha→archivo se hizo solo para las fichas ejecutadas (resto, al abordarlas). La clasificación completa de rutas Linux residuales queda para C12.
+- **Rollback:** n/a (solo lectura + pruebas).
+
+### ID: B01 — Hacer fiable el runner de pruebas
+
+**Estado:** VERIFICADA
+- **Base:** `sbx.ps1` hacía `break` en timeout y terminaba en cero; el agente no devolvía el código de salida de cada script.
+- **Cambios (commit `32c2b78`):** `tools/sandbox/run-tests.ps1` (cada prueba en su proceso, timeout que mata solo el árbol de esa prueba, resultado por prueba en `results.json`, `-RequireAssertions`, skips reportados como skipped, carpeta de salida nueva por ejecución); `lib/ii-test.ps1` (Assert-*, Skip-Test, código 77); `runner-selftest.ps1` + fixtures (éxito, exit 7, excepción, aserción fallida, proceso colgado con hijo, skip, sin aserciones); `sbx.ps1`/`agent.ps1` devuelven el código de salida (124 timeout, 125 agente antiguo).
+- **Pruebas (PASS):** `runner-selftest.ps1` bajo Windows PowerShell 5.1 y pwsh 7: 15 comprobaciones desde un proceso padre (exit 7 ⇒ el runner sale distinto de 0; timeout ⇒ `timeout` y sin hijos huérfanos; skip ⇒ exit 0 pero `passed=0`; una falla entre pasadas falla la corrida).
+- **Pendiente:** las ~114 pruebas heredadas de `tests/` no se han convertido (R10); `sbx.ps1` no se ejecutó (Windows Sandbox no está habilitado en este equipo).
+- **Rollback:** los scripts nuevos son aditivos; `git revert 32c2b78`.
+
+### ID: B02 — Instrumentar arranque, frames y consumo antes de optimizar
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Qué hay:** marcas de línea de tiempo con reloj monotónico en `host.log` (`bench: +<ms> <evento>`): host listo, shell lanzada, primera cobertura por monitor, listo (o listo parcial), cubierta retirada (commit `1f6919c`); sondeo de readiness cada 250 ms hasta que la shell esté lista; `tools/dev/bench-manifest.ps1` (manifiesto de entorno sin nombre de usuario, equipo ni rutas personales); `tools/dev/bench-startup.ps1` (N arranques ⇒ min/p50/p95/p99/max por fase + datos brutos + manifiesto; se niega a correr con ii abierto salvo `-Inert`); `tools/dev/lib/bench-stats.ps1`.
+- **Pruebas (PASS):** `test-bench` (29 aserciones): percentiles por rango más cercano sobre datos de respuesta conocida, detección de reloj no monotónico, manifiesto con los campos del protocolo y sin identidad, 3 arranques reales inertes con la shell falsa (línea de tiempo ordenada, marca por monitor, un log por corrida).
+- **Pendiente (impide VERIFICADA):** toma de referencia real (≥5 arranques fríos/10 cálidos) con el ii real; frames p95/p99, entrada, CPU/GPU, working set y handles (solo hay arranque); build Release comparable ya existe (preset `windows-release`). Los números del shell falso **no** son una línea base.
+- **Rollback:** las marcas son líneas de log; `git revert 1f6919c`.
+
+### ID: R01 — Coordinar permisos y salud antes de ocultar notificaciones
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Contrato:** `host/src/health.cpp`, mensaje JSON UTF-16 v1 por `WM_COPYDATA` (≤64 KiB, tipo `service-state`): la autoridad sale del canal (la ventana emisora debe ser del proceso de la shell que lanzó este host), del `instanceId` aleatorio entregado por entorno (`II_INSTANCE_ID`, `II_HOST_HWND`, `II_PROTOCOL_VERSION`) y de la sesión; la caducidad (3 s, latido 1 s) la juzga el reloj del host. Versión desconocida, emisor ajeno, id incorrecto o estado ≠ `available` no ocultan nada.
+- **Cambios:** host (commit `3934b00`): los banners de Windows solo se desactivan tras un informe fresco «available/granted/subscribed» y se devuelven al instante si el permiso se deniega o revoca, el latido se calla, la shell cae o llega un mensaje inválido; la llamada periódica ya no los vuelve a ocultar (`evaluateBanners`). Fork (commit `01317f1`): el listener relee el permiso cada vuelta (sin diálogo), sigue vivo si está denegado (un permiso concedido después funciona) y envía el latido tras cada lectura; si el bucle se cuelga, el latido para.
+- **Pruebas (PASS):** `test-host-health` (18 aserciones) con una shell falsa que emite los mensajes reales: ok ⇒ apagado una sola vez; denegado, id erróneo, versión 99 ⇒ nunca apagado; silencio ⇒ devuelto en ≤3 s; revocación ⇒ devuelto al instante; emisor que no es la shell ⇒ ignorado. El fork compila (Release, clang-cl).
+- **Pendiente (impide VERIFICADA):** el listener real de Windows (primer inicio, aceptar/denegar, revocar con la shell viva, Explorer reiniciado) no se probó: pediría el diálogo de permiso en el equipo del usuario. «Sin duplicación ordinaria» en la transición no se midió. Los avisos internos de ii no se distinguen aún de los del sistema en el informe.
+- **Riesgos / rollback:** `--keep-banners` sigue desactivando todo. Un host nuevo con una shell vieja nunca recibe latido ⇒ los banners de Windows se quedan encendidos (degradación segura). `git revert 3934b00` (host) / `01317f1` (fork).
+
+### ID: R02 — Lanzar y activar la shell como operación recuperable
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios (commits `33479f8`, `a650d76`):** fases registradas (preparing → launching → awaiting-ready → active → restoring → recovered/failed); un ejecutable de shell inexistente se rechaza **antes** de ocultar nada; `CreateProcess` fallido ⇒ 3 intentos con espera 1/2/4 s y después restauración por el camino común (`restoreAndStop`, idempotente, sin `PostQuitMessage` hasta tras el aviso) y un solo mensaje; una shell que nunca muestra su fondo devuelve Explorer mientras se reinicia y lo vuelve a ocultar cuando la nueva está lista; readiness **por monitor** (listo parcial con plazo de 10 s, monitores ausentes registrados); timeouts 45 s/90 s en frío; los kills del watchdog no cuentan como cuelgues; `restore` solo deshace lo que este ii ocultó (el rescate fuerza).
+- **Pruebas (PASS):** `test-host-launch` (37 aserciones, instancias aisladas e inertes): exe ausente ⇒ exit 1 sin fase de lanzamiento; exe imposible de crear ⇒ 3 intentos espaciados y exit 2; shell que sale con 5 siempre ⇒ exit 2; shell que nunca muestra nada ⇒ devuelve Explorer, reinicia 3 veces, exit 2 y no deja procesos; shell sana ⇒ `active`, shell registrada, `WM_CLOSE` ⇒ exit 0 y la shell se va.
+- **Pendiente (impide VERIFICADA):** no se verificó el estado real de Explorer (barra/iconos visibles tras el fallo, sin cubiertas ni handles huérfanos) porque las pruebas son inertes a propósito (el ii real corre en este equipo); QML inválido y DLL ausente reales; matar host/guard/shell por separado con la ocultación activa; el «entorno de entrada esencial» (solo se mira cobertura de pantalla, no hay mensaje `readiness` de la shell: queda como parte de R01/P15 con un cambio en el fork).
+- **Riesgos / rollback:** el umbral de 45 s es una propuesta; si una máquina lenta supera 45 s sin caché, 3 reinicios ⇒ abandono: la espera es 90 s si no hay caché QML. `git revert 33479f8 a650d76`.
+
+### ID: R03 — Corregir el contrato de bloqueo solicitado y confirmado
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios:** fork `ae68568` — `compat/lockstate.hpp` (máquina de estados sin Qt: unknown/unlocked/requested/accepted/locked/error), `WlSessionLock` la usa: `LockWorkStation()` se llama **al momento** (sin los 450 ms decorativos) y solo inicia el bloqueo; `secure` es verdadero únicamente tras el evento WTS de **esta** sesión (o una consulta de la sesión al arrancar, con «unknown» si no se puede leer); fallo de API o falta de confirmación a los 5 s ⇒ `lockFailed(reason)` y el estado «solicitado» se retira; un `unlock()` desde QML nunca desbloquea Windows; eventos de otra sesión ignorados; reconexión consola/RDP relee la sesión. ii `3934b00`: `Session.lock()` deja de programar una segunda petición a los 2 s; el parche de bloqueo restablece `screenLocked` en `onLockFailed` y toma el estado si la shell arranca ya bloqueada.
+- **Pruebas (PASS):** `ii-lockstate-test` (33 comprobaciones: secure solo tras Windows; llamada fallida/aceptada/tardía/temporizador viejo; otra sesión; unlock de QML; Win+L sin petición; inicio ya bloqueado; resync); humo con el `quickshell.exe` compilado: `WlSessionLock` lee del Windows real `secure=false state=unlocked` sin bloquear.
+- **Pendiente (impide VERIFICADA):** bloqueo real (Win+L, bloqueo desde ii, RDP, suspender/reanudar) no probado: bloquearía la sesión del usuario. No se introdujo ninguna contraseña en QML (ni se prueba). La transición visual/imagen estática es U08.
+- **Rollback:** `git revert ae68568` en el fork + `3934b00` en ii.
+
+### ID: R04 — Limitar desinstalación a datos propiedad de ii
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios (commit `88e7028`):** `tools/package/ii-ownership.ps1`: lista fija de lo que ii posee (`quickshell\illogical-impulse`, `quickshell\State\user`, `quickshell\cache\notifications`, `ii-windows\cache`, `ii-windows\secrets`), borrado confinado a su raíz que no sigue junctions ni enlaces simbólicos (un enlace se retira como enlace; un ancestro enlazado se rechaza) y `install.json` **no** es fuente de rutas a borrar. El desinstalador ya no borra `%LOCALAPPDATA%\quickshell`; `-KeepConfig` conserva config, estado y claves; nuevo `-KeepSecrets`; la selección de procesos usa prefijo de ruta real. El instalador copia la biblioteca y `make-package` la empaqueta.
+- **Pruebas (PASS):** `test-ownership` (32 aserciones, `LOCALAPPDATA` temporal): otra config de Quickshell, su estado y la caché compartida sobreviven con y sin `-KeepConfig`; lo de ii se borra/conserva según los interruptores; junction dentro, como carpeta propia y como ancestro ⇒ el destino queda intacto; rutas fuera de raíz/raíz/raíz de unidad/hermano con prefijo rechazadas; manifest hostil o corrupto no borra nada.
+- **Pendiente (impide VERIFICADA):** `uninstall.ps1` completo no se ejecutó (toca HKCU, PATH, cursores, fuentes y tarea programada reales de este equipo): instalar→upgrade→uninstall→reinstalar con KeepConfig queda por probar en un perfil de pruebas. Solo se comprobó su sintaxis.
+- **Compatibilidad:** manifests antiguos funcionan (las rutas ya no se leen). Quien quiera conservar la config usa `-KeepConfig`; el caso «borrar también otras configs de Quickshell» ya no existe a propósito.
+- **Rollback:** `git revert 88e7028`.
+
+### ID: R05 — Rescatar solo los procesos de la instancia supervisada
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios (commits `33479f8`, `1f6919c`):** el host registra en `state.ini` (`[instance]`) PID + hora de creación + ruta + config de su shell y de sí mismo; guardia y `--rescue` paran solo el proceso cuyo PID, creación, ruta y sesión coinciden (primero cierre ordenado a sus ventanas, después terminación acotada); sin registro, solo procesos con la ruta exacta `<instalación>\quickshell\quickshell.exe`; PID reutilizado o registro viejo no autoriza nada. `tools/rescue/ii-rescue.ps1` hace lo mismo (registro o ejecutable bajo la carpeta de la instalación, misma sesión) en lugar de `Get-Process` por nombre. `killProcessesNamed` desapareció.
+- **Pruebas (PASS):** `test-host-launch` (rescate: shell+host registrados paradas, un `quickshell.exe` de otra carpeta intacto; registro viejo ⇒ intacto con la razón en el log; sin registro ⇒ solo el exe exacto) y `test-rescue-ps` (8 aserciones: igual para el rescate PowerShell, incluido registro válido fuera de la instalación).
+- **Pendiente (impide VERIFICADA):** otra sesión de usuario (no hay segunda cuenta), host colgado de verdad con la ocultación activa y la restauración posterior de Explorer; la comparación de línea de comandos/config de una misma exe con dos configuraciones no se implementó (el registro cubre la instancia supervisada; el caso sin registro sí distingue por ruta de ejecutable, no por argumentos).
+- **Rollback:** `git revert 33479f8 1f6919c`.
+
+### ID: P15 — Hacer splash barato y retirarlo por readiness real
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios (commit `33479f8`):** la shell se lanza antes de decodificar el fondo (`splash::show` crea ventanas de color plano, `loadImages` decodifica después); cada cubierta se retira cuando **su** pantalla ya muestra la shell (+700 ms), las pantallas que nunca la reciben pierden su cubierta 10 s después de que otra esté lista; un solo ventana de control posee los temporizadores; el repintado del indicador usa solo su rectángulo y un buffer del tamaño de lo sucio (antes: bitmap a pantalla completa cada 33 ms); aviso de demora a los 15 s.
+- **Pruebas:** compila y los caminos sin splash están cubiertos por las pruebas del host (`--no-splash`); **el splash visible no se ejecutó** (cubriría el escritorio del usuario).
+- **Pendiente (impide VERIFICADA):** medir CPU durante el arranque y tiempo proceso→interactivo antes/después (B02 real), 4K doble, fondo enorme/ausente, monitor lento, QML que no renderiza. No se retira por «entrada esencial» (solo por cobertura); eso necesita el mensaje `readiness` de la shell (fork).
+- **Rollback:** `git revert 33479f8` (en conjunto con R02/R05, mismo commit).
+
+### ID: P17 — Conservar caché QML y hacer reproducibles builds Windows Release
+
+**Estado:** EN_CURSO
+- **Hecho:** `CMakePresets.json` en el fork (commit `b8cb811`): `windows-release` (Release explícito, clang-cl, Ninja, servicios Linux apagados, `DISTRIBUTOR` y `CRASHREPORT_URL` apuntando a este proyecto en vez del upstream de Quickshell) y `windows-debug` solo para diagnóstico. El fork compila entero con ese preset (518 pasos, 0 errores) contra Qt 6.12 oficial y clang-cl 23.1.3.
+- **Pendiente:** manifiesto de build (commits, flags, hashes, dirty) dentro del paquete; `deploy.ps1`/`make-package.ps1` ligados todavía a la ruta de Visual Studio y a `quickshell\build`; manifiesto incremental de assets; inventario de dependencias/licencias (CLI11 nuevo en la cadena); prueba de caché caliente/invalidada por cambio de QML; CI de Windows.
+- **Nota:** no se afirma que el release anterior fuera Debug; solo que el default de CMake lo era.
