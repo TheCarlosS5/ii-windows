@@ -1,0 +1,1 @@
+throw 'controlled exception'

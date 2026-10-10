@@ -14,11 +14,15 @@ while ($true) {
         $run = "$x\done\$($next.Name)"
         Move-Item $next.FullName $run -Force
         $out = "$x\outbox\$name.txt"
+        # The script's own exit code travels back in <name>.exit; a crash of the agent itself is -1.
+        $code = -1
         try {
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $run *>&1 | Out-File -Encoding utf8 $out
+            $code = $LASTEXITCODE
         } catch {
             "AGENT ERROR: $_" | Out-File -Append -Encoding utf8 $out
         }
+        Set-Content "$x\outbox\$name.exit" $code
         Set-Content "$x\outbox\$name.done" (Get-Date -Format o)
     }
     Start-Sleep -Milliseconds 700

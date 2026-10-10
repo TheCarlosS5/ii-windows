@@ -37,11 +37,19 @@ switch ($Action) {
         $name = '{0:yyyyMMdd-HHmmss-fff}-{1}' -f (Get-Date), [IO.Path]::GetFileNameWithoutExtension($Script)
         Copy-Item $Script "$x\inbox\$name.ps1"
         $sw = [Diagnostics.Stopwatch]::StartNew()
+        $timedOut = $false
         while (-not (Test-Path "$x\outbox\$name.done")) {
-            if ($sw.Elapsed.TotalSeconds -gt $Timeout) { "timeout after $Timeout s"; break }
+            if ($sw.Elapsed.TotalSeconds -gt $Timeout) { $timedOut = $true; break }
             Start-Sleep -Milliseconds 500
         }
         Get-Content "$x\outbox\$name.txt" -ErrorAction SilentlyContinue
+        # A timeout or a failing script must reach the caller as a non-zero exit code, never as
+        # a quiet end of output.
+        if ($timedOut) { "timeout after $Timeout s"; exit 124 }
+        $exitFile = "$x\outbox\$name.exit"
+        if (-not (Test-Path $exitFile)) { 'sandbox agent did not report an exit code (outdated agent?)'; exit 125 }
+        $code = [int](Get-Content $exitFile -Raw)
+        if ($code -ne 0) { "script exited with code $code"; exit $code }
     }
     'stop' {
         Get-Process WindowsSandbox, WindowsSandboxClient, WindowsSandboxRemoteSession -ErrorAction SilentlyContinue | Stop-Process -Force
