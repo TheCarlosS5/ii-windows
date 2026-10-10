@@ -34,7 +34,7 @@ Copy-Item (Join-Path $root 'tools\rescue\ii-rescue.ps1'), (Join-Path $root 'tool
           (Join-Path $root 'tools\rescue\ii-report.ps1'), (Join-Path $root 'tools\rescue\ii-report.cmd') (Join-Path $app 'rescue')
 # fastfetch with ii's config, as the `fastfetch` command (app\bin goes on the user's PATH if they agree)
 Mirror 'third_party\fastfetch' 'fastfetch'
-Copy-Item (Join-Path $root 'extras\fastfetch\ii.jsonc'), (Join-Path $root 'extras\fastfetch\ii-logo.txt') (Join-Path $app 'fastfetch')
+Copy-Item (Join-Path $root 'extras\fastfetch\ii.jsonc'), (Join-Path $root 'extras\fastfetch\ii-logo.txt'), (Join-Path $root 'extras\fastfetch\ii-logo-ascii.txt') (Join-Path $app 'fastfetch')
 New-Item -ItemType Directory -Force (Join-Path $app 'bin') | Out-Null
 Copy-Item (Join-Path $root 'extras\fastfetch\fastfetch.cmd') (Join-Path $app 'bin')
 Copy-Item (Join-Path $root 'host\build\ii-host.exe') $app
