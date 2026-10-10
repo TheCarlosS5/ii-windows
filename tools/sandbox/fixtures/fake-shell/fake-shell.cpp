@@ -15,12 +15,23 @@
 //         foreign      like ok, but this is not the process the host started (must be ignored);
 //                      the test passes II_HOST_HWND and a guessed II_INSTANCE_ID in the environment
 // The host starts its shell as: "<shell>" -p "<config>", so the mode travels as the config.
+//
+// Named ii-host.exe it is a stand-in for the HOST, started by ii-launcher (R07 tests); the mode is
+// the environment variable II_FAKE_HOST:
+//     ok        after a moment marks its version verified (as the real host does when its shell is
+//               up), stays II_FAKE_HOST_LIFETIME_MS (default 1500), exits 0
+//     crash     exits with code 3 at once
+//     hang      never verifies and never exits
+//     already   exits 17 (another host owns the desktop)
+//   "--rescue" on the command line: writes rescue-ran.txt next to the exe and exits 0.
 #include <windows.h>
 
 #include <shellapi.h>
 
 #include <string>
 #include <vector>
+
+#include "rollout.h"
 
 namespace {
 
@@ -118,11 +129,50 @@ void showWindowsAndWait() {
 	}
 }
 
+std::wstring exeDirectory() {
+	wchar_t path[MAX_PATH];
+	GetModuleFileNameW(nullptr, path, MAX_PATH);
+	std::wstring full = path;
+	return full.substr(0, full.find_last_of(L"\\/"));
+}
+
+int runAsFakeHost(int argc, wchar_t** argv) {
+	auto dir = exeDirectory();
+	for (int i = 1; i < argc; ++i) {
+		if (std::wstring(argv[i]) == L"--rescue") {
+			if (auto* f = _wfopen((dir + L"\\rescue-ran.txt").c_str(), L"wb")) fclose(f);
+			return 0;
+		}
+	}
+	auto mode = env(L"II_FAKE_HOST");
+	if (mode == L"crash") return 3;
+	if (mode == L"already") return 17;
+	if (mode == L"hang") {
+		Sleep(INFINITE);
+		return 0;
+	}
+	Sleep(400);
+	ii::rollout::markVerified(dir);
+	auto lifetime = env(L"II_FAKE_HOST_LIFETIME_MS");
+	Sleep(lifetime.empty() ? 1500 : static_cast<DWORD>(_wtoi(lifetime.c_str())));
+	return 0;
+}
+
+bool isNamedHost() {
+	auto dir = exeDirectory();
+	wchar_t path[MAX_PATH];
+	GetModuleFileNameW(nullptr, path, MAX_PATH);
+	std::wstring name = path;
+	name = name.substr(name.find_last_of(L"\\/") + 1);
+	return _wcsicmp(name.c_str(), L"ii-host.exe") == 0;
+}
+
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 	int argc = 0;
 	auto** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+	if (isNamedHost()) return runAsFakeHost(argc, argv);
 	std::wstring mode = L"window";
 	for (int i = 1; i + 1 < argc; ++i) {
 		if (std::wstring(argv[i]) == L"-p") mode = argv[i + 1];

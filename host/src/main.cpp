@@ -15,6 +15,7 @@
 
 #include "common.h"
 #include "nightlight.h"
+#include "rollout.h"
 
 #include <objbase.h>
 #include <shellapi.h>
@@ -502,6 +503,8 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 	shellReady = true;
 	stuckRestarts = 0;
 	bench(covered < total ? L"ready-partial" : L"ready");
+	// A freshly installed version is "pending" until its host says it works; tell the launcher.
+	if (rollout::markVerified(selfDir())) log(L"runtime: this version is now verified");
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr); // back to the slow housekeeping tick
 	setPhase(Phase::Active, L"shell is up");
 	if (covered < total) {
@@ -723,7 +726,7 @@ int runHost() {
 	auto* mutex = CreateMutexW(nullptr, TRUE, (L"Local\\ii-windows-host" + tag).c_str());
 	if (GetLastError() == ERROR_ALREADY_EXISTS) {
 		log(L"another ii-host is running");
-		return 1;
+		return 17; // the launcher knows this one: nothing failed, there is simply already a host
 	}
 
 	// Nothing is hidden before the shell can at least be found: a missing executable must not

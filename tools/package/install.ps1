@@ -6,12 +6,17 @@
 #   install.ps1 -NoAutostart    do not start ii with Windows
 #   install.ps1 -StartNow       start ii right after installing
 #   install.ps1 -NoFastfetch    do not add the `fastfetch` command (ii's config) to the user's PATH
+#   install.ps1 -Sandbox        for tests only: with LOCALAPPDATA/APPDATA pointed at a throwaway folder it
+#                               installs files, runtime and manifest and touches nothing else of the user's
+#                               (no fonts, cursor, PATH, autostart, uninstall entry, restore point, and it
+#                               never closes the ii that is really running)
 #
 # Everything it creates or changes is written to install.json (shown by the uninstaller), and the
 # registry keys it touches are exported to .reg files first.
-param([switch]$Yes, [switch]$RestorePoint, [switch]$NoCursor, [switch]$NoAutostart, [switch]$StartNow, [switch]$NoFastfetch)
+param([switch]$Yes, [switch]$RestorePoint, [switch]$NoCursor, [switch]$NoAutostart, [switch]$StartNow, [switch]$NoFastfetch, [switch]$Sandbox)
 
 $ErrorActionPreference = 'Stop'
+if ($Sandbox) { $NoCursor = $true; $NoAutostart = $true; $NoFastfetch = $true; $RestorePoint = $false; $StartNow = $false }
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $payload = Join-Path $here 'app'
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\ii-windows'
@@ -62,16 +67,32 @@ Say 'Mientras ii corre: oculta la barra de tareas y los iconos del escritorio, y
 Say 'Todo se deshace al salir de ii, con Ctrl+Alt+Shift+R, con el rescate o desinstalando.'
 if (-not (Ask 'Continuar?' $true)) { Say 'Cancelado.'; exit 1 }
 
+. (Join-Path $here 'ii-ownership.ps1')
+. (Join-Path $here 'ii-changes.ps1')
+. (Join-Path $here 'ii-runtime.ps1')
+. (Join-Path $here 'ii-autostart.ps1')
+# One id per package; it names the version folder under <install>\versions.
+$versionId = ($version -replace '[^A-Za-z0-9._-]', '-')
+$launcher = Join-Path $installDir 'ii-launcher.exe'
+
 $manifest = [ordered]@{
-    product = 'ii-windows'; version = $version; installed = (Get-Date).ToString('s')
+    schema = 2
+    product = 'ii-windows'; version = $version; versionId = $versionId; installed = (Get-Date).ToString('s')
     installDir = $installDir; dataDir = $dataDir; backupDir = $backupDir
-    registry = @(); shortcuts = @(); fonts = @(); cursor = $false; restorePoint = 'no'
+    registry = @(); shortcuts = @(); fonts = @(); changes = @(); cursor = $false; restorePoint = 'no'
 }
 
 # Keep ownership across updates; an already registered font is otherwise left alone.
 $previousManifestPath = Join-Path $dataDir 'install.json'
 if (Test-Path -LiteralPath $previousManifestPath) {
     $previousManifest = Get-Content -LiteralPath $previousManifestPath -Raw | ConvertFrom-Json
+    # Manifests from before changes[] knew only the GPU preference and the Run key: they become
+    # owned changes (with "absent" as their original) when they are provably still ii's.
+    Import-IiLegacyChanges $previousManifest
+    $manifest.changes = @($previousManifest.changes | Where-Object { $_ })
+    foreach ($carry in 'pathBefore', 'pathAfter', 'pathEntry', 'task') {
+        if ($previousManifest.PSObject.Properties.Name -contains $carry) { $manifest[$carry] = $previousManifest.$carry }
+    }
     if ($previousManifest.fonts) {
         $manifest.fonts = @($previousManifest.fonts)
         foreach ($font in $manifest.fonts) {
@@ -84,7 +105,7 @@ if (Test-Path -LiteralPath $previousManifestPath) {
 function SaveManifest() {
     $path = Join-Path $dataDir 'install.json'
     $temp = "$path.tmp"
-    $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $temp -Encoding UTF8
+    $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temp -Encoding UTF8
     # Move-Item, not File.Replace(..., $null): PowerShell 5.1 passes $null as "".
     Move-Item -LiteralPath $temp -Destination $path -Force
 }
@@ -128,36 +149,59 @@ Say "Guardado en $backupDir"
 
 # --- 3. files ----------------------------------------------------------------------------------
 Step 'Archivos'
-$hostWindow = [IiInstall.Win]::FindWindow('IiHostWindow', [NullString]::Value)
+$hostWindow = if ($Sandbox) { [IntPtr]::Zero } else { [IiInstall.Win]::FindWindow('IiHostWindow', [NullString]::Value) }
 if ($hostWindow -ne [IntPtr]::Zero) {
     Say 'ii esta corriendo: se cierra para actualizar.'
     [IiInstall.Win]::PostMessageW($hostWindow, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     Start-Sleep 4
 }
-. (Join-Path $here 'ii-ownership.ps1')
 Get-IiInstalledProcesses $installDir | Stop-Process -Force
 New-Item -ItemType Directory -Force $installDir | Out-Null
-& robocopy $payload $installDir /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:1 | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "No se pudieron copiar los archivos (robocopy $LASTEXITCODE)" }
-Copy-Item (Join-Path $here 'uninstall.ps1') $installDir -Force
-Copy-Item (Join-Path $here 'uninstall.cmd') $installDir -Force
-Copy-Item (Join-Path $here 'ii-ownership.ps1') $installDir -Force
-Copy-Item (Join-Path $here 'ii-autostart.ps1') $installDir -Force
-Copy-Item (Join-Path $here 'autostart-task.ps1') $installDir -Force
-Say "Copiado a $installDir"
+
+# The new version is built NEXT TO the running one and switched on with one atomic step: an
+# interrupted or failed update leaves the version that works selected (see ii-runtime.ps1).
+# Versions that were already confirmed to work and are neither active nor the way back go first.
+$before = Read-IiCurrent $installDir
+if ($before -and $before.state -eq 'verified') {
+    foreach ($old in (Remove-IiOldVersions $installDir)) {
+        $oldExe = Join-Path $installDir "versions\$old\quickshell\quickshell.exe"
+        [void](Restore-IiOwnedRegValue $manifest "gpu:$oldExe")
+        Say "Version antigua quitada: $old"
+    }
+}
+$runtime = Install-IiRuntime -Payload $payload -Root $installDir -VersionId $versionId
+$versionDir = Join-Path $installDir "versions\$($runtime.Id)"
+# Stable pieces, the same whatever version is active: the launcher, the scripts, the rescue, the
+# cursors and the command shims that point at the active version.
+foreach ($stable in 'ii-launcher.exe') {
+    $src = Join-Path $here $stable
+    if (Test-Path $src) { Copy-Item $src $installDir -Force }
+}
+foreach ($script in 'uninstall.ps1', 'uninstall.cmd', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1') {
+    Copy-Item (Join-Path $here $script) $installDir -Force
+}
+foreach ($folder in 'rescue', 'cursors', 'bin') {
+    if (Test-Path (Join-Path $versionDir $folder)) {
+        & robocopy (Join-Path $versionDir $folder) (Join-Path $installDir $folder) /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:1 | Out-Null
+        if ($LASTEXITCODE -ge 8) { throw "No se pudo copiar $folder (robocopy $LASTEXITCODE)" }
+    }
+}
+Say "Version $($runtime.Id) copiada y verificada en $installDir\versions; se activa al arrancar (si no arranca, se vuelve a la anterior: $($runtime.Previous))."
+$manifest.runtime = @([ordered]@{ active = $runtime.Id; previous = $runtime.Previous })
 
 # --- 3b. power-saving GPU for the shell ----------------------------------------------------------
 # On laptops with two GPUs (iGPU + NVIDIA/AMD) a shell that lands on the dedicated one keeps it
 # awake all day and copies every frame between GPUs. Same setting as Settings > System > Display >
 # Graphics, per user; only written if the user never chose one for this file.
-$gpuKey = 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences'
-$shellExe = Join-Path $installDir 'quickshell\quickshell.exe'
-$gpuCurrent = (Get-ItemProperty $gpuKey -Name $shellExe -ErrorAction SilentlyContinue).$shellExe
-if (-not $gpuCurrent) {
-    New-Item -Force $gpuKey -ErrorAction SilentlyContinue | Out-Null
-    Set-ItemProperty $gpuKey -Name $shellExe -Value 'GpuPreference=1;'
-    $manifest.gpuPreference = $shellExe
-    $manifest.registry += "HKCU\Software\Microsoft\DirectX\UserGpuPreferences\$shellExe (GPU de ahorro de energia)"
+$gpuSubKey = 'Software\Microsoft\DirectX\UserGpuPreferences'
+$shellExe = Join-Path $versionDir 'quickshell\quickshell.exe'
+# A value that already exists is the user's choice and is left alone; one that is ii's own from an
+# earlier install keeps its true original (absent) and is not mistaken for the user's.
+$gpuResult = Set-IiOwnedRegValue $manifest "gpu:$shellExe" $gpuSubKey $shellExe 'GpuPreference=1;' 'String'
+if ($gpuResult -in 'applied', 'kept-ours', 'updated-ours') {
+    $manifest.registry += "HKCU\$gpuSubKey\$shellExe (GPU de ahorro de energia)"
+} elseif ($gpuResult -eq 'foreign-existing') {
+    Say 'La preferencia de GPU de este programa ya existe (es tuya): se respeta.'
 }
 
 # --- 4. cursor ---------------------------------------------------------------------------------
@@ -166,18 +210,9 @@ $cursorBackup = Join-Path $dataDir 'cursors.json'
 if (-not $NoCursor) {
     Step 'Cursor Bibata'
     if (Ask 'Usar el cursor Bibata de illogical-impulse?' $true) {
-        # The user's own scheme is recorded once; reinstalling must not record ours as theirs.
-        if (-not (Test-Path $cursorBackup)) {
-            # Every value with its exact type ("" is the scheme name, the key's default value).
-            $key = Get-Item $cursorKey
-            $saved = @(foreach ($name in $key.GetValueNames()) {
-                $kind = $key.GetValueKind($name)
-                $value = $key.GetValue($name, $null, 'DoNotExpandEnvironmentNames')
-                if ($value -is [byte[]]) { $value = [Convert]::ToBase64String($value) }
-                [ordered]@{ name = $name; kind = "$kind"; value = $value }
-            })
-            ConvertTo-Json -InputObject $saved -Depth 3 | Set-Content $cursorBackup -Encoding UTF8
-        }
+        # The user's own scheme is recorded per value the first time ii takes it, with its exact type;
+        # reinstalling never records ii's own cursors as the user's, and a cursor the user changed
+        # afterwards is not overwritten (see ii-changes.ps1).
         $dir = Join-Path $installDir 'cursors\Bibata-Modern-Classic'
         $map = [ordered]@{
             Arrow = 'Pointer.cur'; Help = 'Help.cur'; AppStarting = 'Work.ani'; Wait = 'Busy.ani'
@@ -186,13 +221,17 @@ if (-not $NoCursor) {
             SizeNESW = 'Dgn2.cur'; SizeAll = 'Move.cur'; UpArrow = 'Alternate.cur'; Hand = 'Link.cur'
             Pin = 'Pin.cur'; Person = 'Person.cur'
         }
+        $kept = @()
         foreach ($name in $map.Keys) {
-            Set-ItemProperty $cursorKey -Name $name -Value (Join-Path $dir $map[$name]) -Type ExpandString
+            $r = Set-IiOwnedRegValue $manifest "cursor:$name" 'Control Panel\Cursors' $name (Join-Path $dir $map[$name]) 'ExpandString' -TakeOver
+            if ($r -eq 'user-choice') { $kept += $name }
         }
-        Set-ItemProperty $cursorKey -Name '(default)' -Value 'Bibata Modern Classic (ii-windows)'
+        # ("" is the scheme name: the key's default value.)
+        [void](Set-IiOwnedRegValue $manifest 'cursor:scheme' 'Control Panel\Cursors' '' 'Bibata Modern Classic (ii-windows)' 'String' -TakeOver)
         [IiInstall.Win]::SystemParametersInfoW(0x57, 0, [IntPtr]::Zero, 0x3) | Out-Null   # SPI_SETCURSORS
         $manifest.cursor = $true
-        $manifest.registry += 'HKCU\Control Panel\Cursors (valores de cursor; los originales en cursors.json)'
+        $manifest.registry += 'HKCU\Control Panel\Cursors (valores de cursor; los originales en changes[] de install.json)'
+        if ($kept.Count -gt 0) { Say "Cursores que cambiaste tu despues y se respetan: $($kept -join ', ')" }
         Say 'Cursor aplicado.'
     } else { Say 'Se mantiene el cursor actual.' }
 }
@@ -252,7 +291,7 @@ function FontFullName($path) {
 }
 
 Step 'Fuente JetBrains Mono Nerd Font para la terminal'
-if (Ask 'Instalar la fuente JetBrains Mono Nerd Font para la terminal? (solo tu usuario)' $true) {
+if (-not $Sandbox -and (Ask 'Instalar la fuente JetBrains Mono Nerd Font para la terminal? (solo tu usuario)' $true)) {
     $fontsDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
     $fontsKeyPath = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
     $fontFiles = @(Get-ChildItem -LiteralPath (Join-Path $payload 'quickshell\fonts') -Filter 'JetBrainsMonoNerdFont-*.ttf' -File)
@@ -301,17 +340,17 @@ if (Ask 'Instalar la fuente JetBrains Mono Nerd Font para la terminal? (solo tu 
 
 # --- 5. autostart, shortcuts, uninstall entry ---------------------------------------------------
 Step 'Inicio con Windows y accesos'
-$hostExe = Join-Path $installDir 'ii-host.exe'
-$command = "`"$hostExe`" --shell `"$installDir\quickshell\quickshell.exe`" --config `"$installDir\ii`""
-$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+# Everything that starts ii goes through the launcher, which picks the active version (and goes
+# back a version if a new one fails its first start). It supplies --shell/--config itself.
+$hostExe = $launcher
+$runSubKey = 'Software\Microsoft\Windows\CurrentVersion\Run'
 if (-not $NoAutostart -and (Ask 'Iniciar ii automaticamente al entrar en Windows?' $true)) {
     # Best: a logon task. Windows starts it right away (the Run key waits several seconds, while
     # Explorer's wallpaper and taskbar show). Creating it needs administrator rights once; ii
     # itself still runs as you, without them. --boot: high priority and ii's wallpaper at once
     # while it loads.
-    $bootArgs = "--boot --shell `"$installDir\quickshell\quickshell.exe`" --config `"$installDir\ii`""
+    $bootArgs = '--boot'
     $user = "$env:USERDOMAIN\$env:USERNAME"
-    . (Join-Path $here 'ii-autostart.ps1')
     $sid = Get-IiUserSid
     $taskOk = $false
     $taskConflicts = @()
@@ -338,22 +377,21 @@ if (-not $NoAutostart -and (Ask 'Iniciar ii automaticamente al entrar en Windows
     }
     foreach ($c in $taskConflicts) { Say $c }
     if ($taskOk) {
-        Remove-ItemProperty $runKey -Name 'ii-windows' -ErrorAction SilentlyContinue
-        $manifest.task = [ordered]@{ path = '\ii-windows'; name = "Logon-$sid"; sid = $sid }
+        [void](Restore-IiOwnedRegValue $manifest 'run:ii-windows')   # the Run entry of an older install is superseded by the task
+        $manifest.task = [ordered]@{ path = $script:IiTaskFolder; name = "Logon-$sid"; sid = $sid }
         Say 'Se iniciara con Windows (tarea propia de tu usuario, al entrar).'
     } else {
         # Without administrator rights: the Run key (starts some seconds later).
-        Set-ItemProperty $runKey -Name 'ii-windows' -Value "`"$hostExe`" $bootArgs"
+        [void](Set-IiOwnedRegValue $manifest 'run:ii-windows' $runSubKey 'ii-windows' "`"$hostExe`" $bootArgs" 'String')
         $manifest.registry += 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ii-windows'
         Say 'Se iniciara con Windows (sin la tarea: unos segundos despues de entrar).'
     }
 }
 
 # Updating with -NoAutostart: our logon task from an earlier install stays and stays recorded.
-. (Join-Path $here 'ii-autostart.ps1')
 $ownSid = Get-IiUserSid
-if (-not $manifest.task -and (Get-IiTaskOwnership (Get-IiLogonTask '\ii-windows' "Logon-$ownSid") $ownSid $installDir) -eq 'own') {
-    $manifest.task = [ordered]@{ path = '\ii-windows'; name = "Logon-$ownSid"; sid = $ownSid }
+if (-not $manifest.task -and (Get-IiTaskOwnership (Get-IiLogonTask $script:IiTaskFolder "Logon-$ownSid") $ownSid $installDir) -eq 'own') {
+    $manifest.task = [ordered]@{ path = $script:IiTaskFolder; name = "Logon-$ownSid"; sid = $ownSid }
 }
 
 $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows'
@@ -368,28 +406,30 @@ function Shortcut($name, $target, $arguments, $description) {
     $lnk.Save()
     $manifest.shortcuts += $path
 }
-Shortcut 'Iniciar ii' $hostExe "--shell `"$installDir\quickshell\quickshell.exe`" --config `"$installDir\ii`"" 'Inicia la shell ii'
+Shortcut 'Iniciar ii' $hostExe '' 'Inicia la shell ii'
 Shortcut 'Rescate de ii (restaurar Windows)' (Join-Path $installDir 'rescue\ii-rescue.cmd') '' 'Devuelve la barra de tareas, los iconos y todo lo demas'
 Shortcut 'Reportar un problema de ii' (Join-Path $installDir 'rescue\ii-report.cmd') '' 'Guarda un diagnostico en el Escritorio y abre el formulario de fallos'
 Shortcut 'Desinstalar ii-windows' (Join-Path $installDir 'uninstall.cmd') '' 'Quita ii-windows y restaura Windows'
 
-$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'
-New-Item -Force $uninstallKey | Out-Null
-$size = [int]((Get-ChildItem $installDir -Recurse -File | Measure-Object Length -Sum).Sum / 1KB)
-$entry = @{
-    DisplayName = 'ii-windows (illogical-impulse para Windows)'; DisplayVersion = $version; Publisher = 'ii-windows'
-    InstallLocation = $installDir; DisplayIcon = "$hostExe,0"
-    UninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$installDir\uninstall.ps1`""
+if (-not $Sandbox) {
+    $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'
+    New-Item -Force $uninstallKey | Out-Null
+    $size = [int]((Get-ChildItem $installDir -Recurse -File | Measure-Object Length -Sum).Sum / 1KB)
+    $entry = @{
+        DisplayName = 'ii-windows (illogical-impulse para Windows)'; DisplayVersion = $version; Publisher = 'ii-windows'
+        InstallLocation = $installDir; DisplayIcon = "$hostExe,0"
+        UninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$installDir\uninstall.ps1`""
+    }
+    foreach ($k in $entry.Keys) { Set-ItemProperty $uninstallKey -Name $k -Value $entry[$k] }
+    Set-ItemProperty $uninstallKey -Name NoModify -Value 1 -Type DWord
+    Set-ItemProperty $uninstallKey -Name NoRepair -Value 1 -Type DWord
+    Set-ItemProperty $uninstallKey -Name EstimatedSize -Value $size -Type DWord
+    $manifest.registry += 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'
 }
-foreach ($k in $entry.Keys) { Set-ItemProperty $uninstallKey -Name $k -Value $entry[$k] }
-Set-ItemProperty $uninstallKey -Name NoModify -Value 1 -Type DWord
-Set-ItemProperty $uninstallKey -Name NoRepair -Value 1 -Type DWord
-Set-ItemProperty $uninstallKey -Name EstimatedSize -Value $size -Type DWord
-$manifest.registry += 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'
 Say 'Accesos en el menu Inicio > ii-windows. Tambien aparece en Configuracion > Aplicaciones.'
 
 # --- 6. manifest -------------------------------------------------------------------------------
-$manifest.runtime = @(
+$manifest.whileRunning = @(
     'Mientras ii corre (se deshace solo al salir, con el rescate o desinstalando):',
     '  barra de tareas oculta (y su autoocultar), iconos del escritorio ocultos,',
     '  banners de notificacion de Windows por app (HKCU, copia en banners.txt),',
@@ -404,7 +444,8 @@ Step 'Listo'
 Say 'Atajo de panico mientras ii corre: Ctrl+Alt+Shift+R'
 Say 'Si algo falla: menu Inicio > ii-windows > Rescate de ii.'
 if ($StartNow -or ((-not $Yes) -and (Ask 'Iniciar ii ahora?' $false))) {
-    Start-Process $hostExe -ArgumentList '--shell', "`"$installDir\quickshell\quickshell.exe`"", '--config', "`"$installDir\ii`""
+    # The launcher picks the active version and, if it fails its first start, goes back to the previous one.
+    Start-Process $launcher
     Say 'ii iniciado.'
 }
 exit 0

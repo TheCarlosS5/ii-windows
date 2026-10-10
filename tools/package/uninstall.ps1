@@ -5,9 +5,12 @@
 #   uninstall.ps1 -Yes          no questions
 #   uninstall.ps1 -KeepConfig   keep ii's settings, generated colors, notification history and saved keys
 #   uninstall.ps1 -KeepSecrets  delete the rest but keep the saved keys (DPAPI) for a reinstall
+#   uninstall.ps1 -Sandbox      for tests only (see install.ps1 -Sandbox): files and recorded changes of a
+#                               throwaway LOCALAPPDATA; never closes the real ii, never touches its
+#                               task, uninstall entry or Windows Terminal profiles
 # Only ii's own folders are ever deleted (see ii-ownership.ps1); other Quickshell configurations in
 # %LOCALAPPDATA%\quickshell are never touched, with or without -KeepConfig.
-param([switch]$Yes, [switch]$KeepConfig, [switch]$KeepSecrets)
+param([switch]$Yes, [switch]$KeepConfig, [switch]$KeepSecrets, [switch]$Sandbox)
 
 $ErrorActionPreference = 'Continue'
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\ii-windows'
@@ -16,6 +19,9 @@ $manifestPath = Join-Path $dataDir 'install.json'
 $ownership = Join-Path $PSScriptRoot 'ii-ownership.ps1'
 if (-not (Test-Path -LiteralPath $ownership)) { throw "Falta ii-ownership.ps1 junto al desinstalador; no se borra nada sin la lista de lo que es de ii." }
 . $ownership
+$changesLib = Join-Path $PSScriptRoot 'ii-changes.ps1'
+if (-not (Test-Path -LiteralPath $changesLib)) { throw "Falta ii-changes.ps1 junto al desinstalador; no se deshace nada del registro sin saber que es de ii." }
+. $changesLib
 
 function Say($text) { Write-Host $text }
 function Ask($question, $default) {
@@ -35,6 +41,9 @@ Add-Type -Namespace IiUninstall -Name Win -MemberDefinition @'
 
 $manifest = $null
 if (Test-Path $manifestPath) { $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json }
+# Manifests from before changes[] (0.1.3 and earlier): the GPU preference and the Run entry become
+# owned changes when they are provably still ii's.
+if ($manifest) { Import-IiLegacyChanges $manifest }
 
 Say 'ii-windows - desinstalador'
 Say ''
@@ -57,29 +66,51 @@ Say "Se conservan las copias del registro de la instalacion en $dataDir\backup"
 if (-not (Ask 'Continuar?' $true)) { Say 'Cancelado.'; exit 1 }
 
 # 1. stop ii cleanly (it restores everything it changed), then the rescue for anything left
-$hostWindow = [IiUninstall.Win]::FindWindow('IiHostWindow', [NullString]::Value)
+$hostWindow = if ($Sandbox) { [IntPtr]::Zero } else { [IiUninstall.Win]::FindWindow('IiHostWindow', [NullString]::Value) }
 if ($hostWindow -ne [IntPtr]::Zero) {
     [IiUninstall.Win]::PostMessageW($hostWindow, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     Start-Sleep 4
 }
 $rescue = Join-Path $installDir 'rescue\ii-rescue.ps1'
-if (Test-Path $rescue) { & powershell -NoProfile -ExecutionPolicy Bypass -File $rescue | Out-Null }
+if ((Test-Path $rescue) -and -not $Sandbox) { & powershell -NoProfile -ExecutionPolicy Bypass -File $rescue | Out-Null }
 Get-IiInstalledProcesses $installDir | Stop-Process -Force
 Say 'Windows restaurado.'
 
-# 2. the user's own cursor scheme, exactly as recorded
+# 2. everything ii changed in the registry that was not its own: each value goes back to its
+# original only if it is still what ii put there. A value the user changed afterwards stays theirs.
+$haveCursorChanges = $false
+if ($manifest -and $manifest.changes) {
+    foreach ($change in @($manifest.changes | Where-Object { $_ })) {
+        if ($change.id -like 'cursor:*') { $haveCursorChanges = $true }
+        $result = Restore-IiOwnedRegValue $manifest ([string]$change.id)
+        switch ($result) {
+            'restored'     { Say "Devuelto a su valor anterior: $($change.id)" }
+            'deleted'      { Say "Quitado (no existia antes de ii): $($change.id)" }
+            'user-changed' { Say "Lo cambiaste despues de instalar ii; se respeta tu valor: $($change.id)" }
+        }
+    }
+    if ($haveCursorChanges) { [IiUninstall.Win]::SystemParametersInfoW(0x57, 0, [IntPtr]::Zero, 0x3) | Out-Null }   # SPI_SETCURSORS
+}
+
+# Installs from before changes[] recorded the whole cursor key in cursors.json. Only the values that
+# still point into ii's own folder are put back; a cursor chosen since stays.
 $cursorBackup = Join-Path $dataDir 'cursors.json'
-if (Test-Path $cursorBackup) {
-    # Windows PowerShell returns a JSON array as one object: unroll it.
+if ((Test-Path $cursorBackup) -and -not $haveCursorChanges) {
     $saved = @(Get-Content $cursorBackup -Raw | ConvertFrom-Json | ForEach-Object { $_ })
     $writable = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Control Panel\Cursors', $true)
     $ok = $true
+    $ours = {
+        param($name)
+        $raw = [string]$writable.GetValue($name, '', 'DoNotExpandEnvironmentNames')
+        if ($name -eq '') { return $raw -eq 'Bibata Modern Classic (ii-windows)' }
+        return [bool]$raw -and $raw.StartsWith($installDir + '\', [StringComparison]::OrdinalIgnoreCase)
+    }
     try {
-        # Values the installer added that were not there before go away ("" is the default value).
         foreach ($name in $writable.GetValueNames()) {
-            if ($name -ne '' -and -not ($saved | Where-Object { $_.name -eq $name })) { $writable.DeleteValue($name, $false) }
+            if ($name -ne '' -and -not ($saved | Where-Object { $_.name -eq $name }) -and (& $ours $name)) { $writable.DeleteValue($name, $false) }
         }
         foreach ($v in $saved) {
+            if (-not (& $ours ([string]$v.name))) { Say "Cursor cambiado despues de instalar ii; se respeta: $($v.name)"; continue }
             $kind = [Microsoft.Win32.RegistryValueKind]([string]$v.kind)
             $value = $v.value
             if ($kind -eq [Microsoft.Win32.RegistryValueKind]::Binary) { $value = [Convert]::FromBase64String($value) }
@@ -103,12 +134,13 @@ if (Test-Path $cursorBackup) {
 }
 
 # 3. autostart, uninstall entry, shortcuts
-Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'ii-windows' -ErrorAction SilentlyContinue
 # The logon task: only ours (per user, \ii-windows\Logon-<SID>), plus the old flat \ii-windows task if
 # it is provably this user's and this installation's. Another user's task, or one with that name
 # from somewhere else, stays. Removing it may need administrator rights.
 $autostartLib = Join-Path $PSScriptRoot 'ii-autostart.ps1'
-if (Test-Path -LiteralPath $autostartLib) {
+if ($Sandbox) {
+    Say 'Sandbox: la tarea de inicio no se toca.'
+} elseif (Test-Path -LiteralPath $autostartLib) {
     . $autostartLib
     $ownSid = Get-IiUserSid
     try {
@@ -125,11 +157,7 @@ if (Test-Path -LiteralPath $autostartLib) {
 } else {
     Say 'Falta ii-autostart.ps1: la tarea de inicio no se toca (no se puede demostrar que es de este usuario).'
 }
-Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows' -Recurse -ErrorAction SilentlyContinue
-# The power-saving GPU choice, only if the installer wrote it.
-if ($manifest -and ($manifest.PSObject.Properties.Name -contains 'gpuPreference') -and $manifest.gpuPreference) {
-    Remove-ItemProperty 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -Name ([string]$manifest.gpuPreference) -ErrorAction SilentlyContinue
-}
+if (-not $Sandbox) { Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows' -Recurse -ErrorAction SilentlyContinue }
 Remove-Item (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows') -Recurse -Force -ErrorAction SilentlyContinue
 Say 'Inicio automatico, entrada de Aplicaciones y accesos quitados.'
 
@@ -196,7 +224,7 @@ if ($remainingFonts.Count -gt 0) {
 
 # Terminal fragments live outside the install folder, even when -KeepConfig is used.
 $fragmentDir = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows Terminal\Fragments\ii-windows'
-if (Test-Path -LiteralPath $fragmentDir) {
+if ((Test-Path -LiteralPath $fragmentDir) -and -not $Sandbox) {
     try { Remove-Item -LiteralPath $fragmentDir -Recurse -Force -ErrorAction Stop }
     catch { Say "No se pudo borrar la carpeta de Windows Terminal ${fragmentDir}: $($_.Exception.Message)" }
 }

@@ -7,9 +7,11 @@ $ErrorActionPreference = 'Stop'
 $fx = Join-Path $PSScriptRoot 'fixtures\runner'
 $runner = Join-Path $PSScriptRoot 'run-tests.ps1'
 $failures = New-Object System.Collections.Generic.List[string]
+$outputs = New-Object System.Collections.Generic.List[string]
 
 function Invoke-Runner([string[]]$Fixtures, [string[]]$Extra = @()) {
     $out = Join-Path $env:TEMP ('ii-runner-selftest-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+    $outputs.Add($out)
     $files = $Fixtures | ForEach-Object { "`"$fx\$_.ps1`"" }
     $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Shell', $Shell, '-OutDir', "`"$out`"") + $Extra
     $argList += @('-Path', ($files -join ','))
@@ -59,6 +61,7 @@ Check 'without -RequireAssertions the same test passes' ($r.ExitCode -eq 0)
 $r = Invoke-Runner @('pass', 'exit7', 'pass')
 Check 'one failure among passes fails the whole run' ($r.ExitCode -ne 0 -and $r.Results.counts.passed -eq 2 -and $r.Results.counts.failed -eq 1)
 
+foreach ($o in $outputs) { Remove-Item -LiteralPath $o -Recurse -Force -ErrorAction SilentlyContinue }
 if ($failures.Count -gt 0) { "$($failures.Count) check(s) failed"; exit 1 }
 'runner self-test: all checks passed'
 exit 0

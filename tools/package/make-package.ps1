@@ -1,6 +1,9 @@
 # Builds the ii-windows package: out\ii-windows-<version>\ (install.cmd + app\) and its .zip.
 # Run after building (quickshell, host), tools\dev\deploy.ps1 and tools\dev\stage-ii.ps1.
+# app\ is one complete version: it carries payload.manifest (sha256 of every file) and build-info.json
+# (what it was built from), and the installer refuses it if any file differs from the manifest.
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'ii-runtime.ps1')
 $root = Split-Path (Split-Path $PSScriptRoot)
 $commit = (git -C $root rev-parse --short HEAD).Trim()
 $qsCommit = (git -C (Join-Path $root 'quickshell') rev-parse --short HEAD).Trim()
@@ -11,7 +14,7 @@ $outRoot = Join-Path $root 'out'
 $pkg = Join-Path $outRoot $name
 $app = Join-Path $pkg 'app'
 
-foreach ($required in 'dist\quickshell\quickshell.exe', 'dist\quickshell\bin\ii-shim.exe', 'host\build\ii-host.exe',
+foreach ($required in 'dist\quickshell\quickshell.exe', 'dist\quickshell\bin\ii-shim.exe', 'host\build\ii-host.exe', 'host\build\ii-launcher.exe',
                        'build\ii\shell.qml', 'third_party\cursors\Bibata-Modern-Classic\Pointer.cur',
                        'third_party\fastfetch\fastfetch.exe') {
     if (-not (Test-Path (Join-Path $root $required))) { throw "missing $required (build, deploy, stage, fetch first)" }
@@ -65,13 +68,37 @@ Breeze / Breeze Plus (iconos) ................... LGPL-3.0 / LGPL-2.1
 Los textos de cada licencia estan en esta carpeta.
 "@ | Set-Content (Join-Path $lic 'THIRD-PARTY.txt') -Encoding UTF8
 
+# What this version was built from, inside the payload (so it is covered by the manifest).
+function GitState([string]$dir) {
+    if (-not (Test-Path (Join-Path $dir '.git'))) { return $null }
+    [ordered]@{ head = ((git -C $dir rev-parse HEAD) | Select-Object -First 1).Trim(); dirty = [bool](git -C $dir status --porcelain) }
+}
+$qsCache = Join-Path $root 'quickshell\build\CMakeCache.txt'
+if (-not (Test-Path $qsCache)) { $qsCache = Join-Path $root 'quickshell\build-r\CMakeCache.txt' }
+$buildType = $null
+if (Test-Path $qsCache) { $buildType = (Select-String -Path $qsCache -Pattern '^CMAKE_BUILD_TYPE:STRING=(.*)$' | Select-Object -First 1).Matches.Groups[1].Value }
+$qtCore = Get-Item (Join-Path $root 'dist\quickshell\Qt6Core.dll') -ErrorAction SilentlyContinue
+[ordered]@{
+    version   = $version
+    built     = (Get-Date).ToString('s')
+    commits   = [ordered]@{ ii = GitState $root; quickshellWindows = GitState (Join-Path $root 'quickshell'); upstream = GitState (Join-Path $root 'upstream') }
+    quickshell = [ordered]@{ cmakeBuildType = $buildType; qtCore = if ($qtCore) { $qtCore.VersionInfo.ProductVersion } else { $null } }
+    note      = 'dirty = the working tree had uncommitted changes when this was built; a release must be false.'
+} | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $app 'build-info.json') -Encoding UTF8
+
+# The manifest is the last thing written into app\: every file above is covered by it.
+$files = New-IiPayloadManifest $app
+"payload manifest: $files files"
+
 # Installer scripts: UTF-8 with BOM, so Windows PowerShell 5.1 reads them correctly.
 $utf8Bom = New-Object System.Text.UTF8Encoding $true
-foreach ($script in 'install.ps1', 'uninstall.ps1', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1') {
+foreach ($script in 'install.ps1', 'uninstall.ps1', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1') {
     $text = [IO.File]::ReadAllText((Join-Path $PSScriptRoot $script))
     [IO.File]::WriteAllText((Join-Path $pkg $script), $text, $utf8Bom)
 }
 Copy-Item (Join-Path $PSScriptRoot 'install.cmd'), (Join-Path $PSScriptRoot 'uninstall.cmd') $pkg
+# The one stable entry point: next to the installer, not inside the versioned payload.
+Copy-Item (Join-Path $root 'host\build\ii-launcher.exe') $pkg
 @"
 ii-windows $version
 

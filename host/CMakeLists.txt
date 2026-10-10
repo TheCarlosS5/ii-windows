@@ -19,6 +19,7 @@ add_executable(ii-host WIN32
 	src/nightlight_core.cpp
 	src/splash.cpp
 	src/health.cpp
+	src/rollout.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -49,7 +50,8 @@ target_link_libraries(ii-shim PRIVATE user32 gdi32 shell32 ole32 oleaut32 wbemuu
 add_executable(ii-sidebar-test src/nightlight_test.cpp src/nightlight_core.cpp)
 
 # Test-only stand-in for quickshell.exe (tools/sandbox/tests/test-host-launch.ps1). Not packaged.
-add_executable(ii-fake-shell WIN32 ../tools/sandbox/fixtures/fake-shell/fake-shell.cpp)
+add_executable(ii-fake-shell WIN32 ../tools/sandbox/fixtures/fake-shell/fake-shell.cpp src/rollout.cpp)
+target_include_directories(ii-fake-shell PRIVATE src)
 target_compile_definitions(ii-fake-shell PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
 target_link_libraries(ii-fake-shell PRIVATE user32 shell32)
 
@@ -58,3 +60,8 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../quickshell/src/win32/compat/lockstate.h
 	add_executable(ii-lockstate-test src/lockstate_test.cpp)
 	target_compile_options(ii-lockstate-test PRIVATE /EHsc)
 endif()
+
+# R07: the stable entry point of a versioned installation (see src/rollout.h).
+add_executable(ii-launcher WIN32 src/launcher.cpp src/rollout.cpp)
+target_compile_definitions(ii-launcher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(ii-launcher PRIVATE user32 shell32)

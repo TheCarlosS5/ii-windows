@@ -104,6 +104,7 @@ void restore() {
 
 	std::set<std::wstring> done;
 	int restored = 0;
+	int kept = 0;
 	wchar_t line[1024];
 	while (fgetws(line, 1024, f)) {
 		std::wstring s = line;
@@ -116,7 +117,17 @@ void restore() {
 
 		HKEY key = nullptr;
 		auto full = std::wstring(SETTINGS_KEY) + L"\\" + path;
-		if (RegOpenKeyExW(HKEY_CURRENT_USER, full.c_str(), 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS) continue;
+		if (RegOpenKeyExW(HKEY_CURRENT_USER, full.c_str(), 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS) continue;
+		// ii set this to 0. If it is not 0 now, the user switched banners back on for that app while
+		// ii ran: their choice stands.
+		DWORD now = 0;
+		DWORD nowSize = sizeof(now);
+		DWORD nowType = 0;
+		if (RegQueryValueExW(key, L"ShowBanner", nullptr, &nowType, reinterpret_cast<BYTE*>(&now), &nowSize) != ERROR_SUCCESS || nowType != REG_DWORD || now != 0) {
+			RegCloseKey(key);
+			++kept;
+			continue;
+		}
 		if (original < 0) {
 			RegDeleteValueW(key, L"ShowBanner");
 		} else {
@@ -131,7 +142,7 @@ void restore() {
 	DeleteFileW(backupPath().c_str());
 	recorded().clear();
 	state::set(L"bannersHidden", 0);
-	log(L"banners: restored %d apps", restored);
+	log(L"banners: restored %d apps, left %d that are no longer off (changed since)", restored, kept);
 }
 
 } // namespace ii::banners

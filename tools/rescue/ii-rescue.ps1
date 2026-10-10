@@ -250,6 +250,9 @@ if (Test-Path $bannerFile) {
         # -LiteralPath: AUMIDs can contain wildcard characters such as [ ]
         $key = Join-Path $settings $parts[1]
         if (-not (Test-Path -LiteralPath $key)) { continue }
+        # ii turned it off (0). If it is on now, the user switched it back on while ii ran: theirs.
+        $nowValue = (Get-ItemProperty -LiteralPath $key -Name ShowBanner -ErrorAction SilentlyContinue).ShowBanner
+        if ($null -ne $nowValue -and [int]$nowValue -ne 0) { continue }
         if ([int]$parts[0] -lt 0) { Remove-ItemProperty -LiteralPath $key -Name ShowBanner -ErrorAction SilentlyContinue }
         else { Set-ItemProperty -LiteralPath $key -Name ShowBanner -Value ([int]$parts[0]) -Type DWord }
     }

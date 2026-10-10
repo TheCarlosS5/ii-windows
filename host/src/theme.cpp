@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
+#include <map>
 #include <mutex>
 #include <set>
 #include <string>
@@ -70,6 +71,11 @@ COLORREF mix(COLORREF a, COLORREF b, double t) {
 	return RGB(channel(GetRValue(a), GetRValue(b)), channel(GetGValue(a), GetGValue(b)), channel(GetBValue(a), GetBValue(b)));
 }
 
+// What this run last wrote for each value (keyed like the backup file: "<subkey>\t<name>"), to tell
+// ii's own value from one the user changed since. A guard or rescue process has no map and restores
+// unconditionally: that is crash recovery.
+std::map<std::wstring, std::basic_string<BYTE>> lastApplied;
+
 std::set<std::wstring> recordedValues() {
 	std::set<std::wstring> keys;
 	if (auto* f = _wfopen(backupPath().c_str(), L"rt, ccs=UTF-8")) {
@@ -114,6 +120,7 @@ bool setValue(const wchar_t* subkey, const wchar_t* name, DWORD type, const void
 		}
 	}
 	RegSetValueExW(key, name, 0, type, static_cast<const BYTE*>(data), size);
+	lastApplied[id] = std::basic_string<BYTE>(static_cast<const BYTE*>(data), size);
 	RegCloseKey(key);
 	return true;
 }
@@ -226,6 +233,7 @@ void restore() {
 		return;
 	}
 	int restored = 0;
+	int kept = 0;
 	wchar_t line[1024];
 	while (fgetws(line, 1024, f)) {
 		std::wstring s = line;
@@ -240,7 +248,19 @@ void restore() {
 		auto hex = s.substr(c + 1);
 
 		HKEY key = nullptr;
-		if (RegOpenKeyExW(HKEY_CURRENT_USER, subkey.c_str(), 0, KEY_SET_VALUE, &key) != ERROR_SUCCESS) continue;
+		if (RegOpenKeyExW(HKEY_CURRENT_USER, subkey.c_str(), 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &key) != ERROR_SUCCESS) continue;
+		// If the value is no longer what ii last wrote, the user changed it while ii ran: leave it.
+		if (auto applied = lastApplied.find(subkey + L"\t" + name); applied != lastApplied.end()) {
+			BYTE current[256];
+			DWORD currentSize = sizeof(current);
+			DWORD currentType = 0;
+			auto exists = RegQueryValueExW(key, name.c_str(), nullptr, &currentType, current, &currentSize) == ERROR_SUCCESS;
+			if (!exists || std::basic_string<BYTE>(current, currentSize) != applied->second) {
+				RegCloseKey(key);
+				++kept;
+				continue;
+			}
+		}
 		if (type < 0) {
 			RegDeleteValueW(key, name.c_str());
 		} else {
@@ -254,7 +274,8 @@ void restore() {
 	fclose(f);
 	DeleteFileW(backupPath().c_str());
 	state::set(L"themeApplied", 0);
-	log(L"theme: restored %d values", restored);
+	lastApplied.clear();
+	log(L"theme: restored %d values, left %d that were changed since", restored, kept);
 	if (restored > 0) broadcast();
 }
 
