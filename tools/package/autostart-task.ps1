@@ -1,32 +1,37 @@
 # ii-windows: the logon task that starts ii as early as possible (Windows delays programs in the
-# Run key by several seconds after logon; a logon task starts right away). Creating a task with
-# a logon trigger needs administrator rights once; the task itself runs ii as the normal user,
-# without administrator rights (RunLevel Limited).
+# Run key by several seconds after logon; a logon task starts right away). The task runs ii as the
+# normal user, without administrator rights (RunLevel Limited). On some machines creating a task
+# with a logon trigger needs administrator rights once; the installer then runs this script
+# elevated and reads its result file. The task is owned per user (see ii-autostart.ps1).
 #
-#   autostart-task.ps1 -Create -User DOMAIN\name -HostExe <ii-host.exe> -Arguments "<args>"
-#   autostart-task.ps1 -Remove
-param([switch]$Create, [switch]$Remove, [string]$User, [string]$HostExe, [string]$Arguments)
+#   autostart-task.ps1 -Create -User DOMAIN\name -HostExe <ii-host.exe> -Arguments "<args>" -InstallDir <dir> [-Version v] [-ResultFile f.json]
+#   autostart-task.ps1 -Remove -InstallDir <dir> [-ResultFile f.json]
+# Exit codes: 0 done, 1 error, 2 bad arguments, 3 done but with conflicts to report (see the result file).
+param(
+    [switch]$Create, [switch]$Remove, [string]$User, [string]$HostExe, [string]$Arguments, [string]$InstallDir,
+    [string]$Version = 'dev', [string]$ResultFile = ''
+)
 $ErrorActionPreference = 'Stop'
-$name = 'ii-windows'
+. (Join-Path $PSScriptRoot 'ii-autostart.ps1')
+$sid = Get-IiUserSid
+function Save($o) { if ($ResultFile) { $o | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $ResultFile -Encoding UTF8 } }
 try {
     if ($Remove) {
-        Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
+        if (-not $InstallDir) { exit 2 }
+        $r = Remove-IiAutostart -Sid $sid -InstallDir $InstallDir
+        Save $r
         exit 0
     }
     if ($Create) {
-        $trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
-        $action = New-ScheduledTaskAction -Execute $HostExe -Argument $Arguments -WorkingDirectory (Split-Path $HostExe)
-        $principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive -RunLevel Limited
-        # ii-host sets its own priority (high while booting, then normal); no time limit; laptops
-        # on battery too; one instance.
-        $settings = New-ScheduledTaskSettingsSet -Priority 4 -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries `
-            -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -StartWhenAvailable:$false
-        Register-ScheduledTask -TaskName $name -Description 'Inicia ii-windows (illogical-impulse) al entrar en Windows' `
-            -Trigger $trigger -Action $action -Principal $principal -Settings $settings -Force | Out-Null
+        if (-not $User -or -not $HostExe -or -not $Arguments -or -not $InstallDir) { exit 2 }
+        $r = Install-IiAutostart -Sid $sid -User $User -HostExe $HostExe -Arguments $Arguments -InstallDir $InstallDir -Version $Version
+        Save $r
+        if ($r.Conflicts.Count -gt 0 -and -not $r.Registered) { exit 3 }
         exit 0
     }
     exit 2
 } catch {
+    Save ([pscustomobject]@{ Error = $_.Exception.Message })
     Write-Error $_
     exit 1
 }

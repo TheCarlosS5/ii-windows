@@ -142,6 +142,7 @@ if ($LASTEXITCODE -ge 8) { throw "No se pudieron copiar los archivos (robocopy $
 Copy-Item (Join-Path $here 'uninstall.ps1') $installDir -Force
 Copy-Item (Join-Path $here 'uninstall.cmd') $installDir -Force
 Copy-Item (Join-Path $here 'ii-ownership.ps1') $installDir -Force
+Copy-Item (Join-Path $here 'ii-autostart.ps1') $installDir -Force
 Copy-Item (Join-Path $here 'autostart-task.ps1') $installDir -Force
 Say "Copiado a $installDir"
 
@@ -310,18 +311,36 @@ if (-not $NoAutostart -and (Ask 'Iniciar ii automaticamente al entrar en Windows
     # while it loads.
     $bootArgs = "--boot --shell `"$installDir\quickshell\quickshell.exe`" --config `"$installDir\ii`""
     $user = "$env:USERDOMAIN\$env:USERNAME"
-    $taskScript = Join-Path $installDir 'autostart-task.ps1'
+    . (Join-Path $here 'ii-autostart.ps1')
+    $sid = Get-IiUserSid
     $taskOk = $false
-    Say 'Windows pedira permiso de administrador para crear la tarea de inicio (solo esta vez).'
+    $taskConflicts = @()
+    # The task is owned per user (\ii-windows\Logon-<SID>): see ii-autostart.ps1. Try as you are;
+    # only if Windows refuses, ask for administrator rights once.
     try {
-        $taskArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$taskScript`" -Create -User `"$user`" -HostExe `"$hostExe`" -Arguments `"$($bootArgs.Replace('"', '\"'))`""
-        $proc = Start-Process powershell.exe -ArgumentList $taskArgs -Verb RunAs -WindowStyle Hidden -Wait -PassThru
-        $taskOk = $proc.ExitCode -eq 0 -and $null -ne (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue)
-    } catch { $taskOk = $false }
+        $r = Install-IiAutostart -Sid $sid -User $user -HostExe $hostExe -Arguments $bootArgs -InstallDir $installDir -Version $version
+        $taskOk = $r.Registered
+        $taskConflicts = @($r.Conflicts)
+    } catch {
+        Say 'Windows pedira permiso de administrador para crear la tarea de inicio (solo esta vez).'
+        try {
+            $resultFile = Join-Path $env:TEMP "ii-autostart-$PID.json"
+            $taskScript = Join-Path $installDir 'autostart-task.ps1'
+            $taskArgs = "-NoProfile -ExecutionPolicy Bypass -File `"$taskScript`" -Create -User `"$user`" -HostExe `"$hostExe`" -InstallDir `"$installDir`" -Version `"$version`" -ResultFile `"$resultFile`" -Arguments `"$($bootArgs.Replace('"', '\"'))`""
+            $proc = Start-Process powershell.exe -ArgumentList $taskArgs -Verb RunAs -WindowStyle Hidden -Wait -PassThru
+            if (Test-Path $resultFile) {
+                $r = Get-Content $resultFile -Raw | ConvertFrom-Json
+                $taskOk = [bool]$r.Registered
+                $taskConflicts = @($r.Conflicts)
+                Remove-Item $resultFile -ErrorAction SilentlyContinue
+            }
+        } catch { $taskOk = $false }
+    }
+    foreach ($c in $taskConflicts) { Say $c }
     if ($taskOk) {
         Remove-ItemProperty $runKey -Name 'ii-windows' -ErrorAction SilentlyContinue
-        $manifest.task = 'ii-windows'
-        Say 'Se iniciara con Windows (tarea "ii-windows", al entrar).'
+        $manifest.task = [ordered]@{ path = '\ii-windows'; name = "Logon-$sid"; sid = $sid }
+        Say 'Se iniciara con Windows (tarea propia de tu usuario, al entrar).'
     } else {
         # Without administrator rights: the Run key (starts some seconds later).
         Set-ItemProperty $runKey -Name 'ii-windows' -Value "`"$hostExe`" $bootArgs"
@@ -330,8 +349,12 @@ if (-not $NoAutostart -and (Ask 'Iniciar ii automaticamente al entrar en Windows
     }
 }
 
-# Updating with -NoAutostart: a logon task from an earlier install stays and stays recorded.
-if (-not $manifest.task -and (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue)) { $manifest.task = 'ii-windows' }
+# Updating with -NoAutostart: our logon task from an earlier install stays and stays recorded.
+. (Join-Path $here 'ii-autostart.ps1')
+$ownSid = Get-IiUserSid
+if (-not $manifest.task -and (Get-IiTaskOwnership (Get-IiLogonTask '\ii-windows' "Logon-$ownSid") $ownSid $installDir) -eq 'own') {
+    $manifest.task = [ordered]@{ path = '\ii-windows'; name = "Logon-$ownSid"; sid = $ownSid }
+}
 
 $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\ii-windows'
 New-Item -ItemType Directory -Force $menu | Out-Null

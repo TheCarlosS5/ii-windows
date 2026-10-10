@@ -104,15 +104,26 @@ if (Test-Path $cursorBackup) {
 
 # 3. autostart, uninstall entry, shortcuts
 Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'ii-windows' -ErrorAction SilentlyContinue
-# The logon task: removing it may need administrator rights (it was created with them).
-if (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue) {
-    try { Unregister-ScheduledTask -TaskName 'ii-windows' -Confirm:$false -ErrorAction Stop }
-    catch {
+# The logon task: only ours (per user, \ii-windows\Logon-<SID>), plus the old flat \ii-windows task if
+# it is provably this user's and this installation's. Another user's task, or one with that name
+# from somewhere else, stays. Removing it may need administrator rights.
+$autostartLib = Join-Path $PSScriptRoot 'ii-autostart.ps1'
+if (Test-Path -LiteralPath $autostartLib) {
+    . $autostartLib
+    $ownSid = Get-IiUserSid
+    try {
+        $removed = Remove-IiAutostart -Sid $ownSid -InstallDir $installDir
+        foreach ($t in $removed.Removed) { Say "Tarea de inicio quitada: $t" }
+        foreach ($t in $removed.Kept) { Say "Tarea de inicio de otro usuario o instalacion: se conserva ($t)" }
+    } catch {
         Say 'Windows pedira permiso de administrador para quitar la tarea de inicio.'
         $taskScript = Join-Path $installDir 'autostart-task.ps1'
-        try { Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$taskScript`" -Remove" -Verb RunAs -WindowStyle Hidden -Wait } catch {}
+        try { Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$taskScript`" -Remove -InstallDir `"$installDir`"" -Verb RunAs -WindowStyle Hidden -Wait } catch {}
     }
-    if (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue) { Say 'No se pudo quitar la tarea "ii-windows": borrala en el Programador de tareas.' }
+    $stillThere = Get-IiTaskOwnership (Get-IiLogonTask $script:IiTaskFolder "Logon-$ownSid") $ownSid $installDir
+    if ($stillThere -eq 'own') { Say 'No se pudo quitar la tarea de inicio: borrala en el Programador de tareas (carpeta ii-windows).' }
+} else {
+    Say 'Falta ii-autostart.ps1: la tarea de inicio no se toca (no se puede demostrar que es de este usuario).'
 }
 Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows' -Recurse -ErrorAction SilentlyContinue
 # The power-saving GPU choice, only if the installer wrote it.
