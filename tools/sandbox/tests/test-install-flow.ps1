@@ -123,6 +123,30 @@ try {
     while ((Test-Path $install) -and $sw.Elapsed.TotalSeconds -lt 40) { Start-Sleep -Milliseconds 500 }   # the install folder is removed by a helper after the script exits
     Assert-PathMissing $install 'the install folder is gone'
     Assert-PathExists (Join-Path $lad 'quickshell\other-config\shell.qml') 'another Quickshell config survived'
+
+    # ---- reinstall with -KeepConfig: config and keys outlive an uninstall ---------------------------------------------------------------------
+    $r = Invoke-Script (Join-Path $v1 'install.ps1') @('-Yes', '-Sandbox') $lad
+    Assert-Equal $r.Code 0 'a fresh install after the uninstall works'
+    New-Item -ItemType Directory -Force (Join-Path $lad 'quickshell\illogical-impulse'), (Join-Path $data 'secrets') | Out-Null
+    Set-Content (Join-Path $lad 'quickshell\illogical-impulse\config.json') '{"mine":true}'
+    Set-Content (Join-Path $data 'secrets\k.bin') 'encrypted'
+    $r = Invoke-Script (Join-Path $install 'uninstall.ps1') @('-Yes', '-Sandbox', '-KeepConfig') $lad
+    Assert-Equal $r.Code 0 'uninstall -KeepConfig finishes'
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ((Test-Path $install) -and $sw.Elapsed.TotalSeconds -lt 40) { Start-Sleep -Milliseconds 500 }
+    Assert-PathExists (Join-Path $lad 'quickshell\illogical-impulse\config.json') 'the config survived -KeepConfig'
+    Assert-PathExists (Join-Path $data 'secrets\k.bin') 'and so did the saved keys'
+    Assert-PathExists (Join-Path $lad 'quickshell\other-config\shell.qml') 'and the other Quickshell config'
+    $r = Invoke-Script (Join-Path $v1 'install.ps1') @('-Yes', '-Sandbox') $lad
+    Assert-Equal $r.Code 0 'reinstalling over the kept data works'
+    Assert-PathExists (Join-Path $lad 'quickshell\illogical-impulse\config.json') 'the config is still there after reinstalling'
+    $r = Invoke-Script (Join-Path $install 'uninstall.ps1') @('-Yes', '-Sandbox') $lad
+    $sw.Restart()
+    while ((Test-Path $install) -and $sw.Elapsed.TotalSeconds -lt 40) { Start-Sleep -Milliseconds 500 }
+    Assert-PathMissing (Join-Path $lad 'quickshell\illogical-impulse') 'a full uninstall removes the config'
+    Assert-PathMissing (Join-Path $data 'secrets') 'and the keys'
+    Assert-PathExists (Join-Path $lad 'quickshell\other-config\shell.qml') 'but still not the other Quickshell config'
+    Assert-Equal @(Get-GpuValues $lad).Count 0 'and no GPU value is left'
 }
 finally {
     # Whatever happened, no GPU value pointing into the throwaway folder stays in the real registry.
