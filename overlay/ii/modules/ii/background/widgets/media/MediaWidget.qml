@@ -13,8 +13,12 @@ import qs.modules.ii.mediaControls
 
 // ii-windows: ii's player card (the one in the bar's media popup) on the desktop, for whatever
 // is playing: cover, title, artist, progress and controls. While nothing plays it shows a music
-// note in one of ii's Material shapes, which slowly turns and morphs from shape to shape
-// (only while the desktop is in view: every frame repaints the whole wallpaper window).
+// note in one of ii's Material shapes. That placeholder is STILL by default (P04): a desktop with
+// nothing playing produces no frames because of it, only a short settle when it appears. With
+// "Keep the music icon moving" (media.idleMotion, off by default) the shape turns and morphs from
+// shape to shape; even then it stops under "Reduce motion" (appearance.reduceMotion), when the
+// session is locked and while the desktop is covered (every frame repaints the whole wallpaper
+// window). Playback never depends on any of this: the cover, controls and spectrum are untouched.
 // Drag it by its edges like the clock.
 AbstractBackgroundWidget {
     id: root
@@ -79,10 +83,14 @@ AbstractBackgroundWidget {
             MaterialShape.Shape.Flower,
         ]
         property int shapeIndex: 0
+        // Continuous decoration: opt-in, and off whenever it would only cost frames.
+        readonly property bool decorativeMotion: (root.configEntry.idleMotion ?? false)
+            && !(Config.options.appearance.reduceMotion ?? false)
+            && idle.visible && !GlobalStates.screenLocked && !root.desktopCovered
 
         Timer {
             interval: 4000
-            running: idle.visible && !GlobalStates.screenLocked && !root.desktopCovered
+            running: idle.decorativeMotion
             repeat: true
             onTriggered: idle.shapeIndex = (idle.shapeIndex + 1) % idle.shapes.length
         }
@@ -93,8 +101,14 @@ AbstractBackgroundWidget {
             implicitSize: idle.implicitWidth
             shape: idle.shapes[idle.shapeIndex]
             color: Appearance.colors.colSecondaryContainer
+            // A short settle when the placeholder appears (or the state changes), then nothing.
+            scale: root.playing ? 0.85 : 1
+            Behavior on scale {
+                enabled: !(Config.options.appearance.reduceMotion ?? false)
+                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+            }
             RotationAnimation on rotation {
-                running: idle.visible && !GlobalStates.screenLocked && !root.desktopCovered
+                running: idle.decorativeMotion
                 from: 0
                 to: 360
                 duration: 30000

@@ -149,12 +149,19 @@ edit(path('modules', 'ii', 'background', 'widgets', 'photo', 'PhotoWidget.qml'),
 
 # --- Config entries.
 edit(path('modules', 'common', 'Config.qml'), [
+    # One switch for decorative motion across ii's own widgets (P04 first; more as they are touched).
+    ('''                property bool extraBackgroundTint: true
+''',
+     '''                property bool extraBackgroundTint: true
+                property bool reduceMotion: false // ii-windows: no decorative animation that only costs frames
+'''),
     ('''                    property JsonObject media: JsonObject {
                         property bool enable: true
 ''',
      '''                    property JsonObject media: JsonObject {
                         property bool enable: true
                         property bool spectrum: true
+                        property bool idleMotion: false // the music-note placeholder is still unless this is on
 '''),
     ('''                    property JsonObject weather: JsonObject {
                         property bool enable: false
@@ -306,11 +313,19 @@ sections = ''.join([
             color: Appearance.colors.colSubtext
             text: Translation.tr("Right click the desktop > Edit desktop to move widgets on a grid and resize them with − and +. The sizes here are the same.")
         }
+        ConfigSwitch {
+            buttonIcon: "motion_photos_off"
+            text: Translation.tr("Reduce motion: no decorative animation in desktop widgets")
+            checked: Config.options.appearance.reduceMotion
+            onCheckedChanged: Config.options.appearance.reduceMotion = checked
+        }
 ''' + '''        ContentSubsectionLabel { text: Translation.tr("Clock") }
 ''' + size_slider('clock') + '''        ContentSubsectionLabel { text: Translation.tr("Weather") }
 ''' + size_slider('weather')),
     section('music_note', 'Widget: Music', enable_row('media')
-            + switch('media', 'spectrum', 'graphic_eq', 'Spectrum behind the cover') + size_slider('media')),
+            + switch('media', 'spectrum', 'graphic_eq', 'Spectrum behind the cover')
+            + switch('media', 'idleMotion', 'animation', 'Keep the music icon moving when nothing plays (uses a little power)')
+            + size_slider('media')),
     section('image', 'Widget: Photo', enable_row('photo') + '''        MaterialTextArea {
             Layout.fillWidth: true
             placeholderText: Translation.tr("Image path or https link")
