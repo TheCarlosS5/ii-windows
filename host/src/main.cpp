@@ -90,6 +90,9 @@ Phase phase = Phase::Preparing;
 ULONGLONG partialSince = 0;
 bool coldStart = false;   // no compiled QML cache yet: the first start is slow, give it longer
 bool slowLogged = false;
+// The host itself ended the shell (stuck or hung): its exit is not a crash for the crash counter,
+// the stuck-restart counter already limits those.
+bool endedByWatchdog = false;
 
 struct MonitorCover {
 	RECT rect {};
@@ -135,6 +138,25 @@ bool coldQmlCache() {
 	}
 	CoTaskMemFree(base);
 	return cold;
+}
+
+// Tests can shorten the readiness timeout (II_TEST_READY_TIMEOUT_MS); a real run uses the constants.
+ULONGLONG readyTimeoutMs() {
+	wchar_t value[16];
+	if (GetEnvironmentVariableW(L"II_TEST_READY_TIMEOUT_MS", value, _countof(value)) > 0) {
+		auto ms = _wcstoui64(value, nullptr, 10);
+		if (ms >= 500) return ms;
+	}
+	return coldStart ? SHELL_READY_TIMEOUT_COLD_MS : SHELL_READY_TIMEOUT_MS;
+}
+
+UINT watchdogMs() {
+	wchar_t value[16];
+	if (GetEnvironmentVariableW(L"II_TEST_WATCHDOG_MS", value, _countof(value)) > 0) {
+		auto ms = _wcstoui64(value, nullptr, 10);
+		if (ms >= 100) return static_cast<UINT>(ms);
+	}
+	return 5000;
 }
 
 // --- shell process -------------------------------------------------------------------------
@@ -269,7 +291,7 @@ void abortLaunch(const wchar_t* why) {
 	std::wstring text = L"ii no pudo mantener su shell.\nSe restauró la barra de tareas y el escritorio de Windows.\n\nMotivo: ";
 	text += why;
 	text += L"\nRegistro: %LOCALAPPDATA%\\ii-windows\\host.log";
-	MessageBoxW(nullptr, text.c_str(), L"ii-windows", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+	alertUser(text);
 	PostQuitMessage(2);
 }
 
@@ -432,6 +454,7 @@ void restartStuckShell(const wchar_t* why) {
 	// new shell is really up (onShellReady).
 	if (!shellReady) exposeExplorer(why);
 	shellHungSince = 0;
+	endedByWatchdog = true;
 	TerminateProcess(shellProcess, 1); // onShellExited starts a new one
 }
 
@@ -468,7 +491,7 @@ void watchShell() {
 			slowLogged = true;
 			log(L"shell: still starting after 15 s (%zu of %zu monitors covered)", found.covered(), found.monitors.size());
 		}
-		auto timeout = coldStart ? SHELL_READY_TIMEOUT_COLD_MS : SHELL_READY_TIMEOUT_MS;
+		auto timeout = readyTimeoutMs();
 		// Only until the wallpaper first shows: later the shell hides itself for fullscreen games.
 		if (found.covered() > 0 && !found.hung) {
 			if (found.covered() == found.monitors.size()) {
@@ -511,6 +534,12 @@ void onShellExited() {
 
 	if (code == 0) {
 		shutdown(0); // the shell quit on purpose
+		return;
+	}
+
+	if (endedByWatchdog) {
+		endedByWatchdog = false;
+		SetTimer(hostWindow, TIMER_RESTART_SHELL, 1000, nullptr);
 		return;
 	}
 
@@ -646,7 +675,7 @@ int runHost() {
 	if (!options.shell.empty() && GetFileAttributesW(options.shell.c_str()) == INVALID_FILE_ATTRIBUTES) {
 		log(L"shell executable not found (%lu), starting nothing: %s", GetLastError(), options.shell.c_str());
 		std::wstring text = L"ii no pudo iniciarse: no se encuentra la shell.\nNo se ha cambiado nada en Windows.\n\n" + options.shell;
-		MessageBoxW(nullptr, text.c_str(), L"ii-windows", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+		alertUser(text);
 		return 1;
 	}
 
@@ -699,7 +728,7 @@ int runHost() {
 	if (options.nightlight) nightlight::start(guardReady);
 	watchExplorer();
 	SetTimer(hostWindow, TIMER_REAPPLY, 2000, nullptr);
-	SetTimer(hostWindow, TIMER_WATCHDOG, 5000, nullptr);
+	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr);
 	if (options.hook) keyboard::install(hostWindow);
 
 	MSG msg;

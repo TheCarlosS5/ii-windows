@@ -60,8 +60,12 @@ namespace ii {
 void restoreAll(bool restartExplorer, bool force) {
 	log(L"restoreAll(restartExplorer=%d, force=%d)", restartExplorer ? 1 : 0, force ? 1 : 0);
 	nightlight::restore();
-	taskbar::restore(force);
-	desktop::restoreIcons(force);
+	if (noUi()) {
+		log(L"restoreAll: II_NO_UI, Explorer's taskbar and icons left alone");
+	} else {
+		taskbar::restore(force);
+		desktop::restoreIcons(force);
+	}
 	banners::restore();
 	theme::restore();
 

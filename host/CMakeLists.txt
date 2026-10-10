@@ -46,3 +46,8 @@ target_link_libraries(ii-shim PRIVATE user32 gdi32 shell32 ole32 oleaut32 wbemuu
 
 # Console-only safety tests with fake displays. Never calls a display or power setter.
 add_executable(ii-sidebar-test src/nightlight_test.cpp src/nightlight_core.cpp)
+
+# Test-only stand-in for quickshell.exe (tools/sandbox/tests/test-host-launch.ps1). Not packaged.
+add_executable(ii-fake-shell WIN32 ../tools/sandbox/fixtures/fake-shell/fake-shell.cpp)
+target_compile_definitions(ii-fake-shell PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
+target_link_libraries(ii-fake-shell PRIVATE user32 shell32)

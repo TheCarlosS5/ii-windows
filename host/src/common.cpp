@@ -17,6 +17,16 @@ std::wstring dataDirOverride() {
 }
 } // namespace
 
+bool noUi() {
+	wchar_t value[8];
+	return GetEnvironmentVariableW(L"II_NO_UI", value, _countof(value)) > 0 && value[0] == L'1';
+}
+
+void alertUser(const std::wstring& text) {
+	log(L"alert: %s", text.c_str());
+	if (!noUi()) MessageBoxW(nullptr, text.c_str(), L"ii-windows", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+}
+
 std::wstring instanceTag() {
 	auto dir = dataDirOverride();
 	if (dir.empty()) return {};

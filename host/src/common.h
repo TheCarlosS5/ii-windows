@@ -21,6 +21,12 @@ std::wstring dataDir();
 // closed by the installer/uninstaller that look for it.
 std::wstring instanceTag();
 
+// Test switch (II_NO_UI=1): no message boxes, and restoreAll leaves Explorer's taskbar and icons
+// alone, so automated tests can run beside a real ii without touching its desktop.
+bool noUi();
+// A message to the user; logged instead when noUi().
+void alertUser(const std::wstring& text);
+
 // Appends a timestamped line to %LOCALAPPDATA%\ii-windows\host.log
 void log(const wchar_t* fmt, ...);
 
