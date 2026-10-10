@@ -170,7 +170,11 @@ void reapply() {
 	for (auto* bar: allTaskbars()) conceal(bar);
 }
 
-void restore() {
+void restore(bool force) {
+	if (!force && state::get(L"taskbarHidden", 0) == 0) {
+		log(L"taskbar: not hidden by this ii, leaving it as it is");
+		return;
+	}
 	restoreRegions();
 	for (auto* bar: allTaskbars()) {
 		if (!IsWindowVisible(bar)) ShowWindow(bar, SW_SHOWNA);

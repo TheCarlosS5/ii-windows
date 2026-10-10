@@ -30,19 +30,27 @@ constexpr UINT_PTR TIMER_SPIN = 3;
 // As long as the watchdog waits for a stuck shell: the cover only sits above Explorer's desktop
 // (apps open above it), so it can stay until ii is really there.
 constexpr ULONGLONG TIMEOUT_MS = 90000;
-constexpr ULONGLONG SLOW_MS = 25000;
+constexpr ULONGLONG SLOW_MS = 15000;
+// Once one screen is covered by the shell, the others get this long; after that their covers go
+// too (the shell is not going to draw there), instead of sitting on a screen until the timeout.
+constexpr ULONGLONG PARTIAL_MS = 10000;
 
+// One cover per screen, and each leaves when the shell's own wallpaper is up on that screen.
 struct Cover {
 	HWND hwnd = nullptr;
 	HBITMAP bitmap = nullptr;
 	RECT rect {};
+	RECT indicator {}; // where the loading pill has been drawn (grows only): the only part that repaints
+	ULONGLONG readySince = 0;
+	int alpha = 255;
+	bool fading = false;
 };
 
 std::vector<Cover> covers;
+HWND controller = nullptr; // message-only window owning the timers, so they outlive any one cover
 DWORD shellPid = 0;
 ULONGLONG shownAt = 0;
-ULONGLONG readySince = 0;
-int alpha = 255;
+ULONGLONG firstReadyAt = 0;
 ULONG_PTR gdiplusToken = 0;
 bool firstRun = false;
 bool spanish = false;
@@ -128,10 +136,12 @@ HBITMAP loadCover(const std::wstring& path, int width, int height) {
 
 // A pill near the bottom: a turning arc (Material's loading indicator, roughly) and what is
 // happening. Only GDI+ for the antialiasing.
-void paintIndicator(HDC dc, const RECT& client) {
+void paintIndicator(HDC dc, const RECT& client, int originX, int originY, RECT* drawn) {
 	if (!gdiplusToken) return;
 	using namespace Gdiplus;
 	Graphics g(dc);
+	// The DC holds only the dirty rectangle starting at (originX, originY) of the window.
+	g.TranslateTransform(static_cast<REAL>(-originX), static_cast<REAL>(-originY));
 	g.SetSmoothingMode(SmoothingModeAntiAlias);
 	g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
 	auto dpi = static_cast<REAL>(GetDeviceCaps(dc, LOGPIXELSY)) / 96.0F;
@@ -150,6 +160,14 @@ void paintIndicator(HDC dc, const RECT& client) {
 	auto height = spinner + pad * 1.4F;
 	auto x = (static_cast<REAL>(client.right) - width) / 2;
 	auto y = static_cast<REAL>(client.bottom) * 0.78F;
+
+	if (drawn) {
+		// Remember the pill's extent (with a margin for antialiasing) so the spinner repaints
+		// just this rectangle instead of the whole screen.
+		RECT now {static_cast<LONG>(x) - 4, static_cast<LONG>(y) - 4, static_cast<LONG>(x + width) + 4, static_cast<LONG>(y + height) + 4};
+		if (drawn->right <= drawn->left) *drawn = now;
+		else UnionRect(drawn, drawn, &now);
+	}
 
 	GraphicsPath pill;
 	auto r = height / 2;
@@ -183,25 +201,34 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		RECT client;
 		GetClientRect(hwnd, &client);
 		auto it = std::find_if(covers.begin(), covers.end(), [&](const Cover& c) { return c.hwnd == hwnd; });
-		auto* frame = CreateCompatibleDC(dc);
-		auto* frameBitmap = CreateCompatibleBitmap(dc, client.right, client.bottom);
-		auto* frameOld = SelectObject(frame, frameBitmap);
-		if (it != covers.end() && it->bitmap) {
-			auto* mem = CreateCompatibleDC(dc);
-			auto* old = SelectObject(mem, it->bitmap);
-			BitBlt(frame, 0, 0, client.right, client.bottom, mem, 0, 0, SRCCOPY);
-			SelectObject(mem, old);
-			DeleteDC(mem);
-		} else {
-			auto* brush = CreateSolidBrush(RGB(0x14, 0x12, 0x18)); // ii's dark surface
-			FillRect(frame, &client, brush);
-			DeleteObject(brush);
+		// Only the dirty rectangle is composed: the wallpaper does not change, so a spinner
+		// frame costs a pill-sized buffer, not a full-screen one.
+		auto x0 = ps.rcPaint.left;
+		auto y0 = ps.rcPaint.top;
+		auto w = ps.rcPaint.right - ps.rcPaint.left;
+		auto h = ps.rcPaint.bottom - ps.rcPaint.top;
+		if (w > 0 && h > 0) {
+			auto* frame = CreateCompatibleDC(dc);
+			auto* frameBitmap = CreateCompatibleBitmap(dc, w, h);
+			auto* frameOld = SelectObject(frame, frameBitmap);
+			if (it != covers.end() && it->bitmap) {
+				auto* mem = CreateCompatibleDC(dc);
+				auto* old = SelectObject(mem, it->bitmap);
+				BitBlt(frame, 0, 0, w, h, mem, x0, y0, SRCCOPY);
+				SelectObject(mem, old);
+				DeleteDC(mem);
+			} else {
+				auto* brush = CreateSolidBrush(RGB(0x14, 0x12, 0x18)); // ii's dark surface
+				RECT all {0, 0, w, h};
+				FillRect(frame, &all, brush);
+				DeleteObject(brush);
+			}
+			paintIndicator(frame, client, x0, y0, it != covers.end() ? &it->indicator : nullptr);
+			BitBlt(dc, x0, y0, w, h, frame, 0, 0, SRCCOPY);
+			SelectObject(frame, frameOld);
+			DeleteObject(frameBitmap);
+			DeleteDC(frame);
 		}
-		paintIndicator(frame, client);
-		BitBlt(dc, 0, 0, client.right, client.bottom, frame, 0, 0, SRCCOPY);
-		SelectObject(frame, frameOld);
-		DeleteObject(frameBitmap);
-		DeleteDC(frame);
 		EndPaint(hwnd, &ps);
 		return 0;
 	}
@@ -209,12 +236,30 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_TIMER:
 		if (wParam == TIMER_WATCH) watch();
 		else if (wParam == TIMER_SPIN) {
-			for (auto& c: covers) InvalidateRect(c.hwnd, nullptr, FALSE);
+			for (auto& c: covers) {
+				if (!c.hwnd || c.fading) continue;
+				// Before the first paint the pill's place is unknown: repaint everything once.
+				InvalidateRect(c.hwnd, c.indicator.right > c.indicator.left ? &c.indicator : nullptr, FALSE);
+			}
 		}
 		else if (wParam == TIMER_FADE) {
-			alpha -= 32;
-			if (alpha <= 0) close();
-			else for (auto& c: covers) SetLayeredWindowAttributes(c.hwnd, 0, static_cast<BYTE>(alpha), LWA_ALPHA);
+			bool any = false;
+			for (auto& c: covers) {
+				if (!c.hwnd || !c.fading) continue;
+				c.alpha -= 32;
+				if (c.alpha <= 0) {
+					DestroyWindow(c.hwnd);
+					c.hwnd = nullptr;
+					if (c.bitmap) DeleteObject(c.bitmap);
+					c.bitmap = nullptr;
+				} else {
+					SetLayeredWindowAttributes(c.hwnd, 0, static_cast<BYTE>(c.alpha), LWA_ALPHA);
+					any = true;
+				}
+			}
+			bool remaining = std::any_of(covers.begin(), covers.end(), [](const Cover& c) { return c.hwnd != nullptr; });
+			if (!remaining) close();
+			else if (!any) KillTimer(controller, TIMER_FADE);
 		}
 		return 0;
 	default: return DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -224,32 +269,42 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 BOOL CALLBACK addMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM) {
 	MONITORINFO info {};
 	info.cbSize = sizeof(info);
-	if (GetMonitorInfoW(monitor, &info)) covers.push_back({nullptr, nullptr, info.rcMonitor});
+	if (GetMonitorInfoW(monitor, &info)) {
+		Cover cover;
+		cover.rect = info.rcMonitor;
+		covers.push_back(cover);
+	}
 	return TRUE;
 }
 
-// The shell's wallpaper is a visible window of its process covering a whole screen.
-BOOL CALLBACK findShellWallpaper(HWND hwnd, LPARAM found) {
+// The shell's wallpaper is a visible window of its process covering a whole screen: mark each
+// cover whose screen has one.
+BOOL CALLBACK markCoveredScreens(HWND hwnd, LPARAM data) {
 	DWORD pid = 0;
 	GetWindowThreadProcessId(hwnd, &pid);
 	if (pid != shellPid || !IsWindowVisible(hwnd)) return TRUE;
 	RECT r;
 	GetWindowRect(hwnd, &r);
-	for (const auto& c: covers) {
-		if (r.left <= c.rect.left && r.top <= c.rect.top && r.right >= c.rect.right && r.bottom >= c.rect.bottom) {
-			*reinterpret_cast<bool*>(found) = true; // NOLINT
-			return FALSE;
-		}
+	auto* covered = reinterpret_cast<std::vector<bool>*>(data); // NOLINT
+	for (size_t i = 0; i < covers.size(); ++i) {
+		const auto& c = covers[i];
+		if (r.left <= c.rect.left && r.top <= c.rect.top && r.right >= c.rect.right && r.bottom >= c.rect.bottom) (*covered)[i] = true;
 	}
 	return TRUE;
 }
 
+void startFading(Cover& c) {
+	if (c.fading || !c.hwnd) return;
+	c.fading = true;
+	SetTimer(controller, TIMER_FADE, 30, nullptr);
+}
+
 } // namespace
 
+// The cover windows only: plain colour, up in a few milliseconds. The wallpaper image is decoded
+// afterwards by loadImages(), once the shell has been launched.
 void show() {
 	if (!covers.empty()) return;
-	auto initialized = SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
-	auto image = wallpaperPath();
 	Gdiplus::GdiplusStartupInput gdiplusInput;
 	if (Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusInput, nullptr) != Gdiplus::Ok) gdiplusToken = 0;
 	spanish = PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_SPANISH;
@@ -272,20 +327,38 @@ void show() {
 	for (auto& c: covers) {
 		auto w = c.rect.right - c.rect.left;
 		auto h = c.rect.bottom - c.rect.top;
-		c.bitmap = loadCover(image, w, h);
 		c.hwnd = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED, wc.lpszClassName, L"ii-windows", WS_POPUP,
 		                         c.rect.left, c.rect.top, w, h, nullptr, nullptr, wc.hInstance, nullptr);
 		SetLayeredWindowAttributes(c.hwnd, 0, 255, LWA_ALPHA);
 		ShowWindow(c.hwnd, SW_SHOWNOACTIVATE);
+		UpdateWindow(c.hwnd); // the plain colour right now, not at the next message-loop turn
+	}
+	shownAt = GetTickCount64();
+	firstReadyAt = 0;
+	if (!covers.empty()) {
+		controller = CreateWindowExW(0, wc.lpszClassName, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
+		SetTimer(controller, TIMER_WATCH, 150, nullptr);
+		SetTimer(controller, TIMER_SPIN, 50, nullptr);
+	}
+	log(L"splash: shown on %d screen(s)", static_cast<int>(covers.size()));
+}
+
+void loadImages() {
+	if (covers.empty()) return;
+	auto image = wallpaperPath();
+	if (image.empty()) {
+		log(L"splash: no wallpaper configured, plain cover");
+		return;
+	}
+	auto initialized = SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
+	ULONGLONG started = GetTickCount64();
+	for (auto& c: covers) {
+		if (!c.hwnd || c.fading) continue;
+		c.bitmap = loadCover(image, c.rect.right - c.rect.left, c.rect.bottom - c.rect.top);
+		if (c.bitmap) InvalidateRect(c.hwnd, nullptr, FALSE);
 	}
 	if (initialized) CoUninitialize();
-	shownAt = GetTickCount64();
-	alpha = 255;
-	if (!covers.empty()) {
-		SetTimer(covers.front().hwnd, TIMER_WATCH, 150, nullptr);
-		SetTimer(covers.front().hwnd, TIMER_SPIN, 33, nullptr);
-	}
-	log(L"splash: shown on %d screen(s), wallpaper %s", static_cast<int>(covers.size()), image.empty() ? L"(none)" : image.c_str());
+	log(L"splash: wallpaper %s decoded in %llu ms", image.c_str(), GetTickCount64() - started);
 }
 
 void setShellPid(DWORD pid) { shellPid = pid; }
@@ -293,25 +366,59 @@ void setShellPid(DWORD pid) { shellPid = pid; }
 void watch() {
 	if (covers.empty()) return;
 	auto now = GetTickCount64();
-	auto found = false;
-	if (shellPid) EnumWindows(findShellWallpaper, reinterpret_cast<LPARAM>(&found)); // NOLINT
-	if (found && readySince == 0) readySince = now;
-	// Give the shell's wallpaper a moment to paint, then fade.
-	if ((readySince && now - readySince > 700) || now - shownAt > TIMEOUT_MS) {
-		KillTimer(covers.front().hwnd, TIMER_WATCH);
-		KillTimer(covers.front().hwnd, TIMER_SPIN);
-		SetTimer(covers.front().hwnd, TIMER_FADE, 30, nullptr);
-		log(L"splash: %s after %llu ms", readySince ? L"shell ready" : L"timeout", now - shownAt);
+	std::vector<bool> covered(covers.size(), false);
+	if (shellPid) EnumWindows(markCoveredScreens, reinterpret_cast<LPARAM>(&covered)); // NOLINT
+
+	size_t ready = 0;
+	size_t live = 0;
+	for (size_t i = 0; i < covers.size(); ++i) {
+		auto& c = covers[i];
+		if (!c.hwnd) continue;
+		++live;
+		if (covered[i] && c.readySince == 0) c.readySince = now;
+		if (c.readySince) ++ready;
+		// Give the shell's wallpaper a moment to paint on that screen, then fade that cover only.
+		if (c.readySince && now - c.readySince > 700) {
+			log(L"splash: screen %zu ready after %llu ms", i, now - shownAt);
+			startFading(c);
+		}
+	}
+	if (ready > 0 && firstReadyAt == 0) firstReadyAt = now;
+
+	// Some screens never got the shell's wallpaper: do not keep them covered for ever.
+	auto partialExpired = firstReadyAt != 0 && now - firstReadyAt > PARTIAL_MS;
+	auto timedOut = now - shownAt > TIMEOUT_MS;
+	if (partialExpired || timedOut) {
+		for (size_t i = 0; i < covers.size(); ++i) {
+			auto& c = covers[i];
+			if (!c.hwnd || c.fading) continue;
+			log(L"splash: screen %zu never got the shell's wallpaper (%s), removing its cover", i, timedOut ? L"timeout" : L"others are ready");
+			startFading(c);
+		}
+	}
+	(void) live;
+	// Once everything is fading there is nothing left to watch or animate.
+	bool waiting = std::any_of(covers.begin(), covers.end(), [](const Cover& c) { return c.hwnd && !c.fading; });
+	if (!waiting) {
+		KillTimer(controller, TIMER_WATCH);
+		KillTimer(controller, TIMER_SPIN);
 	}
 }
 
 void close() {
+	if (controller) {
+		KillTimer(controller, TIMER_WATCH);
+		KillTimer(controller, TIMER_SPIN);
+		KillTimer(controller, TIMER_FADE);
+		DestroyWindow(controller);
+		controller = nullptr;
+	}
 	for (auto& c: covers) {
 		if (c.hwnd) DestroyWindow(c.hwnd);
 		if (c.bitmap) DeleteObject(c.bitmap);
 	}
 	covers.clear();
-	readySince = 0;
+	firstReadyAt = 0;
 	if (gdiplusToken) Gdiplus::GdiplusShutdown(gdiplusToken);
 	gdiplusToken = 0;
 }

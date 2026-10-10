@@ -46,7 +46,8 @@ void reapplyIcons() {
 	if (auto* list = findFolderView(); list && IsWindowVisible(list)) ShowWindow(list, SW_HIDE);
 }
 
-void restoreIcons() {
+void restoreIcons(bool force) {
+	if (!force && state::get(L"iconsHidden", 0) == 0) return; // not hidden by this ii
 	if (auto* list = findFolderView()) ShowWindow(list, SW_SHOWNA);
 	state::set(L"iconsHidden", 0);
 	log(L"desktop: icons shown");
@@ -56,11 +57,11 @@ void restoreIcons() {
 
 namespace ii {
 
-void restoreAll(bool restartExplorer) {
-	log(L"restoreAll(restartExplorer=%d)", restartExplorer ? 1 : 0);
+void restoreAll(bool restartExplorer, bool force) {
+	log(L"restoreAll(restartExplorer=%d, force=%d)", restartExplorer ? 1 : 0, force ? 1 : 0);
 	nightlight::restore();
-	taskbar::restore();
-	desktop::restoreIcons();
+	taskbar::restore(force);
+	desktop::restoreIcons(force);
 	banners::restore();
 	theme::restore();
 
