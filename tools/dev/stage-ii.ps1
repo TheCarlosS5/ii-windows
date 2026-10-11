@@ -48,6 +48,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 # Settings: hide what does nothing on Windows (Codex).
 & python -I "$root\tools\port\patch_ii_settings.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_settings.py failed" }
 & python -I "$root\tools\port\patch_ii_ai.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ai.py failed" }
+# Shell side of the shortcuts shared/actions.json adds (Win+I -> ii's settings) (U02).
+& python -I "$root\tools\port\patch_ii_shortcuts.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_shortcuts.py failed" }
 # Live Linux routes: pin without the cursor dance, language list without find, cache folders (C12).
 & python -I "$root\tools\port\patch_ii_c12.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_c12.py failed" }
 # Timers: monotonic guard against clock changes, refresh only what is on screen (P11).

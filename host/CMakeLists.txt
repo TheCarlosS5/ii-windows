@@ -12,6 +12,7 @@ add_executable(ii-host WIN32
 	src/taskbar.cpp
 	src/desktop.cpp
 	src/keyboard.cpp
+	src/keyrouter.cpp
 	src/showdesktop.cpp
 	src/banners.cpp
 	src/theme.cpp
@@ -23,7 +24,7 @@ add_executable(ii-host WIN32
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(ii-host PRIVATE user32 shell32 ole32 dwmapi advapi32 gdi32 windowscodecs gdiplus)
+target_link_libraries(ii-host PRIVATE user32 shell32 ole32 dwmapi advapi32 gdi32 windowscodecs gdiplus wtsapi32)
 
 # Console multi-call binary: Windows stand-ins for small Linux commands ii calls.
 # Google's material-color-utilities (Apache-2.0), fetched by tools/dev/fetch_mcu.ps1, for the
@@ -65,3 +66,8 @@ endif()
 add_executable(ii-launcher WIN32 src/launcher.cpp src/rollout.cpp)
 target_compile_definitions(ii-launcher PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(ii-launcher PRIVATE user32 shell32)
+
+# U02: the keyboard hook's decisions, tested without a keyboard.
+add_executable(ii-keyrouter-test src/keyboard_test.cpp src/keyrouter.cpp)
+target_compile_options(ii-keyrouter-test PRIVATE /EHsc)
+target_link_libraries(ii-keyrouter-test PRIVATE user32)

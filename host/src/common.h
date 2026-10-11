@@ -144,6 +144,10 @@ constexpr UINT WM_II_SHORTCUT = WM_APP + 1; // wParam: 1 pressed / 0 released, l
 bool install(HWND notifyWindow);
 void uninstall();
 const wchar_t* shortcutName(LPARAM index);
+// Outside the hook: refresh what the hook reads (is the shell there, is a game in front) and forget
+// held-key state after a lock or session switch. Cheap enough for a window event; also run once a second.
+void refreshContext();
+void resetState();
 } // namespace keyboard
 
 // The shell (quickshell + ii) side receives shortcuts through WM_COPYDATA on this window.

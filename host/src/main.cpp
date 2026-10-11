@@ -21,6 +21,7 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <tlhelp32.h>
+#include <wtsapi32.h>
 
 using namespace ii;
 
@@ -660,6 +661,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (!shuttingDown && !startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
 		} else if (wParam == TIMER_HEALTH) {
 			evaluateBanners();
+			if (options.hook) keyboard::refreshContext(); // reconcile what the hook reads (shell, foreground, shortcuts.ini)
 		} else if (wParam == TIMER_WATCHDOG) {
 			watchShell();
 		} else if (wParam == TIMER_BOOT_FAST) {
@@ -688,6 +690,14 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		uiHidden = false;
 		restoreAll(false);
 		return TRUE;
+	case WM_WTSSESSION_CHANGE:
+		// Lock, unlock, console/remote switch: a key-up may have been lost on the secure desktop.
+		log(L"session change %llu: key state reset", static_cast<unsigned long long>(wParam));
+		if (options.hook) {
+			keyboard::resetState();
+			keyboard::refreshContext();
+		}
+		return 0;
 	case WM_ENDSESSION:
 		if (wParam) shutdown(0);
 		else { // logoff cancelled
@@ -791,6 +801,7 @@ int runHost() {
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr);
 	SetTimer(hostWindow, TIMER_HEALTH, 1000, nullptr); // heartbeat expiry is judged on the host's own clock
 	if (options.hook) keyboard::install(hostWindow);
+	WTSRegisterSessionNotification(hostWindow, NOTIFY_FOR_THIS_SESSION);
 
 	MSG msg;
 	int code = 0;

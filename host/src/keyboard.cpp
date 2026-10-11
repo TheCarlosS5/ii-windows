@@ -1,124 +1,119 @@
 #include <array>
+#include <atomic>
+#include <string>
 
 #include "common.h"
+#include "keyrouter.h"
+
+#include <shellapi.h>
 
 // Low-level keyboard hook mapping illogical-impulse's Super shortcuts onto the Windows key.
+// What is swallowed and what is passed on is decided in keyrouter.cpp (tested on its own); the table
+// of shortcuts is generated from shared/actions.json (docs/ATAJOS.md).
 //
 // Rules that keep Windows usable:
 //  - The Win key itself is never swallowed, so Windows always knows it is held and its own
-//    combos (Win+L, Win+D, Win+E, ...) keep working. Ctrl+Alt+Del never reaches hooks at all.
-//  - Only combos in the table below are swallowed, and only while the shell is running
-//    (its shortcut sink window exists) and the foreground app is not fullscreen.
-//  - A lone Win press opens ii's search instead of Start: before Windows sees the Win key-up
-//    we inject an unassigned key (vkE8), which tells Windows "this was a combo" so Start stays
-//    closed. Without the shell, nothing is injected and Start opens as usual.
-// The hook only posts messages; talking to the shell happens outside the hook callback.
+//    combos (Win+L, Win+E, Win+P, ...) keep working. Ctrl+Alt+Del never reaches hooks at all.
+//  - Only combos in the table are swallowed, and only while the shell is running (its shortcut
+//    sink window exists) and the app in front has not asked ii to step aside (below).
+//  - A lone Win press opens ii's search instead of Start: before Windows sees the Win key-up we
+//    inject an unassigned key (vkE8), which tells Windows "this was a combo" so Start stays closed.
+//    Without the shell, nothing is injected and Start opens as usual.
+//  - ii's shortcuts keep working over a maximized or ordinary window, a browser in F11 included.
+//    They step aside (Windows gets its keys back) for exclusive fullscreen / presentation mode and
+//    for borderless fullscreen windows, and for the programs named in shortcuts.ini [yield].
+//
+// The hook callback only reads cached state, feeds the router and posts messages; it calls no
+// Windows API that can wait or enumerate (a hook that is slow is dropped silently by Windows, and
+// then Win opens Start). The cache (is the shell there, who is in front) is refreshed OUTSIDE the
+// hook, from window events and a once-a-second reconciliation.
 
 namespace ii::keyboard {
 
 namespace {
-
-struct Shortcut {
-	bool win, ctrl, alt, shift;
-	UINT vk;
-	const wchar_t* name;
-};
-
-// Names are illogical-impulse GlobalShortcut names (see its Hyprland keybinds).
-// The cheatsheet lists these from overlay/ii/services/HyprlandKeybinds.qml: keep it in sync.
-constexpr std::array SHORTCUTS = {
-    Shortcut {true, false, false, false, VK_TAB, L"overviewWorkspacesToggle"},
-    Shortcut {true, false, false, false, 'V', L"overviewClipboardToggle"},
-    Shortcut {true, false, false, false, VK_OEM_PERIOD, L"overviewEmojiToggle"},
-    Shortcut {true, false, false, false, 'A', L"sidebarLeftToggle"},
-    Shortcut {true, false, true, false, 'A', L"sidebarLeftToggleDetach"},
-    Shortcut {true, false, false, false, 'B', L"sidebarLeftToggle"},
-    Shortcut {true, false, false, false, 'O', L"sidebarLeftToggle"},
-    Shortcut {true, false, false, false, 'N', L"sidebarRightToggle"},
-    Shortcut {true, false, false, false, VK_OEM_2, L"cheatsheetToggle"},
-    Shortcut {true, false, false, false, 'K', L"oskToggle"},
-    Shortcut {true, false, false, false, 'M', L"mediaControlsToggle"},
-    Shortcut {true, false, false, false, 'G', L"overlayToggle"},
-    Shortcut {true, false, false, false, 'J', L"barToggle"},
-    // Handled by ii-host itself ('@' prefix): Windows' own Win+D raises its desktop over
-    // ii's wallpaper and widgets.
-    Shortcut {true, false, false, false, 'D', L"@showDesktop"},
-    Shortcut {true, true, false, false, 'R', L"@restartShell"},
-    Shortcut {true, false, false, true, 'C', L"@colorPicker"},
-    // Ctrl+Alt+Del is the secure attention sequence on Windows; Ctrl+Alt+End is the
-    // remote-desktop stand-in for it, so the session menu goes there.
-    Shortcut {false, true, true, false, VK_END, L"sessionToggle"},
-    Shortcut {true, true, false, false, 'T', L"wallpaperSelectorToggle"},
-    Shortcut {true, true, true, false, 'T', L"wallpaperSelectorRandom"},
-    Shortcut {true, true, false, true, 'D', L"toggleLightDark"},
-    Shortcut {true, false, false, true, 'S', L"regionScreenshot"},
-    Shortcut {true, false, false, true, 'A', L"regionSearch"},
-    Shortcut {true, false, false, true, 'X', L"regionOcr"},
-    Shortcut {true, false, false, true, 'T', L"screenTranslate"},
-    Shortcut {true, false, false, true, 'R', L"regionRecord"},
-    Shortcut {true, false, true, false, 'R', L"regionRecord"},
-    // Windows shortcuts that would show its own (hidden) taskbar or search instead of ii:
-    // Win+Q closes the active window as Super+Q does in ii on Hyprland (Alt+F4 keeps working);
-    // Win+S is ii's search; Win+W and Win+Alt+D open ii's panels instead of Windows' widgets and
-    // taskbar calendar; Win+T would focus the hidden taskbar.
-    Shortcut {true, false, false, false, 'Q', L"@closeWindow"},
-    Shortcut {true, false, false, false, 'S', L"searchToggle"},
-    Shortcut {true, false, false, false, 'W', L"sidebarLeftToggle"},
-    Shortcut {true, false, true, false, 'D', L"sidebarRightToggle"},
-    Shortcut {true, false, false, false, 'T', L"@block"},
-};
-
-// Pseudo shortcuts driven by the Win key itself.
-constexpr LPARAM IDX_SEARCH = 1000;      // searchToggleRelease: press on Win down, release on up
-constexpr LPARAM IDX_INTERRUPT = 1001;   // searchToggleReleaseInterrupt: another key while held
-constexpr LPARAM IDX_WSNUMBER = 1002;    // workspaceNumber: held while Win is down
-// Win+1..9,0: virtual desktop 1..10, as Super+number in ii (Windows would launch the hidden
-// taskbar's pinned apps). With Shift/Ctrl/Alt Windows opens new instances or jump lists of
-// those hidden buttons: swallowed (IDX_BLOCK).
-constexpr LPARAM IDX_DESKTOP = 1100;     // + 0..9
-constexpr LPARAM IDX_MOVE = 1110;        // + 0..9: Win+Shift+number moves the window in front
-constexpr LPARAM IDX_BLOCK = 1200;
-constexpr LPARAM IDX_SESSION = 1201;     // Alt+F4 on Explorer's desktop: ii's session menu
 
 constexpr ULONG_PTR OWN_INPUT_TAG = 0x11A1D00D;
 
 HHOOK hook = nullptr;
 HWND notify = nullptr;
 
-bool winDown = false;
-bool winSolo = false;
-bool chordActive = false;   // shell handles this Win chord
-bool swallowedInChord = false;
-std::array<bool, 256> swallowedDown {};
+// Written by the host thread, read by the hook thread.
+std::atomic<bool> cachedYield {false};
+std::atomic<bool> cachedDesktop {false};
+std::atomic<HWND> cachedSink {nullptr};
+std::atomic<bool> resetRequested {false};
+std::atomic<ULONGLONG> lastSinkLookup {0};
 
-bool keyHeld(int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
+bool heldNow(int vk, void*) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
 
-bool foregroundIsFullscreen() {
-	auto* fg = GetForegroundWindow();
-	if (!fg) return false;
+Router router {heldNow, nullptr}; // touched only by the hook thread
 
-	wchar_t cls[64] = {};
-	GetClassNameW(fg, cls, 64);
-	if (wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0) return false;
-	if (wcsncmp(cls, L"Qt", 2) == 0 && processIdOf(fg) == processIdOf(findShellSink())) return false;
-
-	RECT rect;
-	if (!GetWindowRect(fg, &rect)) return false;
-	MONITORINFO info {};
-	info.cbSize = sizeof(info);
-	if (!GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &info)) return false;
-
-	return rect.left <= info.rcMonitor.left && rect.top <= info.rcMonitor.top
-	    && rect.right >= info.rcMonitor.right && rect.bottom >= info.rcMonitor.bottom;
+std::wstring lowerExeName(DWORD pid) {
+	std::wstring result;
+	if (auto* process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+		wchar_t path[MAX_PATH * 2];
+		DWORD size = static_cast<DWORD>(_countof(path));
+		if (QueryFullProcessImageNameW(process, 0, path, &size)) {
+			result.assign(path, size);
+			result = result.substr(result.find_last_of(L"\\/") + 1);
+			for (auto& c: result) c = static_cast<wchar_t>(towlower(c));
+		}
+		CloseHandle(process);
+	}
+	return result;
 }
 
-bool shellActive() { return findShellSink() != nullptr && !foregroundIsFullscreen(); }
-
-void post(bool pressed, LPARAM index) {
-	PostMessageW(notify, WM_II_SHORTCUT, pressed ? 1 : 0, index);
+// %LOCALAPPDATA%\ii-windows\shortcuts.ini, re-read when it changes:
+//   [policy]  fullscreen = auto | geometry | never
+//   [yield]   processes = game.exe;other.exe     (ii's keys step aside for these)
+//   [keep]    processes = app.exe                (ii's keys never step aside for these)
+ForegroundRules loadRules() {
+	static ForegroundRules rules;
+	static FILETIME stamp {};
+	static bool loaded = false;
+	auto path = dataDir() + L"\\shortcuts.ini";
+	WIN32_FILE_ATTRIBUTE_DATA data {};
+	if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
+		if (loaded && (stamp.dwLowDateTime || stamp.dwHighDateTime)) {
+			rules = {};
+			stamp = {};
+		}
+		loaded = true;
+		return rules;
+	}
+	if (loaded && CompareFileTime(&data.ftLastWriteTime, &stamp) == 0) return rules;
+	stamp = data.ftLastWriteTime;
+	loaded = true;
+	auto read = [&](const wchar_t* section, const wchar_t* key) {
+		wchar_t buffer[2048] {};
+		GetPrivateProfileStringW(section, key, L"", buffer, _countof(buffer), path.c_str());
+		std::wstring text = buffer;
+		for (auto& c: text) c = static_cast<wchar_t>(towlower(c));
+		return text;
+	};
+	rules = {};
+	auto policy = read(L"policy", L"fullscreen");
+	if (policy == L"geometry") rules.policy = FullscreenPolicy::Geometry;
+	else if (policy == L"never") rules.policy = FullscreenPolicy::Never;
+	rules.yieldExes = read(L"yield", L"processes");
+	rules.keepExes = read(L"keep", L"processes");
+	log(L"keyboard: shortcuts.ini loaded (fullscreen=%s)", policy.empty() ? L"auto" : policy.c_str());
+	return rules;
 }
 
-// Replays a Win key-up preceded by an unassigned key (vkE8), all injected in one SendInput so
+// Cheap: a window handle check, with a real lookup at most every 250 ms while there is none.
+bool shellSinkPresent() {
+	auto* sink = cachedSink.load();
+	if (sink && IsWindow(sink)) return true;
+	auto now = GetTickCount64();
+	if (now - lastSinkLookup.load() < 250) return false;
+	lastSinkLookup = now;
+	sink = findShellSink();
+	cachedSink = sink;
+	return sink != nullptr;
+}
+
+// Releases a Win key-up preceded by an unassigned key (vkE8), all injected in one SendInput so
 // the order is guaranteed. Windows then treats the Win press as part of a combo: no Start menu.
 void releaseWinMasked(UINT winVk) {
 	std::array<INPUT, 3> inputs {};
@@ -134,16 +129,6 @@ void releaseWinMasked(UINT winVk) {
 	SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
 }
 
-const Shortcut* match(UINT vk, bool win) {
-	auto ctrl = keyHeld(VK_CONTROL);
-	auto alt = keyHeld(VK_MENU);
-	auto shift = keyHeld(VK_SHIFT);
-	for (const auto& s: SHORTCUTS) {
-		if (s.vk == vk && s.win == win && s.ctrl == ctrl && s.alt == alt && s.shift == shift) return &s;
-	}
-	return nullptr;
-}
-
 LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	if (code != HC_ACTION) return CallNextHookEx(hook, code, wParam, lParam);
 
@@ -152,117 +137,34 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	// is treated like a physical keyboard.
 	if (key->dwExtraInfo == OWN_INPUT_TAG) return CallNextHookEx(hook, code, wParam, lParam);
 
+	if (resetRequested.exchange(false)) router.reset();
+
 	auto down = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
-	auto vk = key->vkCode;
+	Context context;
+	context.shellPresent = shellSinkPresent();
+	context.yieldToForeground = cachedYield.load();
+	context.desktopInFront = cachedDesktop.load();
 
-	if (vk == VK_LWIN || vk == VK_RWIN) {
-		if (down) {
-			if (!winDown) {
-				winDown = true;
-				winSolo = true;
-				swallowedInChord = false;
-				chordActive = shellActive();
-				if (chordActive) {
-					post(true, IDX_SEARCH);
-					post(true, IDX_WSNUMBER);
-				}
-			}
-		} else if (winDown) {
-			winDown = false;
-			if (chordActive) {
-				post(false, IDX_WSNUMBER);
-				post(false, IDX_SEARCH);
-				// Keep Start closed: for a lone press (we open search) and for chords whose
-				// other key we swallowed (Windows would otherwise see a lone Win press).
-				if (winSolo || swallowedInChord) {
-					chordActive = false;
-					releaseWinMasked(vk);
-					return 1; // the real key-up is replayed after the mask key
-				}
-			}
-			chordActive = false;
-		}
-		return CallNextHookEx(hook, code, wParam, lParam);
+	auto result = router.onKey(key->vkCode, down, context);
+	for (int i = 0; i < result.postCount; ++i) {
+		PostMessageW(notify, WM_II_SHORTCUT, result.posts[static_cast<size_t>(i)].pressed ? 1 : 0, result.posts[static_cast<size_t>(i)].index);
 	}
-
-	// A Win key-up can get lost (secure desktop, a virtual desktop switch, a skipped hook call).
-	// Then every later key would count as Win+key and open panels while typing: trust the
-	// real key state over ours.
-	if (down && winDown && !keyHeld(VK_LWIN) && !keyHeld(VK_RWIN)) {
-		winDown = false;
-		chordActive = false;
-		winSolo = false;
-	}
-
-	if (down && winDown && winSolo) {
-		winSolo = false;
-		if (chordActive) post(true, IDX_INTERRUPT);
-	}
-
-	if (!down) {
-		if (vk < swallowedDown.size() && swallowedDown[vk]) {
-			swallowedDown[vk] = false;
-			return 1;
-		}
-		return CallNextHookEx(hook, code, wParam, lParam);
-	}
-
-	auto handled = winDown ? chordActive : (findShellSink() != nullptr && !foregroundIsFullscreen());
-	if (!handled) return CallNextHookEx(hook, code, wParam, lParam);
-
-	// Win+number: desktops (see IDX_DESKTOP).
-	if (winDown && vk >= '0' && vk <= '9') {
-		auto ctrl = keyHeld(VK_CONTROL), alt = keyHeld(VK_MENU), shift = keyHeld(VK_SHIFT);
-		auto n = vk == '0' ? 9 : static_cast<LPARAM>(vk - '1');
-		post(true, ctrl || alt ? IDX_BLOCK : shift ? IDX_MOVE + n : IDX_DESKTOP + n);
-		swallowedDown[vk] = true;
-		swallowedInChord = true;
-		return 1;
-	}
-
-	// Alt+F4 with Explorer's own desktop in front shows Windows' "Shut Down Windows" dialog.
-	if (vk == VK_F4 && !winDown && keyHeld(VK_MENU) && !keyHeld(VK_CONTROL) && !keyHeld(VK_SHIFT)) {
-		if (auto* fg = GetForegroundWindow()) {
-			wchar_t cls[32] = {};
-			GetClassNameW(fg, cls, 32);
-			if (wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0) {
-				post(true, IDX_SESSION);
-				post(false, IDX_SESSION);
-				swallowedDown[vk] = true;
-				return 1;
-			}
-		}
-	}
-
-	// Ctrl+Esc opens Start too.
-	if (vk == VK_ESCAPE && !winDown && keyHeld(VK_CONTROL) && !keyHeld(VK_MENU) && !keyHeld(VK_SHIFT)) {
-		post(true, IDX_SEARCH);
-		post(false, IDX_SEARCH);
-		swallowedDown[vk] = true;
-		return 1;
-	}
-
-	if (const auto* s = match(vk, winDown)) {
-		post(true, static_cast<LPARAM>(s - SHORTCUTS.data()));
-		if (vk < swallowedDown.size()) swallowedDown[vk] = true;
-		if (winDown) swallowedInChord = true;
-		return 1;
-	}
-
-	return CallNextHookEx(hook, code, wParam, lParam);
+	if (result.maskWinRelease) releaseWinMasked(result.winVk);
+	return result.swallow ? 1 : CallNextHookEx(hook, code, wParam, lParam);
 }
 
-} // namespace
+HWINEVENTHOOK foregroundHook = nullptr;
 
-namespace {
-// The hook lives on its own thread. Windows calls a low-level hook on the thread that installed
-// it, and if that thread is busy for a moment (tray forwarding, Explorer restarts, the theme...)
-// it skips the hook: the Win key then reaches Windows and opens Start. This thread does nothing
-// but run the hook.
+void CALLBACK onForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) { refreshContext(); }
+
 HANDLE hookThread = nullptr;
 DWORD hookThreadId = 0;
 HANDLE hookReady = nullptr;
 
+// The hook lives on its own thread. Windows calls a low-level hook on the thread that installed
+// it, and if that thread is busy for a moment (tray forwarding, Explorer restarts, the theme...)
+// it skips the hook: the Win key then reaches Windows and opens Start. This thread does nothing
+// but run the hook.
 DWORD WINAPI hookThreadMain(LPVOID) {
 	hook = SetWindowsHookExW(WH_KEYBOARD_LL, proc, GetModuleHandleW(nullptr), 0);
 	auto error = GetLastError();
@@ -278,10 +180,60 @@ DWORD WINAPI hookThreadMain(LPVOID) {
 	hook = nullptr;
 	return 0;
 }
+
 } // namespace
+
+// Called from the host's thread: on foreground changes, when the shell starts or stops, and once a
+// second to reconcile (the sink window, shortcuts.ini, a window that went fullscreen in place).
+void refreshContext() {
+	cachedSink = findShellSink();
+	HWND fg = GetForegroundWindow();
+	if (!fg) {
+		cachedYield = false;
+		cachedDesktop = false;
+		return;
+	}
+	wchar_t cls[64] {};
+	GetClassNameW(fg, cls, 64);
+	auto desktop = wcscmp(cls, L"Progman") == 0 || wcscmp(cls, L"WorkerW") == 0;
+	cachedDesktop = desktop;
+
+	DWORD pid = 0;
+	GetWindowThreadProcessId(fg, &pid);
+	auto* sink = cachedSink.load();
+	ForegroundFacts facts;
+	facts.isShellOrDesktop = desktop || wcscmp(cls, L"Shell_TrayWnd") == 0 || wcscmp(cls, L"Shell_SecondaryTrayWnd") == 0
+	                      || pid == GetCurrentProcessId() || (sink && pid == processIdOf(sink));
+	if (!facts.isShellOrDesktop) {
+		RECT rect {};
+		MONITORINFO info {};
+		info.cbSize = sizeof(info);
+		if (GetWindowRect(fg, &rect) && GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &info)) {
+			facts.coversMonitor = rect.left <= info.rcMonitor.left && rect.top <= info.rcMonitor.top
+			                   && rect.right >= info.rcMonitor.right && rect.bottom >= info.rcMonitor.bottom;
+		}
+		auto style = GetWindowLongPtrW(fg, GWL_STYLE);
+		facts.hasCaption = (style & WS_CAPTION) == WS_CAPTION;
+		facts.maximized = IsZoomed(fg) || (style & WS_MAXIMIZE);
+		QUERY_USER_NOTIFICATION_STATE state {};
+		facts.exclusiveFullscreen = SUCCEEDED(SHQueryUserNotificationState(&state))
+		                         && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+		facts.exe = lowerExeName(pid);
+	}
+	auto yield = shouldYield(facts, loadRules());
+	if (yield != cachedYield.load()) {
+		log(L"keyboard: shortcuts %s for %s", yield ? L"step aside" : L"active again", facts.exe.empty() ? L"(unknown)" : facts.exe.c_str());
+	}
+	cachedYield = yield;
+}
+
+void resetState() { resetRequested = true; }
 
 bool install(HWND notifyWindow) {
 	notify = notifyWindow;
+	refreshContext();
+	// Out of context: the callback runs on the host's thread, never inside another process.
+	foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr, onForegroundChanged, 0, 0, WINEVENT_OUTOFCONTEXT);
 	hookReady = CreateEventW(nullptr, TRUE, FALSE, nullptr);
 	hookThread = CreateThread(nullptr, 0, hookThreadMain, nullptr, 0, &hookThreadId);
 	if (!hookThread) {
@@ -295,6 +247,8 @@ bool install(HWND notifyWindow) {
 }
 
 void uninstall() {
+	if (foregroundHook) UnhookWinEvent(foregroundHook);
+	foregroundHook = nullptr;
 	if (hookThread) {
 		PostThreadMessageW(hookThreadId, WM_QUIT, 0, 0);
 		WaitForSingleObject(hookThread, 2000);
@@ -306,33 +260,6 @@ void uninstall() {
 	log(L"keyboard: hook removed");
 }
 
-const wchar_t* shortcutName(LPARAM index) {
-	switch (index) {
-	case IDX_SEARCH: return L"searchToggleRelease";
-	case IDX_INTERRUPT: return L"searchToggleReleaseInterrupt";
-	case IDX_WSNUMBER: return L"workspaceNumber";
-	case IDX_BLOCK: return L"@block";
-	case IDX_SESSION: return L"sessionToggle";
-	default:
-		if (index >= IDX_DESKTOP && index < IDX_DESKTOP + 10) {
-			static const wchar_t* desktops[] = {
-			    L"hl:workspace 1", L"hl:workspace 2", L"hl:workspace 3", L"hl:workspace 4", L"hl:workspace 5",
-			    L"hl:workspace 6", L"hl:workspace 7", L"hl:workspace 8", L"hl:workspace 9", L"hl:workspace 10",
-			};
-			return desktops[index - IDX_DESKTOP];
-		}
-		if (index >= IDX_MOVE && index < IDX_MOVE + 10) {
-			static const wchar_t* moves[] = {
-			    L"hl:movetoworkspacesilent 1", L"hl:movetoworkspacesilent 2", L"hl:movetoworkspacesilent 3",
-			    L"hl:movetoworkspacesilent 4", L"hl:movetoworkspacesilent 5", L"hl:movetoworkspacesilent 6",
-			    L"hl:movetoworkspacesilent 7", L"hl:movetoworkspacesilent 8", L"hl:movetoworkspacesilent 9",
-			    L"hl:movetoworkspacesilent 10",
-			};
-			return moves[index - IDX_MOVE];
-		}
-		if (index >= 0 && static_cast<size_t>(index) < SHORTCUTS.size()) return SHORTCUTS[index].name;
-		return nullptr;
-	}
-}
+const wchar_t* shortcutName(LPARAM index) { return nameOf(static_cast<Index>(index)); }
 
 } // namespace ii::keyboard
