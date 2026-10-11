@@ -4,7 +4,7 @@
 # It creates the shell's panels for a moment, so run it when you do not mind them flashing (it does
 # not hide the taskbar, change settings or touch the ii that is installed). Exit 0 = "Configuration
 # Loaded", 1 = the load failed (the reason is printed), 2 = timeout/crash.
-param([string]$Quickshell = '', [string]$Config = '', [int]$TimeoutSec = 60)
+param([string]$Quickshell = '', [string]$Config = '', [int]$TimeoutSec = 60, [switch]$ShowLog)
 $root = (Resolve-Path "$PSScriptRoot\..\..").Path
 if (-not $Quickshell) { $Quickshell = "$root\dist\quickshell\quickshell.exe" }
 if (-not $Config) { $Config = "$root\build\ii" }
@@ -47,7 +47,8 @@ finally {
     Unregister-Event -SourceIdentifier $e2.Name -ErrorAction SilentlyContinue
     if ($all -match 'cache/by-shell/([0-9a-f]{32})/') { $cacheId = $Matches[1] }
 }
+if ($ShowLog) { ($all -split "`n" | Select-Object -Last 25) -join "`n" }
 if ($result -eq 0) { "shell configuration loaded in $([int]$sw.Elapsed.TotalSeconds) s" }
 elseif ($result -eq 1) { ($all -split "`n" | Where-Object { $_ -match 'ERROR' } | Select-Object -First 12) -join "`n" }
-else { "no 'Configuration Loaded' (exited: $($proc.HasExited)); last lines:`n" + (($all -split "`n" | Select-Object -Last 8) -join "`n") }
+else { "no 'Configuration Loaded' (exited: $($proc.HasExited), exit code $(if ($proc.HasExited) { $proc.ExitCode } else { "-" })); last lines:`n" + (($all -split "`n" | Select-Object -Last 8) -join "`n") }
 exit $result
