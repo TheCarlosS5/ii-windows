@@ -64,7 +64,7 @@ Start-Process "$hostDir\ii-host.exe" -ArgumentList '--shell', "`"$dist\quickshel
 Start-Sleep 25
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'welcome\.qml' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 $log = (ShellLog).FullName
-Check 'vdesk available on this Windows' ((Get-Content $log) -match 'Direct desktop control \(ii-shim vdesk\): yes') ((Get-Content $log | Select-String 'Direct desktop').Line)
+Check 'vdesk available on this Windows' ((Get-Content $log) -match 'Direct desktop control: switch yes') ((Get-Content $log | Select-String 'Direct desktop').Line)
 
 [VD]::Chord(0x5B, 0x32); Start-Sleep 3
 [VD]::Chord(0x5B, 0x33); Start-Sleep 3

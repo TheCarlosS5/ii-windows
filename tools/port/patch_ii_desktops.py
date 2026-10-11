@@ -23,7 +23,41 @@ edit(path('GlobalStates.qml'), [
 edit(path('modules', 'common', 'Config.qml'), [
     ('                    property int shown: 10\n',
      '                    property int shown: 10\n'
-     '                    property bool removeEmptyDesktops: true // ii-windows: services/DesktopCleanup.qml\n'),
+     '                    property bool removeEmptyDesktops: false // ii-windows: services/DesktopCleanup.qml (opt-in; was on by default)\n'
+     '                    property bool removeEmptyDesktopsNoticeShown: false // ii-windows: the opt-in change was announced once\n'),
+])
+
+# The option has a switch (it had none), disabled with the reason when this Windows can't do it.
+edit(path('modules', 'settings', 'BarConfig.qml'), [
+    ('''        ConfigSpinBox {
+            icon: "view_column"
+            text: Translation.tr("Workspaces shown")
+''',
+     '''        ConfigSwitch {
+            buttonIcon: "delete_sweep"
+            text: Translation.tr("Close the last desktop when I leave it empty")
+            enabled: DesktopCleanup.canRemove
+            checked: Config.options.bar.workspaces.removeEmptyDesktops
+            onCheckedChanged: {
+                Config.options.bar.workspaces.removeEmptyDesktops = checked;
+            }
+            StyledToolTip {
+                text: DesktopCleanup.canRemove
+                    ? Translation.tr("Only a desktop with no windows that you did not name, and only if nothing changed meanwhile. Desktop 1 stays.")
+                    : DesktopCleanup.limitation
+            }
+        }
+
+        NoticeBox {
+            Layout.fillWidth: true
+            visible: DesktopCleanup.probed && !DesktopCleanup.canRemove
+            text: DesktopCleanup.limitation
+        }
+
+        ConfigSpinBox {
+            icon: "view_column"
+            text: Translation.tr("Workspaces shown")
+'''),
 ])
 
 edit(path('shell.qml'), [

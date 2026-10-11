@@ -71,3 +71,7 @@ target_link_libraries(ii-launcher PRIVATE user32 shell32)
 add_executable(ii-keyrouter-test src/keyboard_test.cpp src/keyrouter.cpp)
 target_compile_options(ii-keyrouter-test PRIVATE /EHsc)
 target_link_libraries(ii-keyrouter-test PRIVATE user32)
+
+# R09: the rule for removing an empty virtual desktop, tested without Explorer.
+add_executable(ii-vdesk-test src/vdesk_test.cpp)
+target_compile_options(ii-vdesk-test PRIVATE /EHsc)

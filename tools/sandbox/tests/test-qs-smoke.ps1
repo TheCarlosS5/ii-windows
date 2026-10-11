@@ -22,8 +22,11 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Win32
+import Quickshell.Hyprland
 
 ShellRoot {
+    // R09: the desktop list is read, and `ii-shim vdesk probe` is asked once, what each direct operation allows.
+    Component.onCompleted: console.log("SMOKE desktops=" + Hyprland.workspaces.values.length)
     WlSessionLock {
         id: lock
         Component.onCompleted: console.log("SMOKE lock secure=" + lock.secure + " state=" + lock.state + " locked=" + lock.locked + " error='" + lock.lastError + "'")
@@ -59,6 +62,9 @@ ShellRoot {
     $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
     $psi.EnvironmentVariables['QT_FORCE_STDERR_LOGGING'] = '1'
+    $shimDir = Join-Path $repo 'host/build-clang'
+    $haveShim = Test-Path (Join-Path $shimDir 'ii-shim.exe')
+    if ($haveShim) { $psi.EnvironmentVariables['PATH'] = $shimDir + ';' + $psi.EnvironmentVariables['PATH'] }
     $lines = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
@@ -79,6 +85,17 @@ ShellRoot {
     Assert-True ($all -match 'SMOKE lock secure=false state=unlocked locked=false error=''''') 'WlSessionLock reads the real session: unlocked, not secure, nothing requested'
     Assert-True ($all -match 'SMOKE clock monotonic=true') 'the monotonic clock never went back'
     Assert-True ($all -match 'includesSleep=true') 'and it is QueryInterruptTime (counts through sleep)'
+    Assert-True ($all -match 'SMOKE desktops=\d+') 'the Hyprland compat layer lists the real virtual desktops'
+    if ($haveShim) {
+        $deadline = [Diagnostics.Stopwatch]::StartNew()
+        while ($all -notmatch 'Direct desktop control: move' -and $deadline.Elapsed.TotalSeconds -lt 10) {
+            $l = $null; while ($lines.TryDequeue([ref]$l)) { $all += $l + "`n" }
+            Start-Sleep -Milliseconds 200
+        }
+        Assert-True ($all -match 'Direct desktop control: switch (yes|no \()') 'the fork read what ii-shim vdesk probe verified for switching (and says why when not)'
+        Assert-True ($all -match 'Direct desktop control: remove (yes|no \()') 'and for removing'
+        Assert-True ($all -match 'Direct desktop control: move (yes|no \()') 'and for moving windows'
+    } else { Write-Output 'ii-shim.exe not built: the desktop capability lines were not checked' }
     $skew = [int]([regex]::Match($all, 'skew=(\d+)').Groups[1].Value)
     Assert-True ($skew -lt 150) "and it tracks the wall clock over ~2 s (difference $skew ms)"
 }
