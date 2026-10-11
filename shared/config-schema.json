@@ -1,0 +1,1321 @@
+{
+ "schema": 1,
+ "objects": [
+  "ai",
+  "appearance",
+  "appearance.fonts",
+  "appearance.palette",
+  "appearance.transparency",
+  "appearance.wallpaperTheming",
+  "appearance.wallpaperTheming.terminalGenerationProps",
+  "apps",
+  "audio",
+  "audio.protection",
+  "background",
+  "background.parallax",
+  "background.widgets",
+  "background.widgets.calendar",
+  "background.widgets.clock",
+  "background.widgets.clock.cookie",
+  "background.widgets.clock.digital",
+  "background.widgets.clock.digital.font",
+  "background.widgets.clock.quote",
+  "background.widgets.desktopIcons",
+  "background.widgets.folder",
+  "background.widgets.japaneseClock",
+  "background.widgets.media",
+  "background.widgets.notes",
+  "background.widgets.photo",
+  "background.widgets.resources",
+  "background.widgets.timer",
+  "background.widgets.todo",
+  "background.widgets.weather",
+  "bar",
+  "bar.autoHide",
+  "bar.autoHide.showWhenPressingSuper",
+  "bar.indicators",
+  "bar.indicators.notifications",
+  "bar.resources",
+  "bar.tooltips",
+  "bar.utilButtons",
+  "bar.weather",
+  "bar.workspaces",
+  "battery",
+  "calendar",
+  "cheatsheet",
+  "cheatsheet.fontSize",
+  "conflictKiller",
+  "crosshair",
+  "dock",
+  "hacks",
+  "interactions",
+  "interactions.deadPixelWorkaround",
+  "interactions.scrolling",
+  "language",
+  "language.translator",
+  "launcher",
+  "light",
+  "light.antiFlashbang",
+  "light.night",
+  "lock",
+  "lock.blur",
+  "lock.security",
+  "media",
+  "musicRecognition",
+  "networking",
+  "notifications",
+  "notifications.monitor",
+  "osd",
+  "osk",
+  "overlay",
+  "overlay.floatingImage",
+  "overview",
+  "policies",
+  "regionSelector",
+  "regionSelector.annotation",
+  "regionSelector.circle",
+  "regionSelector.rect",
+  "regionSelector.targetRegions",
+  "resources",
+  "screenRecord",
+  "screenSnip",
+  "search",
+  "search.imageSearch",
+  "search.prefix",
+  "sidebar",
+  "sidebar.ai",
+  "sidebar.booru",
+  "sidebar.booru.gelbooru",
+  "sidebar.booru.zerochan",
+  "sidebar.cornerOpen",
+  "sidebar.quickSliders",
+  "sidebar.quickToggles",
+  "sidebar.quickToggles.android",
+  "sidebar.translator",
+  "sounds",
+  "time",
+  "time.pomodoro",
+  "tray",
+  "updates",
+  "waffles",
+  "waffles.actionCenter",
+  "waffles.bar",
+  "waffles.calendar",
+  "waffles.tweaks",
+  "wallpaperSelector",
+  "windows",
+  "workSafety",
+  "workSafety.enable",
+  "workSafety.triggerCondition"
+ ],
+ "keys": {
+  "ai.extraModels": {
+   "kind": "list"
+  },
+  "ai.systemPrompt": {
+   "kind": "string"
+  },
+  "ai.tool": {
+   "kind": "string"
+  },
+  "appearance.extraBackgroundTint": {
+   "kind": "bool"
+  },
+  "appearance.fakeScreenRounding": {
+   "kind": "int",
+   "enum": [
+    0,
+    1,
+    2
+   ]
+  },
+  "appearance.fonts.expressive": {
+   "kind": "string"
+  },
+  "appearance.fonts.iconNerd": {
+   "kind": "string"
+  },
+  "appearance.fonts.main": {
+   "kind": "string"
+  },
+  "appearance.fonts.monospace": {
+   "kind": "string"
+  },
+  "appearance.fonts.numbers": {
+   "kind": "string"
+  },
+  "appearance.fonts.reading": {
+   "kind": "string"
+  },
+  "appearance.fonts.title": {
+   "kind": "string"
+  },
+  "appearance.palette.accentColor": {
+   "kind": "string"
+  },
+  "appearance.palette.type": {
+   "kind": "string"
+  },
+  "appearance.reduceMotion": {
+   "kind": "bool"
+  },
+  "appearance.transparency.automatic": {
+   "kind": "bool"
+  },
+  "appearance.transparency.backgroundTransparency": {
+   "kind": "real"
+  },
+  "appearance.transparency.contentTransparency": {
+   "kind": "real"
+  },
+  "appearance.transparency.enable": {
+   "kind": "bool"
+  },
+  "appearance.wallpaperTheming.enableAppsAndShell": {
+   "kind": "bool"
+  },
+  "appearance.wallpaperTheming.enableQtApps": {
+   "kind": "bool"
+  },
+  "appearance.wallpaperTheming.enableTerminal": {
+   "kind": "bool"
+  },
+  "appearance.wallpaperTheming.terminalGenerationProps.forceDarkMode": {
+   "kind": "bool"
+  },
+  "appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold": {
+   "kind": "real",
+   "range": [
+    0,
+    100
+   ]
+  },
+  "appearance.wallpaperTheming.terminalGenerationProps.harmony": {
+   "kind": "real"
+  },
+  "appearance.wallpaperTheming.terminalGenerationProps.termFgBoost": {
+   "kind": "real"
+  },
+  "apps.bluetooth": {
+   "kind": "string"
+  },
+  "apps.changePassword": {
+   "kind": "string"
+  },
+  "apps.manageUser": {
+   "kind": "string"
+  },
+  "apps.network": {
+   "kind": "string"
+  },
+  "apps.networkEthernet": {
+   "kind": "string"
+  },
+  "apps.taskManager": {
+   "kind": "string"
+  },
+  "apps.terminal": {
+   "kind": "string"
+  },
+  "apps.update": {
+   "kind": "string"
+  },
+  "apps.volumeMixer": {
+   "kind": "string"
+  },
+  "audio.protection.enable": {
+   "kind": "bool"
+  },
+  "audio.protection.maxAllowed": {
+   "kind": "real",
+   "range": [
+    0,
+    154
+   ]
+  },
+  "audio.protection.maxAllowedIncrease": {
+   "kind": "real",
+   "range": [
+    0,
+    100
+   ]
+  },
+  "background.hideWhenFullscreen": {
+   "kind": "bool"
+  },
+  "background.parallax.autoVertical": {
+   "kind": "bool"
+  },
+  "background.parallax.enableSidebar": {
+   "kind": "bool"
+  },
+  "background.parallax.enableWorkspace": {
+   "kind": "bool"
+  },
+  "background.parallax.vertical": {
+   "kind": "bool"
+  },
+  "background.parallax.widgetsFactor": {
+   "kind": "real"
+  },
+  "background.parallax.workspaceZoom": {
+   "kind": "real"
+  },
+  "background.thumbnailPath": {
+   "kind": "string"
+  },
+  "background.wallpaperPath": {
+   "kind": "string"
+  },
+  "background.widgets.calendar.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.calendar.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.calendar.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.calendar.x": {
+   "kind": "real"
+  },
+  "background.widgets.calendar.y": {
+   "kind": "real"
+  },
+  "background.widgets.clock.cookie.aiStyling": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.cookie.constantlyRotate": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.cookie.dateInClock": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.cookie.dateStyle": {
+   "kind": "string"
+  },
+  "background.widgets.clock.cookie.dialNumberStyle": {
+   "kind": "string"
+  },
+  "background.widgets.clock.cookie.hourHandStyle": {
+   "kind": "string"
+  },
+  "background.widgets.clock.cookie.hourMarks": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.cookie.minuteHandStyle": {
+   "kind": "string"
+  },
+  "background.widgets.clock.cookie.secondHandStyle": {
+   "kind": "string"
+  },
+  "background.widgets.clock.cookie.sides": {
+   "kind": "int",
+   "range": [
+    0,
+    40
+   ]
+  },
+  "background.widgets.clock.cookie.timeIndicators": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.cookie.useSineCookie": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.digital.adaptiveAlignment": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.digital.animateChange": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.digital.font.family": {
+   "kind": "string"
+  },
+  "background.widgets.clock.digital.font.roundness": {
+   "kind": "real"
+  },
+  "background.widgets.clock.digital.font.size": {
+   "kind": "real"
+  },
+  "background.widgets.clock.digital.font.weight": {
+   "kind": "real"
+  },
+  "background.widgets.clock.digital.font.width": {
+   "kind": "real"
+  },
+  "background.widgets.clock.digital.showDate": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.digital.vertical": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.clock.quote.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.quote.text": {
+   "kind": "string"
+  },
+  "background.widgets.clock.showOnlyWhenLocked": {
+   "kind": "bool"
+  },
+  "background.widgets.clock.style": {
+   "kind": "string"
+  },
+  "background.widgets.clock.styleLocked": {
+   "kind": "string"
+  },
+  "background.widgets.clock.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.clock.x": {
+   "kind": "real"
+  },
+  "background.widgets.clock.y": {
+   "kind": "real"
+  },
+  "background.widgets.desktopIcons.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.desktopIcons.iconSize": {
+   "kind": "int",
+   "range": [
+    24,
+    128
+   ]
+  },
+  "background.widgets.folder.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.folder.maxItems": {
+   "kind": "int",
+   "range": [
+    3,
+    15
+   ]
+  },
+  "background.widgets.folder.path": {
+   "kind": "string"
+  },
+  "background.widgets.folder.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.folder.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.folder.x": {
+   "kind": "real"
+  },
+  "background.widgets.folder.y": {
+   "kind": "real"
+  },
+  "background.widgets.japaneseClock.card": {
+   "kind": "bool"
+  },
+  "background.widgets.japaneseClock.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.japaneseClock.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.japaneseClock.showDate": {
+   "kind": "bool"
+  },
+  "background.widgets.japaneseClock.showSeconds": {
+   "kind": "bool"
+  },
+  "background.widgets.japaneseClock.vertical": {
+   "kind": "bool"
+  },
+  "background.widgets.japaneseClock.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.japaneseClock.x": {
+   "kind": "real"
+  },
+  "background.widgets.japaneseClock.y": {
+   "kind": "real"
+  },
+  "background.widgets.media.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.media.idleMotion": {
+   "kind": "bool"
+  },
+  "background.widgets.media.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.media.spectrum": {
+   "kind": "bool"
+  },
+  "background.widgets.media.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.media.x": {
+   "kind": "real"
+  },
+  "background.widgets.media.y": {
+   "kind": "real"
+  },
+  "background.widgets.notes.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.notes.fontSize": {
+   "kind": "int",
+   "range": [
+    10,
+    40
+   ]
+  },
+  "background.widgets.notes.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.notes.text": {
+   "kind": "string"
+  },
+  "background.widgets.notes.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.notes.x": {
+   "kind": "real"
+  },
+  "background.widgets.notes.y": {
+   "kind": "real"
+  },
+  "background.widgets.photo.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.photo.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.photo.scale": {
+   "kind": "real"
+  },
+  "background.widgets.photo.source": {
+   "kind": "string"
+  },
+  "background.widgets.photo.x": {
+   "kind": "real"
+  },
+  "background.widgets.photo.y": {
+   "kind": "real"
+  },
+  "background.widgets.resources.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.resources.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.resources.showSwap": {
+   "kind": "bool"
+  },
+  "background.widgets.resources.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.resources.x": {
+   "kind": "real"
+  },
+  "background.widgets.resources.y": {
+   "kind": "real"
+  },
+  "background.widgets.timer.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.timer.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.timer.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.timer.x": {
+   "kind": "real"
+  },
+  "background.widgets.timer.y": {
+   "kind": "real"
+  },
+  "background.widgets.todo.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.todo.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.todo.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.todo.x": {
+   "kind": "real"
+  },
+  "background.widgets.todo.y": {
+   "kind": "real"
+  },
+  "background.widgets.weather.enable": {
+   "kind": "bool"
+  },
+  "background.widgets.weather.placementStrategy": {
+   "kind": "string"
+  },
+  "background.widgets.weather.widgetScale": {
+   "kind": "real"
+  },
+  "background.widgets.weather.x": {
+   "kind": "real"
+  },
+  "background.widgets.weather.y": {
+   "kind": "real"
+  },
+  "bar.autoHide.enable": {
+   "kind": "bool"
+  },
+  "bar.autoHide.hoverRegionWidth": {
+   "kind": "int"
+  },
+  "bar.autoHide.pushWindows": {
+   "kind": "bool"
+  },
+  "bar.autoHide.showWhenPressingSuper.delay": {
+   "kind": "int"
+  },
+  "bar.autoHide.showWhenPressingSuper.enable": {
+   "kind": "bool"
+  },
+  "bar.borderless": {
+   "kind": "bool"
+  },
+  "bar.bottom": {
+   "kind": "bool"
+  },
+  "bar.cornerStyle": {
+   "kind": "int",
+   "enum": [
+    0,
+    1,
+    2
+   ]
+  },
+  "bar.floatStyleShadow": {
+   "kind": "bool"
+  },
+  "bar.indicators.notifications.showUnreadCount": {
+   "kind": "bool"
+  },
+  "bar.resources.alwaysShowCpu": {
+   "kind": "bool"
+  },
+  "bar.resources.alwaysShowSwap": {
+   "kind": "bool"
+  },
+  "bar.resources.cpuWarningThreshold": {
+   "kind": "int"
+  },
+  "bar.resources.memoryWarningThreshold": {
+   "kind": "int"
+  },
+  "bar.resources.swapWarningThreshold": {
+   "kind": "int"
+  },
+  "bar.screenList": {
+   "kind": "strings"
+  },
+  "bar.showBackground": {
+   "kind": "bool"
+  },
+  "bar.tooltips.clickToShow": {
+   "kind": "bool"
+  },
+  "bar.topLeftIcon": {
+   "kind": "string"
+  },
+  "bar.utilButtons.showColorPicker": {
+   "kind": "bool"
+  },
+  "bar.utilButtons.showDarkModeToggle": {
+   "kind": "bool"
+  },
+  "bar.utilButtons.showKeyboardToggle": {
+   "kind": "bool"
+  },
+  "bar.utilButtons.showMicToggle": {
+   "kind": "bool"
+  },
+  "bar.utilButtons.showPerformanceProfileToggle": {
+   "kind": "bool"
+  },
+  "bar.utilButtons.showScreenRecord": {
+   "kind": "bool"
+  },
+  "bar.utilButtons.showScreenSnip": {
+   "kind": "bool"
+  },
+  "bar.verbose": {
+   "kind": "bool"
+  },
+  "bar.vertical": {
+   "kind": "bool"
+  },
+  "bar.weather.city": {
+   "kind": "string"
+  },
+  "bar.weather.enable": {
+   "kind": "bool"
+  },
+  "bar.weather.enableGPS": {
+   "kind": "bool"
+  },
+  "bar.weather.fetchInterval": {
+   "kind": "int",
+   "range": [
+    5,
+    50
+   ]
+  },
+  "bar.weather.useUSCS": {
+   "kind": "bool"
+  },
+  "bar.workspaces.alwaysShowNumbers": {
+   "kind": "bool"
+  },
+  "bar.workspaces.monochromeIcons": {
+   "kind": "bool"
+  },
+  "bar.workspaces.numberMap": {
+   "kind": "strings"
+  },
+  "bar.workspaces.removeEmptyDesktops": {
+   "kind": "bool"
+  },
+  "bar.workspaces.removeEmptyDesktopsNoticeShown": {
+   "kind": "bool"
+  },
+  "bar.workspaces.showAppIcons": {
+   "kind": "bool"
+  },
+  "bar.workspaces.showNumberDelay": {
+   "kind": "int",
+   "range": [
+    0,
+    1000
+   ]
+  },
+  "bar.workspaces.shown": {
+   "kind": "int",
+   "range": [
+    1,
+    30
+   ]
+  },
+  "bar.workspaces.useNerdFont": {
+   "kind": "bool"
+  },
+  "battery.automaticSuspend": {
+   "kind": "bool"
+  },
+  "battery.critical": {
+   "kind": "int",
+   "range": [
+    0,
+    100
+   ]
+  },
+  "battery.full": {
+   "kind": "int",
+   "range": [
+    0,
+    101
+   ]
+  },
+  "battery.low": {
+   "kind": "int",
+   "range": [
+    0,
+    100
+   ]
+  },
+  "battery.suspend": {
+   "kind": "int",
+   "range": [
+    0,
+    100
+   ]
+  },
+  "calendar.locale": {
+   "kind": "string"
+  },
+  "cheatsheet.fontSize.comment": {
+   "kind": "int",
+   "range": [
+    8,
+    30
+   ]
+  },
+  "cheatsheet.fontSize.key": {
+   "kind": "int",
+   "range": [
+    8,
+    30
+   ]
+  },
+  "cheatsheet.splitButtons": {
+   "kind": "bool"
+  },
+  "cheatsheet.superKey": {
+   "kind": "string"
+  },
+  "cheatsheet.useFnSymbol": {
+   "kind": "bool"
+  },
+  "cheatsheet.useMacSymbol": {
+   "kind": "bool"
+  },
+  "cheatsheet.useMouseSymbol": {
+   "kind": "bool"
+  },
+  "configVersion": {
+   "kind": "int"
+  },
+  "conflictKiller.autoKillNotificationDaemons": {
+   "kind": "bool"
+  },
+  "conflictKiller.autoKillTrays": {
+   "kind": "bool"
+  },
+  "crosshair.code": {
+   "kind": "string"
+  },
+  "dock.enable": {
+   "kind": "bool"
+  },
+  "dock.height": {
+   "kind": "real"
+  },
+  "dock.hoverRegionHeight": {
+   "kind": "real"
+  },
+  "dock.hoverToReveal": {
+   "kind": "bool"
+  },
+  "dock.ignoredAppRegexes": {
+   "kind": "strings"
+  },
+  "dock.monochromeIcons": {
+   "kind": "bool"
+  },
+  "dock.pinnedApps": {
+   "kind": "strings"
+  },
+  "dock.pinnedOnStartup": {
+   "kind": "bool"
+  },
+  "hacks.arbitraryRaceConditionDelay": {
+   "kind": "int"
+  },
+  "interactions.deadPixelWorkaround.enable": {
+   "kind": "bool"
+  },
+  "interactions.scrolling.fasterTouchpadScroll": {
+   "kind": "bool"
+  },
+  "interactions.scrolling.mouseScrollDeltaThreshold": {
+   "kind": "int"
+  },
+  "interactions.scrolling.mouseScrollFactor": {
+   "kind": "int"
+  },
+  "interactions.scrolling.touchpadScrollFactor": {
+   "kind": "int"
+  },
+  "language.translator.engine": {
+   "kind": "string"
+  },
+  "language.translator.sourceLanguage": {
+   "kind": "string"
+  },
+  "language.translator.targetLanguage": {
+   "kind": "string"
+  },
+  "language.ui": {
+   "kind": "string"
+  },
+  "launcher.pinnedApps": {
+   "kind": "strings"
+  },
+  "light.antiFlashbang.enable": {
+   "kind": "bool"
+  },
+  "light.night.automatic": {
+   "kind": "bool"
+  },
+  "light.night.colorTemperature": {
+   "kind": "int"
+  },
+  "light.night.from": {
+   "kind": "string"
+  },
+  "light.night.to": {
+   "kind": "string"
+  },
+  "lock.blur.enable": {
+   "kind": "bool"
+  },
+  "lock.blur.extraZoom": {
+   "kind": "real"
+  },
+  "lock.blur.radius": {
+   "kind": "real"
+  },
+  "lock.centerClock": {
+   "kind": "bool"
+  },
+  "lock.launchOnStartup": {
+   "kind": "bool"
+  },
+  "lock.materialShapeChars": {
+   "kind": "bool"
+  },
+  "lock.security.requirePasswordToPower": {
+   "kind": "bool"
+  },
+  "lock.security.unlockKeyring": {
+   "kind": "bool"
+  },
+  "lock.showLockedText": {
+   "kind": "bool"
+  },
+  "lock.useHyprlock": {
+   "kind": "bool"
+  },
+  "media.filterDuplicatePlayers": {
+   "kind": "bool"
+  },
+  "musicRecognition.interval": {
+   "kind": "int",
+   "range": [
+    2,
+    10
+   ]
+  },
+  "musicRecognition.timeout": {
+   "kind": "int",
+   "range": [
+    10,
+    100
+   ]
+  },
+  "networking.userAgent": {
+   "kind": "string"
+  },
+  "notifications.monitor.enable": {
+   "kind": "bool"
+  },
+  "notifications.monitor.name": {
+   "kind": "string"
+  },
+  "notifications.timeout": {
+   "kind": "int",
+   "range": [
+    1000,
+    60000
+   ]
+  },
+  "osd.timeout": {
+   "kind": "int",
+   "range": [
+    100,
+    3000
+   ]
+  },
+  "osk.layout": {
+   "kind": "string"
+  },
+  "osk.pinnedOnStartup": {
+   "kind": "bool"
+  },
+  "overlay.clickthroughOpacity": {
+   "kind": "real"
+  },
+  "overlay.darkenScreen": {
+   "kind": "bool"
+  },
+  "overlay.floatingImage.imageSource": {
+   "kind": "string"
+  },
+  "overlay.floatingImage.scale": {
+   "kind": "real"
+  },
+  "overlay.openingZoomAnimation": {
+   "kind": "bool"
+  },
+  "overview.centerIcons": {
+   "kind": "bool"
+  },
+  "overview.columns": {
+   "kind": "real",
+   "range": [
+    1,
+    20
+   ]
+  },
+  "overview.enable": {
+   "kind": "bool"
+  },
+  "overview.orderBottomUp": {
+   "kind": "bool"
+  },
+  "overview.orderRightLeft": {
+   "kind": "bool"
+  },
+  "overview.rows": {
+   "kind": "real",
+   "range": [
+    1,
+    20
+   ]
+  },
+  "overview.scale": {
+   "kind": "real"
+  },
+  "panelFamily": {
+   "kind": "string"
+  },
+  "policies.ai": {
+   "kind": "int",
+   "enum": [
+    0,
+    1,
+    2
+   ]
+  },
+  "policies.weeb": {
+   "kind": "int",
+   "enum": [
+    0,
+    1,
+    2
+   ]
+  },
+  "regionSelector.annotation.useSatty": {
+   "kind": "bool"
+  },
+  "regionSelector.circle.padding": {
+   "kind": "int",
+   "range": [
+    0,
+    100
+   ]
+  },
+  "regionSelector.circle.strokeWidth": {
+   "kind": "int",
+   "range": [
+    1,
+    20
+   ]
+  },
+  "regionSelector.rect.showAimLines": {
+   "kind": "bool"
+  },
+  "regionSelector.targetRegions.content": {
+   "kind": "bool"
+  },
+  "regionSelector.targetRegions.contentRegionOpacity": {
+   "kind": "real"
+  },
+  "regionSelector.targetRegions.layers": {
+   "kind": "bool"
+  },
+  "regionSelector.targetRegions.opacity": {
+   "kind": "real"
+  },
+  "regionSelector.targetRegions.selectionPadding": {
+   "kind": "int"
+  },
+  "regionSelector.targetRegions.showLabel": {
+   "kind": "bool"
+  },
+  "regionSelector.targetRegions.windows": {
+   "kind": "bool"
+  },
+  "resources.historyLength": {
+   "kind": "int"
+  },
+  "resources.updateInterval": {
+   "kind": "int",
+   "range": [
+    100,
+    10000
+   ]
+  },
+  "screenRecord.savePath": {
+   "kind": "string"
+  },
+  "screenSnip.savePath": {
+   "kind": "string"
+  },
+  "search.engineBaseUrl": {
+   "kind": "string"
+  },
+  "search.excludedSites": {
+   "kind": "strings"
+  },
+  "search.imageSearch.imageSearchEngineBaseUrl": {
+   "kind": "string"
+  },
+  "search.imageSearch.useCircleSelection": {
+   "kind": "bool"
+  },
+  "search.nonAppResultDelay": {
+   "kind": "int"
+  },
+  "search.prefix.action": {
+   "kind": "string"
+  },
+  "search.prefix.app": {
+   "kind": "string"
+  },
+  "search.prefix.clipboard": {
+   "kind": "string"
+  },
+  "search.prefix.emojis": {
+   "kind": "string"
+  },
+  "search.prefix.math": {
+   "kind": "string"
+  },
+  "search.prefix.shellCommand": {
+   "kind": "string"
+  },
+  "search.prefix.showDefaultActionsWithoutPrefix": {
+   "kind": "bool"
+  },
+  "search.prefix.webSearch": {
+   "kind": "string"
+  },
+  "search.sloppy": {
+   "kind": "bool"
+  },
+  "sidebar.ai.textFadeIn": {
+   "kind": "bool"
+  },
+  "sidebar.booru.allowNsfw": {
+   "kind": "bool"
+  },
+  "sidebar.booru.defaultProvider": {
+   "kind": "string"
+  },
+  "sidebar.booru.gelbooru.apiKey": {
+   "kind": "string"
+  },
+  "sidebar.booru.gelbooru.userId": {
+   "kind": "string"
+  },
+  "sidebar.booru.limit": {
+   "kind": "int"
+  },
+  "sidebar.booru.zerochan.username": {
+   "kind": "string"
+  },
+  "sidebar.cornerOpen.bottom": {
+   "kind": "bool"
+  },
+  "sidebar.cornerOpen.clickless": {
+   "kind": "bool"
+  },
+  "sidebar.cornerOpen.clicklessCornerEnd": {
+   "kind": "bool"
+  },
+  "sidebar.cornerOpen.clicklessCornerVerticalOffset": {
+   "kind": "int",
+   "range": [
+    0,
+    20
+   ]
+  },
+  "sidebar.cornerOpen.cornerRegionHeight": {
+   "kind": "int",
+   "range": [
+    1,
+    300
+   ]
+  },
+  "sidebar.cornerOpen.cornerRegionWidth": {
+   "kind": "int",
+   "range": [
+    1,
+    300
+   ]
+  },
+  "sidebar.cornerOpen.enable": {
+   "kind": "bool"
+  },
+  "sidebar.cornerOpen.valueScroll": {
+   "kind": "bool"
+  },
+  "sidebar.cornerOpen.visualize": {
+   "kind": "bool"
+  },
+  "sidebar.keepRightSidebarLoaded": {
+   "kind": "bool"
+  },
+  "sidebar.quickSliders.enable": {
+   "kind": "bool"
+  },
+  "sidebar.quickSliders.showBrightness": {
+   "kind": "bool"
+  },
+  "sidebar.quickSliders.showMic": {
+   "kind": "bool"
+  },
+  "sidebar.quickSliders.showVolume": {
+   "kind": "bool"
+  },
+  "sidebar.quickToggles.android.columns": {
+   "kind": "int",
+   "range": [
+    1,
+    8
+   ]
+  },
+  "sidebar.quickToggles.android.toggles": {
+   "kind": "list"
+  },
+  "sidebar.quickToggles.style": {
+   "kind": "string"
+  },
+  "sidebar.translator.delay": {
+   "kind": "int"
+  },
+  "sidebar.translator.enable": {
+   "kind": "bool"
+  },
+  "sounds.battery": {
+   "kind": "bool"
+  },
+  "sounds.pomodoro": {
+   "kind": "bool"
+  },
+  "sounds.theme": {
+   "kind": "string"
+  },
+  "sounds.ui": {
+   "kind": "bool"
+  },
+  "sounds.uiNotifications": {
+   "kind": "bool"
+  },
+  "sounds.uiVolume": {
+   "kind": "real"
+  },
+  "time.dateFormat": {
+   "kind": "string"
+  },
+  "time.dateWithYearFormat": {
+   "kind": "string"
+  },
+  "time.format": {
+   "kind": "string"
+  },
+  "time.pomodoro.breakTime": {
+   "kind": "int"
+  },
+  "time.pomodoro.cyclesBeforeLongBreak": {
+   "kind": "int"
+  },
+  "time.pomodoro.focus": {
+   "kind": "int"
+  },
+  "time.pomodoro.longBreak": {
+   "kind": "int"
+  },
+  "time.secondPrecision": {
+   "kind": "bool"
+  },
+  "time.shortDateFormat": {
+   "kind": "string"
+  },
+  "tray.filterPassive": {
+   "kind": "bool"
+  },
+  "tray.hiddenItems": {
+   "kind": "list"
+  },
+  "tray.invertPinnedItems": {
+   "kind": "bool"
+  },
+  "tray.monochromeIcons": {
+   "kind": "bool"
+  },
+  "tray.pinnedItems": {
+   "kind": "list"
+  },
+  "tray.showItemId": {
+   "kind": "bool"
+  },
+  "tray.shownItems": {
+   "kind": "list"
+  },
+  "updates.adviseUpdateThreshold": {
+   "kind": "int"
+  },
+  "updates.checkInterval": {
+   "kind": "int",
+   "range": [
+    60,
+    1440
+   ]
+  },
+  "updates.enableCheck": {
+   "kind": "bool"
+  },
+  "updates.stronglyAdviseUpdateThreshold": {
+   "kind": "int"
+  },
+  "waffles.actionCenter.toggles": {
+   "kind": "strings"
+  },
+  "waffles.bar.bottom": {
+   "kind": "bool"
+  },
+  "waffles.bar.leftAlignApps": {
+   "kind": "bool"
+  },
+  "waffles.calendar.force2CharDayOfWeek": {
+   "kind": "bool"
+  },
+  "waffles.tweaks.smootherMenuAnimations": {
+   "kind": "bool"
+  },
+  "waffles.tweaks.smootherSearchBar": {
+   "kind": "bool"
+  },
+  "waffles.tweaks.switchHandlePositionFix": {
+   "kind": "bool"
+  },
+  "wallpaperSelector.useSystemFileDialog": {
+   "kind": "bool"
+  },
+  "windows.centerTitle": {
+   "kind": "bool"
+  },
+  "windows.showTitlebar": {
+   "kind": "bool"
+  },
+  "workSafety.enable.clipboard": {
+   "kind": "bool"
+  },
+  "workSafety.enable.wallpaper": {
+   "kind": "bool"
+  },
+  "workSafety.triggerCondition.fileKeywords": {
+   "kind": "strings"
+  },
+  "workSafety.triggerCondition.linkKeywords": {
+   "kind": "strings"
+  },
+  "workSafety.triggerCondition.networkNameKeywords": {
+   "kind": "strings"
+  }
+ }
+}

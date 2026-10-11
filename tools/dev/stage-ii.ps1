@@ -52,6 +52,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\patch_ii_shortcuts.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_shortcuts.py failed" }
 # Live Linux routes: pin without the cursor dance, language list without find, cache folders (C12).
 & python -I "$root\tools\port\patch_ii_c12.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_c12.py failed" }
+# The format version of config.json, so a build can tell a file from a newer ii (D01).
+& python -I "$root\tools\port\patch_ii_config.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_config.py failed" }
 # Timers: monotonic guard against clock changes, refresh only what is on screen (P11).
 & python -I "$root\tools\port\patch_ii_timers.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_timers.py failed" }
 # Secrets: the Gelbooru key moves from config.json to the per-user secret store (R11).

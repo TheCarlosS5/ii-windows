@@ -21,6 +21,8 @@ add_executable(ii-host WIN32
 	src/splash.cpp
 	src/health.cpp
 	src/rollout.cpp
+	src/jsonlite.cpp
+	src/configtool.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -37,7 +39,7 @@ if(NOT MCU_SOURCES)
 endif()
 
 add_executable(ii-shim src/shim.cpp src/brightness.cpp src/capture.cpp src/switchwall.cpp src/randomwall.cpp
-	src/http.h src/http.cpp src/airequest.cpp src/weather.cpp src/cava.cpp src/ydotool.cpp src/secrettool.cpp src/cliphist.cpp src/fsutil.cpp src/hyprpicker.cpp src/trans.cpp src/sidebar.cpp src/fileops.cpp src/nightlight_core.cpp src/vdesk.cpp ${MCU_SOURCES})
+	src/http.h src/http.cpp src/airequest.cpp src/weather.cpp src/cava.cpp src/ydotool.cpp src/secrettool.cpp src/cliphist.cpp src/fsutil.cpp src/hyprpicker.cpp src/trans.cpp src/sidebar.cpp src/fileops.cpp src/nightlight_core.cpp src/vdesk.cpp src/jsonlite.cpp src/configtool.cpp ${MCU_SOURCES})
 target_include_directories(ii-shim PRIVATE ${MCU_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/compat)
 # M_PI, and the C99 compound literals it uses (build with clang-cl, as Quickshell).
 target_compile_definitions(ii-shim PRIVATE _USE_MATH_DEFINES)
@@ -75,3 +77,8 @@ target_link_libraries(ii-keyrouter-test PRIVATE user32)
 # R09: the rule for removing an empty virtual desktop, tested without Explorer.
 add_executable(ii-vdesk-test src/vdesk_test.cpp)
 target_compile_options(ii-vdesk-test PRIVATE /EHsc)
+
+# D01: the config tools (JSON reader, schema validation, guard, last-good, export/import) in a throwaway folder.
+add_executable(ii-config-test src/config_test.cpp src/configtool.cpp src/jsonlite.cpp)
+target_compile_options(ii-config-test PRIVATE /EHsc)
+target_link_libraries(ii-config-test PRIVATE user32)

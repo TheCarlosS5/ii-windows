@@ -19,6 +19,7 @@
 //   ii-shim weather <place|lat,long>      wttr.in weather as ii's three-object JSON
 //   ii-shim files <action> ...            desktop file actions through the shell (fileops.cpp)
 //   ii-shim vdesk <command> ...            virtual desktops: switch, remove, move windows (vdesk.cpp)
+//   ii-shim config <command> ...           config.json: check, guard, keep-good, export, import (configtool.cpp)
 
 #include "http.h"
 
@@ -511,6 +512,8 @@ int switchwall(const std::vector<std::wstring>& args);
 int thumbnail(const std::vector<std::wstring>& args);
 int magick(const std::vector<std::wstring>& args);
 int vdesk(const std::vector<std::wstring>& args);
+// configtool.cpp
+namespace configtool { int command(const std::vector<std::wstring>& args); }
 // fileops.cpp
 int filesCommand(const std::vector<std::wstring>& args);
 
@@ -558,6 +561,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"thumbnail") return thumbnail(args);
 	if (command == L"magick") return magick(args);
 	if (command == L"vdesk") return vdesk(args);
+	if (command == L"config") return configtool::command(args);
 	if (command == L"ocr") return ocrFile(args);
 	if (command == L"notify-send") return notifySend(args);
 	if (command == L"playerctl") return playerctl(args);

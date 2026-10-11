@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "common.h"
+#include "configtool.h"
 #include "nightlight.h"
 #include "rollout.h"
 
@@ -192,6 +193,63 @@ UINT watchdogMs() {
 	return 5000;
 }
 
+// --- config.json guard (D01) ---------------------------------------------------------------
+// Before the shell starts, a damaged config.json is put aside and the last good one restored;
+// once the shell is up (and when it ends cleanly) the current file is remembered as the last good one.
+// Isolated test runs (II_DATA_DIR without II_CONFIG_DIR) never look at the real user's config.
+
+std::vector<std::wstring> configNotices; // shown by the shell once it is up
+
+bool configGuardEnabled() {
+	wchar_t buffer[8];
+	return GetEnvironmentVariableW(L"II_CONFIG_DIR", buffer, 8) > 0 || GetEnvironmentVariableW(L"II_DATA_DIR", buffer, 8) == 0;
+}
+
+std::wstring fromUtf8(const std::string& text) {
+	if (text.empty()) return {};
+	auto n = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+	std::wstring out(static_cast<size_t>(n), L'\0');
+	MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), n);
+	return out;
+}
+
+void guardConfig() {
+	if (!configGuardEnabled()) return;
+	auto outcome = configtool::guard();
+	log(L"config: %s", fromUtf8(outcome.message).c_str());
+	for (const auto& d: outcome.details) log(L"config:   %s", fromUtf8(d).c_str());
+	if (outcome.userShouldKnow()) configNotices.push_back(fromUtf8(outcome.message));
+}
+
+void rememberGoodConfig() {
+	if (!configGuardEnabled()) return;
+	auto outcome = configtool::keepGood();
+	if (outcome.action == configtool::Outcome::Action::Saved || outcome.action == configtool::Outcome::Action::NotSaved) log(L"config: %s", fromUtf8(outcome.message).c_str());
+}
+
+// The shell's notification sink is a window of the shell itself; the same message ii-shim notify-send uses.
+void tellUserThroughShell(const std::wstring& summary, const std::wstring& body) {
+	if (noUi()) {
+		log(L"config: (no UI) %s", summary.c_str());
+		return;
+	}
+	auto* sink = FindWindowW(L"IiShellNotificationSink", nullptr);
+	if (!sink) return;
+	const wchar_t sep = 0x1f; // the field separator ii-shim notify-send uses
+	std::wstring payload = std::wstring(L"ii-windows") + sep + summary + sep + body + sep + sep + L"critical" + sep + sep + L"0";
+	COPYDATASTRUCT data {};
+	data.dwData = 0x49490010;
+	data.cbData = static_cast<DWORD>((payload.size() + 1) * sizeof(wchar_t));
+	data.lpData = payload.data();
+	DWORD_PTR result = 0;
+	SendMessageTimeoutW(sink, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 2000, &result);
+}
+
+void deliverConfigNotices() {
+	for (const auto& notice: configNotices) tellUserThroughShell(L"ii: your settings file was checked", notice);
+	configNotices.clear();
+}
+
 // --- shell process -------------------------------------------------------------------------
 
 void CALLBACK onShellExit(PVOID, BOOLEAN) { PostMessageW(hostWindow, WM_II_SHELL_EXITED, 0, 0); }
@@ -210,6 +268,7 @@ bool startShell() {
 		return false;
 	}
 
+	guardConfig(); // a damaged config.json must not be what the shell starts from
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
 	STARTUPINFOW si {};
 	si.cb = sizeof(si); // no STARTF_USESHOWWINDOW: it would hide the shell's first window
@@ -312,6 +371,7 @@ void restoreAndStop(int code) {
 	UnregisterHotKey(hostWindow, HOTKEY_PANIC);
 	KillTimer(hostWindow, TIMER_RESTART_SHELL);
 	stopShell();
+	if (code == 0 && shellReady) rememberGoodConfig(); // a clean end: what the shell last wrote is good
 	splash::close();
 	restoreAll(false);
 	uiHidden = false;
@@ -508,6 +568,8 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 	if (rollout::markVerified(selfDir())) log(L"runtime: this version is now verified");
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr); // back to the slow housekeeping tick
 	setPhase(Phase::Active, L"shell is up");
+	rememberGoodConfig(); // once per start, after it came up: not on every change
+	deliverConfigNotices();
 	if (covered < total) {
 		log(L"shell: ready after %llu ms with %zu of %zu monitors showing it (the rest never did)", now - shellStartedAt, covered, total);
 	} else {
