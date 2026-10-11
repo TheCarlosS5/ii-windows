@@ -145,15 +145,15 @@ Todas las casillas están pendientes a fecha de redacción. No son resultados de
 | [ ] TODO | P09 | Sustituir cachés sin límites/clear-all por presupuestos LRU | 3 | P1 | CORE | P08 |
 | [ ] TODO | P10 | Convertir audio/red/Bluetooth en servicios asíncronos y por eventos | 3 | P1 | CORE | B02 |
 | [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | P11 | Basar temporizadores en tiempo real y limitar refresh visual | 3 | P1 | CORE | B02 |
-| [ ] TODO | P12 | Sustituir sondeo redundante y mantener hook barato | 3 | P1 | CORE | B02 |
+| [~] EN_CURSO | P12 | Sustituir sondeo redundante y mantener hook barato | 3 | P1 | CORE | B02 |
 | [ ] TODO | P13 | Optimizar búsqueda y descartar resultados viejos | 3 | P1 | CORE | B02 |
 | [ ] TODO | P14 | Reducir FBO y hacer texto nítido en escalado/DPI | 3 | P1 | CORE | B02 |
 | [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | P15 | Hacer splash barato y retirarlo por readiness real | 3 | P1 | CORE | R02, B02 |
 | [ ] TODO | P16 | Aplicar prioridad y perfiles por estado, sin trucos globales | 3 | P1 | CORE | R02, B02, R08 |
 | [~] EN_CURSO | P17 | Conservar caché QML y hacer reproducibles builds Windows Release | 3 | P1 | CORE | B00, B01 |
 | [ ] TODO | P18 | Aplicar presupuestos de reposo y demostrar fluidez sostenida | 3 | P1 | VALIDACIÓN | B02, P02, P03, P04, P05, P06, P07, P08, P09, P10, P11, P12, P13, P14, P15, P16, P17 |
-| [ ] TODO | U01 | Crear catálogo de acciones/capacidades y política de UI ii | 4 | P1 | CORE | R01, R02, R03 |
-| [ ] TODO | U02 | Enrutar atajos completos con política por aplicación | 4 | P1 | CORE | U01, P12, R09 |
+| [~] EN_CURSO | U01 | Crear catálogo de acciones/capacidades y política de UI ii | 4 | P1 | CORE | R01, R02, R03 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | U02 | Enrutar atajos completos con política por aplicación | 4 | P1 | CORE | U01, P12, R09 |
 | [ ] TODO | U03 | Añadir selector Alt+Tab ii rápido y navegable | 4 | P2 | CORE | U02, P02, P07 |
 | [ ] TODO | U04 | Implementar selectores, color y operaciones de archivo propios | 4 | P2 | CORE | U01, P08, P09, R04 |
 | [ ] TODO | U05 | Sustituir tiles de sistema con controles y límites reales | 4 | P1 | CORE | U01, P10 |
@@ -2547,6 +2547,13 @@ las claves guardadas y existe `-KeepSecrets`; el desinstalador ya no borra `%LOC
 - **Pendiente (impide VERIFICADA):** la lógica QML de `TimerService` (ajuste de reloj, un solo aviso tras dormir, parada del refresco al ocultar, reapertura con configuración persistida) no se ejecutó: requiere la shell con `Persistent`/`Config` reales; comparar contra un cronómetro de referencia y dormir de verdad el equipo no se hizo (no se suspende la sesión del usuario).
 - **Rollback:** `git revert f888b8a` (ii) y `889c2a1` (fork).
 
+### ID: P12 — Sustituir sondeo redundante y mantener hook barato
+
+**Estado:** EN_CURSO
+- **Hecho (el hook):** dentro del callback ya no hay `GetForegroundWindow`/`GetClassName`/`GetWindowRect`/`GetMonitorInfo` ni `FindWindow` por tecla: lee estado cacheado (átomos) que se refresca **fuera** del hook con un `WinEvent` de primer plano, la reconciliación de 1 s y los cambios de sesión (`WTSRegisterSessionNotification` ⇒ reinicia el estado tras bloquear/desbloquear/cambiar de sesión); el seguimiento de Ctrl/Alt/Mayús es propio, izquierda/derecha por separado, y `GetAsyncKeyState` solo se usa para curar una pulsación o un «soltar» perdidos y nunca para la tecla que se está procesando (cuyo estado el sistema aún no actualizó). El sondeo de disponibilidad de la shell tiene un tope de una búsqueda cada 250 ms. Además el host ahora sondea cada 250 ms **solo** hasta que la shell esté lista (antes 5 s) y luego baja a 5 s; la comprobación de salud va a 1 s con coste de un `GetTickCount64`.
+- **Pruebas:** `ii-keyrouter-test` (48) para la lógica; el coste del callback bajo carga no se midió.
+- **Pendiente:** inventario de cada temporizador (función, coste, consumidor, señal disponible) en host y fork, con eventos de sesión/pantalla/Explorer/layout donde sean fiables; el fallback de cursor de 250 ms se conserva y no se tocó; duración del callback con carga, Win solo/alt-tab rápido/input inyectado/reinicio de Explorer, y detección de un evento perdido; AppBar/InputRegions y keyboardlayout del fork.
+
 ### ID: P15 — Hacer splash barato y retirarlo por readiness real
 
 **Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
@@ -2561,6 +2568,20 @@ las claves guardadas y existe `-KeepSecrets`; el desinstalador ya no borra `%LOC
 - **Hecho:** `CMakePresets.json` en el fork (commit `b8cb811`): `windows-release` (Release explícito, clang-cl, Ninja, servicios Linux apagados, `DISTRIBUTOR` y `CRASHREPORT_URL` apuntando a este proyecto en vez del upstream de Quickshell) y `windows-debug` solo para diagnóstico. El fork compila entero con ese preset (518 pasos, 0 errores) contra Qt 6.12 oficial y clang-cl 23.1.3.
 - **Pendiente:** manifiesto de build (commits, flags, hashes, dirty) dentro del paquete; `deploy.ps1`/`make-package.ps1` ligados todavía a la ruta de Visual Studio y a `quickshell\build`; manifiesto incremental de assets; inventario de dependencias/licencias (CLI11 nuevo en la cadena); prueba de caché caliente/invalidada por cambio de QML; CI de Windows.
 - **Nota:** no se afirma que el release anterior fuera Debug; solo que el default de CMake lo era.
+
+### ID: U01 — Crear catálogo de acciones/capacidades y política de UI ii
+
+**Estado:** EN_CURSO
+- **Hecho (solo teclado):** `shared/actions.json` es la única lista de las acciones de teclado de ii, con id, texto, grupo, destino, **estado de soporte** (`available`/`partial`/`external`/`unsupported`) y **motivo obligatorio** para todo lo que no sea completo (el generador falla si falta). De ella salen, con `tools/dev/gen-actions.py`, la tabla que traga `ii-host` (`shortcuts_table.inc`), la chuleta de la shell (`HyprlandKeybinds.qml`) y `docs/ATAJOS.md`. `test-actions` falla si un archivo generado se desvía del catálogo, si una acción de shell que se traga una tecla no tiene `GlobalShortcut` en el QML, si ii se traga una combinación que Windows necesita (Win+L, Ctrl+Alt+Supr, Win+E, Win+P, Alt+Tab, Ctrl+Mayús+Esc) o si un límite no está explicado. Inventario de rutas Linux vivas: `docs/INVENTARIO-RUTAS-LINUX.md` (ver C12).
+- **Pendiente:** el catálogo no cubre todavía tiles de ajustes rápidos, menús, IPC, errores ni `FileDialog`/`ChooseColor`; no hay política de «identidad ii» con lista de excepciones protegidas ni auditoría `rg` de `ms-settings:`/ejecutables/diálogos; los controles no disponibles de los tiles (U05) siguen sin explicar su causa.
+
+### ID: U02 — Enrutar atajos completos con política por aplicación
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios:** los atajos de ii **ya no ceden ante una ventana maximizada** (antes cualquier ventana que cubriera el monitor los desactivaba y, con la barra oculta por ii, eso incluía un navegador maximizado: Win volvía a abrir Inicio). Política (`keyrouter.cpp::shouldYield`, regla en `%LOCALAPPDATA%\ii-windows\shortcuts.ini`): `auto` (por defecto) cede ante pantalla completa exclusiva/modo presentación y ventanas sin borde a pantalla completa, salvo navegadores; `geometry` es el comportamiento antiguo; `never` nunca cede; `[yield] processes=` fuerza ceder (perfil de juego) y `[keep] processes=` nunca; un `[yield]` explícito gana a `never`. El pánico (Ctrl+Alt+Mayús+R) es un `RegisterHotKey` del host: funciona incluso con los atajos cedidos. Nuevos/arreglados: Win+I → ajustes de ii (`ExtraShortcuts.qml`), Win+R → búsqueda de ii, Win+T → vista de ventanas (antes se tragaba sin hacer nada), Win+X → menú de sesión, Impr Pant → captura de región; Win+P/E, Alt+Tab, Ctrl+Mayús+Esc, Win+L siguen siendo de Windows y el catálogo dice por qué.
+- **Pruebas (PASS):** `ii-keyrouter-test` (48 comprobaciones): Win solo (abre búsqueda y enmascara el Start), Win+S, Win+Z (no se enmascara), Win+número/Mayús/Ctrl, las combinaciones nuevas, modificadores izquierdo/derecho, Alt+F4 en el escritorio, Ctrl+Esc, sin shell, cediendo, Win o Ctrl cuyo «soltar» se perdió, Win seguido de un modificador, que **cada entrada de la tabla se alcanza a sí misma**, y la decisión de ceder (navegador maximizado no, juego sin borde sí, navegador en F11 no, exclusiva sí, `[yield]`/`[keep]`/políticas). `test-actions` (12).
+- **Pendiente (impide VERIFICADA):** no se ejercitó con un teclado real ni con US/ES/OEM, autorepeat, juego real, ventana elevada (UIPI), RDP ni bloqueo/reanudación; la clasificación de primer plano (`SHQueryUserNotificationState`, estilos de ventana) solo está comprobada como lógica; Win+B sigue siendo el panel izquierdo (foco en bandeja necesita U06); Alt+Tab propio es U03.
+- **Rollback:** `git revert` del commit; `shortcuts.ini` con `fullscreen=geometry` devuelve la cesión antigua sin recompilar.
 
 ### ID: C12 — Corregir pin, idiomas y rutas Linux residuales vivas
 
