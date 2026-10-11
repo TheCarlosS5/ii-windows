@@ -15,6 +15,7 @@
 //   ii-shim fetch <https-url> [opts]      HTTPS bytes to stdout or an atomic cache file
 //   ii-shim ai-request <request.json>     streaming HTTP/HTTPS POST for AI chat
 //   ls [-1] <dir>                        sorted visible file and folder names, one per line
+//   mkdir [-p] / rm [-rf] / reset-dir / which   the few file commands QML starts (fsutil.cpp), user folders only
 //   ii-shim weather <place|lat,long>      wttr.in weather as ii's three-object JSON
 //   ii-shim files <action> ...            desktop file actions through the shell (fileops.cpp)
 //   ii-shim vdesk <command> ...            virtual desktops: switch, remove, move windows (vdesk.cpp)
@@ -514,6 +515,11 @@ int vdesk(const std::vector<std::wstring>& args);
 int filesCommand(const std::vector<std::wstring>& args);
 
 int brightnessCommand(const std::wstring& command, const std::vector<std::wstring>& args);
+// fsutil.cpp
+int mkdirCommand(const std::vector<std::wstring>& args);
+int rmCommand(const std::vector<std::wstring>& args);
+int resetDirCommand(const std::vector<std::wstring>& args);
+int whichCommand(const std::vector<std::wstring>& args);
 
 int wmain(int argc, wchar_t** argv) {
 	auto command = baseName(argv[0]);
@@ -538,6 +544,10 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"fetch") return fetch(args);
 	if (command == L"ai-request") return aiRequest(args);
 	if (command == L"ls") return ls(args);
+	if (command == L"mkdir") return mkdirCommand(args);
+	if (command == L"rm") return rmCommand(args);
+	if (command == L"reset-dir") return resetDirCommand(args);
+	if (command == L"which") return whichCommand(args);
 	if (command == L"weather") return weather(args);
 	if (command == L"cava") return cava(args);
 	if (command == L"nightlight") return nightlightCommand(args);

@@ -137,14 +137,14 @@ Todas las casillas están pendientes a fecha de redacción. No son resultados de
 | [ ] TODO | P01 | Investigar render loop sin perder repintado o entrada | 3 | P1 | CORE | B02, R02 |
 | [ ] TODO | P02 | Actualizar miniaturas DWM solo cuando cambian propiedades | 3 | P1 | CORE | B02 |
 | [ ] TODO | P03 | Acotar decodificación de fotos y pausar GIF realmente ocultos | 3 | P1 | CORE | B02 |
-| [ ] TODO | P04 | Eliminar animación decorativa perpetua del placeholder media | 3 | P1 | CORE | B02 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | P04 | Eliminar animación decorativa perpetua del placeholder media | 3 | P1 | CORE | B02 |
 | [ ] TODO | P05 | Compartir espectro, estado media y captura de audio | 3 | P1 | CORE | B02 |
 | [ ] TODO | P06 | Cargar paneles y pestañas bajo demanda con retención acotada | 3 | P1 | CORE | B02 |
 | [ ] TODO | P07 | Actualizar ventanas/escritorios con deltas y cobertura por monitor | 3 | P1 | CORE | B02, R09 |
 | [ ] TODO | P08 | Sacar thumbnails e iconos Shell lentos del hilo GUI | 3 | P1 | CORE | B02 |
 | [ ] TODO | P09 | Sustituir cachés sin límites/clear-all por presupuestos LRU | 3 | P1 | CORE | P08 |
 | [ ] TODO | P10 | Convertir audio/red/Bluetooth en servicios asíncronos y por eventos | 3 | P1 | CORE | B02 |
-| [ ] TODO | P11 | Basar temporizadores en tiempo real y limitar refresh visual | 3 | P1 | CORE | B02 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | P11 | Basar temporizadores en tiempo real y limitar refresh visual | 3 | P1 | CORE | B02 |
 | [ ] TODO | P12 | Sustituir sondeo redundante y mantener hook barato | 3 | P1 | CORE | B02 |
 | [ ] TODO | P13 | Optimizar búsqueda y descartar resultados viejos | 3 | P1 | CORE | B02 |
 | [ ] TODO | P14 | Reducir FBO y hacer texto nítido en escalado/DPI | 3 | P1 | CORE | B02 |
@@ -161,13 +161,13 @@ Todas las casillas están pendientes a fecha de redacción. No son resultados de
 | [ ] TODO | U07 | Mantener accesibilidad en todas las superficies reemplazadas | 4 | P1 | CORE | U01 |
 | [ ] TODO | U08 | Sincronizar estética de bloqueo hasta el límite soportado | 4 | P2 | CORE | R03, R08, U01 |
 | [ ] TODO | U09 | Completar notificaciones, OSD y entradas fuera del teclado | 4 | P2 | CORE | R01, U01, U02, P10 |
-| [ ] TODO | C12 | Corregir pin, idiomas y rutas Linux residuales vivas | 4 | P1 | CORE | U01, B00 |
+| [~] IMPLEMENTADA_SIN_VALIDAR_WINDOWS | C12 | Corregir pin, idiomas y rutas Linux residuales vivas | 4 | P1 | CORE | U01, B00 |
 | [ ] TODO | D01 | Versionar configuración, last-good y export/import portable | 4 | P1 | CORE | U01, R04, R08 |
 | [ ] TODO | W01 | Etapa A: coexistencia de fondo externo y capas ii | 5 | P1 | CORE | R02, U01, P07 |
 | [ ] TODO | W02 | Etapa B: detectar proveedores y seleccionar proyectos desde ii | 5 | P2 | CORE | W01, P08, P09, U04 |
 | [ ] TODO | W03 | Etapa C: paletas, pausa, batería, audio y snapshot lock | 5 | P2 | CORE | W02, P05, P16, R08, R03 |
 | [ ] TODO | W04 | Etapa D: playlists/propiedades y recuperación del proveedor | 5 | P2 | PARIDAD | W03, R07 |
-| [ ] TODO | F01 | Cambiar logo Fastfetch y dejar de imponerlo desde el wrapper | 5 | P2 | CORE | B00 |
+| [x] VERIFICADA | F01 | Cambiar logo Fastfetch y dejar de imponerlo desde el wrapper | 5 | P2 | CORE | B00 |
 | [ ] TODO | C01 | Completar captura de pantalla y anotación dentro de ii | 6 | P2 | PARIDAD | U01, U04, P08 |
 | [ ] TODO | C02 | Implementar fuente screen para OCR/traducción sin confundir DWM | 6 | P2 | PARIDAD | C01, R03 |
 | [ ] TODO | C03 | Grabar video y audio con un backend Windows completo | 6 | P2 | PARIDAD | C02, P16, U04 |
@@ -2530,6 +2530,23 @@ las claves guardadas y existe `-KeepSecrets`; el desinstalador ya no borra `%LOC
 - **Pendiente (impide VERIFICADA):** la migración QML de la clave no se ejecutó en una shell real; errores DPAPI/IO, perfil distinto, valor viejo corrupto; archivos `request` huérfanos tras un crash de verdad; permisos de archivos; redacción de chats en los logs de la propia shell (hay `console.log` de mensajes en `Ai.qml` upstream sin revisar).
 - **Rollback:** `git revert` de los dos commits; la clave sigue funcionando desde `config.json` si el almacén no la tiene (lectura de respaldo).
 
+### ID: P04 — Eliminar animación decorativa perpetua del placeholder media
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios (commit «P04: the idle media placeholder is still…»):** `MediaWidget.qml` (overlay): sin música el placeholder es **estático** por defecto (nota musical sobre una forma Material); solo hace un asentamiento breve (escala) cuando aparece o cambia el estado. La decoración continua (giro + cambio de forma cada 4 s) pasa a ser opción explícita `background.widgets.media.idleMotion` (apagada) y, aun activada, se detiene con «Reducir movimiento» (`appearance.reduceMotion`, interruptor nuevo en Ajustes › Widgets del escritorio), con la sesión bloqueada y con el escritorio cubierto. Reproducción, carátula, controles y espectro no cambian. No había un valor antiguo que migrar (antes siempre animaba): ninguna preferencia retirada deja una animación oculta. Parches: `patch_ii_widgets.py` (propiedades de configuración y los dos interruptores).
+- **Pruebas:** el parche aplica al árbol; `test-qml-lint` (3 aserciones, `qmllint`) no halla errores de sintaxis en los 40+ archivos QML que cambian el overlay y los parches.
+- **Pendiente (impide VERIFICADA):** medir en Windows el escritorio sin reproducción con el widget visible antes/después (frames, CPU/GPU), y comprobar visualmente el asentamiento al pasar play↔pausa; configuración antigua, lock/resume y cubrir/descubrir no se ejercieron con la shell real.
+- **Rollback:** `git revert` del commit.
+
+### ID: P11 — Basar temporizadores en tiempo real y limitar refresh visual
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Hallazgo:** `TimerService` ya guardaba marcas de tiempo (no contaba ticks); lo que faltaba era el refresco de cronómetro (10 ms) y pomodoro (200 ms) aunque nadie lo viera, y no había defensa frente a un ajuste del reloj. (El sello del cronómetro es una propiedad `int` de 32 bits: la resta sigue siendo correcta por aritmética modular hasta 248 días; ahora se hace explícito con `| 0`.)
+- **Cambios (ii: `f888b8a`; fork: `889c2a1`):** `Quickshell.Win32.MonotonicClock` (fork): `QueryInterruptTime`, que **sí cuenta el tiempo dormido/hibernado** (`QueryUnbiasedInterruptTime`/contadores que paran en suspensión harían volver tarde un pomodoro; si la API no existe se cae a `GetTickCount64` y `includesSleep()` lo dice). `patch_ii_timers.py`: si el reloj de pared se ajusta (usuario, sincronización) mientras un temporizador corre, sus marcas se desplazan lo mismo (no aparece ni desaparece tiempo ni sale negativo); suspender cuenta como tiempo transcurrido y un pomodoro que terminó durmiendo termina **una vez** al despertar; el cronómetro se refresca (33 ms, muestra centésimas) solo si hay una vista en pantalla y el pomodoro cada segundo si se ve o, si no, despierta cerca del fin de la vuelta (≤30 s para notar cambios de reloj) de modo que la alarma sigue llegando a tiempo; sin escrituras a disco por tick.
+- **Pruebas (PASS):** `test-qs-smoke` (4 aserciones) con el `quickshell.exe` compilado: el reloj monótono no retrocede, `includesSleep=true` y sigue al reloj de pared dentro de 150 ms en ~2 s; `qmllint` sin errores de sintaxis en `TimerService`/`Stopwatch`/`PomodoroTimer`.
+- **Pendiente (impide VERIFICADA):** la lógica QML de `TimerService` (ajuste de reloj, un solo aviso tras dormir, parada del refresco al ocultar, reapertura con configuración persistida) no se ejecutó: requiere la shell con `Persistent`/`Config` reales; comparar contra un cronómetro de referencia y dormir de verdad el equipo no se hizo (no se suspende la sesión del usuario).
+- **Rollback:** `git revert f888b8a` (ii) y `889c2a1` (fork).
+
 ### ID: P15 — Hacer splash barato y retirarlo por readiness real
 
 **Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
@@ -2544,3 +2561,19 @@ las claves guardadas y existe `-KeepSecrets`; el desinstalador ya no borra `%LOC
 - **Hecho:** `CMakePresets.json` en el fork (commit `b8cb811`): `windows-release` (Release explícito, clang-cl, Ninja, servicios Linux apagados, `DISTRIBUTOR` y `CRASHREPORT_URL` apuntando a este proyecto en vez del upstream de Quickshell) y `windows-debug` solo para diagnóstico. El fork compila entero con ese preset (518 pasos, 0 errores) contra Qt 6.12 oficial y clang-cl 23.1.3.
 - **Pendiente:** manifiesto de build (commits, flags, hashes, dirty) dentro del paquete; `deploy.ps1`/`make-package.ps1` ligados todavía a la ruta de Visual Studio y a `quickshell\build`; manifiesto incremental de assets; inventario de dependencias/licencias (CLI11 nuevo en la cadena); prueba de caché caliente/invalidada por cambio de QML; CI de Windows.
 - **Nota:** no se afirma que el release anterior fuera Debug; solo que el default de CMake lo era.
+
+### ID: C12 — Corregir pin, idiomas y rutas Linux residuales vivas
+
+**Estado:** IMPLEMENTADA_SIN_VALIDAR_WINDOWS
+- **Cambios:** `patch_ii_c12.py`: el **pin** del panel izquierdo es solo el estado (se acabó mover el cursor con `hyprctl cursorpos`/`dispatch` y arrancar tres procesos); la **lista de idiomas** se lee con `FolderListModel` sobre la carpeta real (solo archivos `xx_YY.json`; `tools/` no cuenta), no con `find`/`basename`; el idioma que se carga se **resuelve** contra los archivos que existen (`es_CO` → `es_MX` si no hay `es_CO.json`, si no inglés; se vuelve a resolver cuando termina el escaneo) con `overlay/.../LanguageResolve.js`; `Directories.qml` dejaba sin efecto `bash -c "rm -rf …; mkdir -p …"` (el `bash` del shim no es un intérprete) y ahora usa `ii-shim reset-dir`; `ii-shim` aprende `mkdir`, `rm`, `reset-dir` y `which` (`host/src/fsutil.cpp`), restringidos a carpetas del propio usuario (profundidad mínima, sin atravesar enlaces, sin `..`, nunca la raíz de una unidad); `tools/dev/scan-linux-routes.py` + `docs/INVENTARIO-RUTAS-LINUX.md` clasifican las llamadas a comandos Linux que siguen vivas por quién las atiende.
+- **Pruebas (PASS):** `test-language` (26) ejecuta el `LanguageResolve.js` real bajo Node (fallbacks, normalización, carpeta real de upstream); `test-shim-files` (23) con un perfil **falso** (USERPROFILE/LOCALAPPDATA/APPDATA/TEMP apuntando a una carpeta temporal, así que un fallo de las reglas no puede tocar el perfil real): crear/borrar, rechazo de carpetas de primer nivel, de lo externo y de `..`, junction dentro de una carpeta que se vacía, `which`; `test-linux-routes` (8): ningún comando Linux nuevo sin proveedor (quedan `file`, `identify`, `hyprctl`, cada uno atado a su tarea) y `find`/pin siguen retirados; `qmllint` sin errores de sintaxis.
+- **Pendiente (impide VERIFICADA):** pin con ratón/teclado, selector de idioma con archivos reales, cambio de idioma en caliente y es-CO/es-MX en la shell real; las 60 llamadas a `bash` del inventario (cada una puede estar inerte) y los warnings por undefined/null se revisan tarea a tarea, no aquí.
+- **Rollback:** `git revert` del commit.
+
+### ID: F01 — Cambiar logo Fastfetch y dejar de imponerlo desde el wrapper
+
+**Estado:** VERIFICADA
+- **Cambios (commit «F01: an 'ii' logo…»):** `extras/fastfetch/ii-logo.txt` es ahora un monograma «ii» compacto (dos tildes redondeadas y dos troncos de cinco filas, con el color 1 de la paleta de ii) y `ii-logo-ascii.txt` su variante en ASCII para consolas sin Unicode; `ii.jsonc` muestra el nombre y la **versión** del port con el módulo `command` (`II_VERSION`, «dev» si se ejecuta a mano) sin tocar la identificación del sistema (`os`, `uptime`, `terminal`… siguen siendo reales). `bin/fastfetch.cmd` ya no fuerza el logo viejo: **línea de comandos > configuración del usuario (`II_FASTFETCH_CONFIG` o `%LOCALAPPDATA%\ii-windows\fastfetch.jsonc`) > la de ii**; con `-c` no se añade nada, con `--logo`/`-l`/`--logo-*` no se añade el logo; elige el logo ASCII si no hay Windows Terminal ni consola UTF-8 (`II_FASTFETCH_ASCII=1` lo fuerza); resuelve la versión activa por `current.txt`; sin `fastfetch.exe` dice que no está y sale con 1 (el perfil de Terminal usa `-NoExit`/`cmd /k`, así que no hay bucle ni terminal rota). PNG/Sixel quedan documentados en `ii.jsonc` como opción de fastfetch según terminal. Los perfiles de Windows Terminal existentes no se tocan.
+- **Pruebas (PASS):** `test-fastfetch` (15 aserciones) con el `fastfetch.exe` 2.69 real desde un árbol temporal: logo por defecto reconocible (5 filas de tronco), línea de shell con versión, ASCII forzado y en consola no UTF-8, `--logo none` sin logo, `-c`, `II_FASTFETCH_CONFIG`, archivo de usuario y su precedencia, versión activa de `current.txt`, y ausencia de fastfetch.
+- **Pendiente (aceptado):** revisión visual humana de la alineación en distintos tamaños de terminal; Windows Terminal/consola clásica distintas de las de este equipo; rutas de instalación con Unicode.
+- **Rollback:** `git revert` del commit; el logo antiguo estaba en `ii-logo.txt` de `22dec54`.
