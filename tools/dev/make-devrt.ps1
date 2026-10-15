@@ -10,7 +10,10 @@ $cur = (Get-Content "$inst\current.txt" | Where-Object { $_ -like 'active=*' }) 
 $src = "$inst\versions\$cur"
 if (-not (Test-Path "$src\quickshell\quickshell.exe")) { throw "no installed runtime at $src" }
 New-Item -ItemType Directory -Force $Dest | Out-Null
-robocopy "$src\quickshell" "$Dest\quickshell" /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+# A running dev shell holds its files: stop it first, and never wait 30 s x 1,000,000 for a locked file.
+Get-Process quickshell, ii-host -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Dest*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep 1
+robocopy "$src\quickshell" "$Dest\quickshell" /MIR /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null
 $shimNew = "$root\host\build\ii-shim.exe"
 if (-not (Test-Path $shimNew)) { throw "build the host first (host\build\ii-shim.exe)" }
 # Every exe in bin that is a copy of the shim gets the new one.
