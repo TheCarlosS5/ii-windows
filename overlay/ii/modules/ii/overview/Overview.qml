@@ -151,6 +151,36 @@ Scope {
             }
         }
 
+        // The app store, next to it.
+        RippleButton {
+            id: storeButton
+            visible: GlobalStates.overviewOpen
+            opacity: columnLayout.opacity
+            anchors {
+                verticalCenter: appsButton.verticalCenter
+                left: appsButton.right
+                leftMargin: 12
+            }
+            implicitWidth: 56
+            implicitHeight: 56
+            buttonRadius: Appearance.rounding.full
+            colBackground: Appearance.colors.colBackgroundSurfaceContainer
+            onClicked: {
+                GlobalStates.overviewOpen = false;
+                Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("store.qml")]);
+            }
+            contentItem: MaterialSymbol {
+                anchors.centerIn: parent
+                horizontalAlignment: Text.AlignHCenter
+                text: "storefront"
+                iconSize: 28
+                color: Appearance.colors.colOnLayer1
+            }
+            StyledToolTip {
+                text: Translation.tr("App store")
+            }
+        }
+
         // "Show applications", bottom centre (GNOME's dash button).
         RippleButton {
             id: appsButton

@@ -92,6 +92,8 @@ Item {
         ...(root.desktopEntries.length > 0 ? [{ separator: true }] : []),
         { icon: "palette", text: Translation.tr("Personalize"),
           action: () => Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("settings.qml")]) },
+        { icon: "storefront", text: Translation.tr("App store"),
+          action: () => Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("store.qml")]) },
         { icon: "dashboard_customize", text: Translation.tr("Edit desktop"), action: () => GlobalStates.desktopEditMode = true },
         { icon: "desktop_windows", text: Translation.tr("Display settings"),
           action: () => Quickshell.execDetached(["xdg-open", "ms-settings:display"]) },
