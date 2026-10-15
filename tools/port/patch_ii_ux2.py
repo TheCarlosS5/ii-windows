@@ -1,6 +1,7 @@
 """UX round of 2026-10-15, part 2: AI models, features that do not work, welcome, about, settings.
 Exact-match edits of the staged tree; every edit fails loudly if upstream moved the code."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -370,3 +371,91 @@ edit(path('modules', 'settings', 'QuickConfig.qml'), [
 edit(path('settings.qml'), [
     ('    title: "illogical-impulse Settings"\n', '    title: "ii-windows"\n'),
 ])
+
+
+def read(p):
+    return open(p, encoding='utf-8', newline='').read().replace('\r\n', '\n')
+
+
+def write(p, text):
+    with open(p, 'w', encoding='utf-8', newline='') as f:
+        f.write(text)
+    print('patched', p)
+
+
+# --- Start-up in stages: the bar, the dock and the wallpaper first -------------------------------------------------
+# ii created every panel (sidebars, overview, lock, region selector, ...) and loaded every service they use before
+# showing anything. On a slow laptop that is what "ii is loading" waited for. Now phase 1 (wallpaper, bar, dock)
+# comes up first; phase 2 (notifications, right sidebar, search, OSD) ~2.5 s later; phase 3 (AI sidebar, lock,
+# screenshots, tour ...) ~5 s later, while the user already has a working desktop. A shortcut pressed in the first
+# seconds finds the panel not yet there; that is the price.
+edit(path('GlobalStates.qml'), [
+    ('    property bool overviewOpen: false\n',
+     '    property bool overviewOpen: false\n'
+     '    property int startupPhase: 1 // ii-windows: panels load in stages, see panelFamilies/PanelLoader.qml\n'),
+])
+edit(path('panelFamilies', 'PanelLoader.qml'), [
+    ('import QtQuick\nimport Quickshell\n', 'import QtQuick\nimport Quickshell\n\nimport qs\n'),
+    ('''    property bool extraCondition: true
+    active: Config.ready && extraCondition
+''',
+     '''    property bool extraCondition: true
+    property int phase: 1 // ii-windows: 1 = at once, 2 and 3 = a little later (GlobalStates.startupPhase)
+    active: Config.ready && extraCondition && GlobalStates.startupPhase >= phase
+'''),
+])
+_family = read(path('panelFamilies', 'IllogicalImpulseFamily.qml'))
+_phases = {
+    'Cheatsheet': 3, 'Lock': 3, 'MediaControls': 2, 'NotificationPopup': 2, 'OnScreenDisplay': 2, 'LockKeysOsd': 2,
+    'OnScreenKeyboard': 3, 'Overview': 2, 'Polkit': 3, 'RegionSelector': 3, 'ScreenCorners': 2, 'ScreenTranslator': 3,
+    'SessionScreen': 3, 'SidebarLeft': 3, 'SidebarRight': 2, 'WallpaperSelector': 3,
+}
+for _name, _phase in _phases.items():
+    _old = 'component: ' + _name + ' {}'
+    if _family.count(_old) != 1:
+        raise SystemExit('IllogicalImpulseFamily.qml: expected one "' + _old + '"')
+    _family = _family.replace(_old, 'phase: ' + str(_phase) + '; ' + _old)
+if 'import qs\n' not in _family:
+    _family = _family.replace('import qs.modules.common\n', 'import qs\nimport qs.modules.common\n', 1)
+_family = _family.replace('''Scope {
+    PanelLoader''', '''Scope {
+    // ii-windows: the stages of start-up (see PanelLoader.qml).
+    Timer {
+        running: Config.ready
+        interval: 2500
+        repeat: true
+        onTriggered: {
+            if (GlobalStates.startupPhase < 3) GlobalStates.startupPhase += 1;
+            else running = false;
+            interval = 2500;
+        }
+    }
+    PanelLoader''', 1)
+write(path('panelFamilies', 'IllogicalImpulseFamily.qml'), _family)
+
+
+# The desktop's widgets and icons wait for phase 2: the wallpaper, the bar and the dock come first.
+_bg = read(path('modules', 'ii', 'background', 'Background.qml'))
+_bg, _n = re.subn(r'shown: Config\.options\.background\.widgets\.(\w+)\.enable', r'shown: GlobalStates.startupPhase >= 2 && Config.options.background.widgets.\1.enable', _bg)
+if _n < 10:
+    raise SystemExit('Background.qml: expected the desktop widget loaders, found ' + str(_n))
+_old = 'active: Config.options.background.widgets.desktopIcons.enable && !GlobalStates.screenLocked'
+if _bg.count(_old) != 1:
+    raise SystemExit('Background.qml: desktop icons loader not found')
+_bg = _bg.replace(_old, 'active: GlobalStates.startupPhase >= 2 && Config.options.background.widgets.desktopIcons.enable && !GlobalStates.screenLocked')
+write(path('modules', 'ii', 'background', 'Background.qml'), _bg)
+
+
+# --- "Reduce animations" applies to every animation that goes through Appearance --------------------------------------
+# (panels sliding in, popups, ripples, the overview, the dock's slide ...): their durations become 0. Costs nothing when
+# off. It also saves CPU/GPU: no frames are drawn for movement that is not there.
+_app = read(path('modules', 'common', 'Appearance.qml'))
+_app, _n1 = re.subn(r'readonly property real (expressive\w+Duration): (\d+)', r'readonly property real \1: \2 * root.motionFactor', _app)
+_app, _n2 = re.subn(r'(property int duration): (\d+)\n', r'\1: \2 * root.motionFactor\n', _app)
+if _n1 != 4 or _n2 < 5:
+    raise SystemExit('Appearance.qml: animation durations not as expected (%d, %d)' % (_n1, _n2))
+_marker = '    animationCurves: QtObject {'
+if _app.count(_marker) != 1:
+    raise SystemExit('Appearance.qml: animationCurves not found')
+_app = _app.replace(_marker, '    // ii-windows: 0 with "Reduce animations" (Settings > Appearance), 1 otherwise.\n    readonly property real motionFactor: (Config?.options?.appearance?.reduceMotion ?? false) ? 0 : 1\n\n' + _marker)
+write(path('modules', 'common', 'Appearance.qml'), _app)

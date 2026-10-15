@@ -339,12 +339,24 @@ void stopShell() {
 
 // --- apply / restore -----------------------------------------------------------------------
 
+// Logs a step that kept the host's message loop busy (it also runs the readiness check and the keyboard).
+struct SlowStep {
+	const wchar_t* name;
+	ULONGLONG started = GetTickCount64();
+	explicit SlowStep(const wchar_t* n): name(n) {}
+	~SlowStep() {
+		auto took = GetTickCount64() - started;
+		if (took >= 150) log(L"slow: %s took %llu ms", name, took);
+	}
+};
+
 void applyAll() {
 	uiHidden = true;
-	if (options.taskbar) taskbar::hide();
-	if (options.icons) desktop::hideIcons();
+	bench(L"apply-begin");
+	if (options.taskbar) { SlowStep s(L"taskbar::hide"); taskbar::hide(); }
+	if (options.icons) { SlowStep s(L"desktop::hideIcons"); desktop::hideIcons(); }
 	// Banners are not touched here: see evaluateBanners().
-	if (options.theme) theme::start();
+	if (options.theme) { SlowStep s(L"theme::start"); theme::start(); }
 }
 
 // Gives Explorer's taskbar and desktop icons back without ending the host: used while a shell
@@ -584,13 +596,17 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 
 void watchShell() {
 	if (!shellProcess || shuttingDown) return;
+	if (!shellReady) bench(L"watch-tick");
 	ShellWindows found;
 	found.pid = shellPid;
 	EnumDisplayMonitors(nullptr, nullptr, collectMonitor, reinterpret_cast<LPARAM>(&found.monitors)); // NOLINT
 	EnumWindows(inspectShellWindow, reinterpret_cast<LPARAM>(&found)); // NOLINT
 	// IsHungAppWindow skips tool/layered windows like the shell's: ask one directly.
 	DWORD_PTR result = 0;
-	if (!found.hung && found.any && !SendMessageTimeoutW(found.any, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, 1000, &result)) {
+	// While the shell is still coming up its thread is busy creating panels: waiting a full second for it on every
+	// tick delayed "ready" (and the host's own keyboard hook) for nothing. A short wait says the same.
+	const UINT pingMs = shellReady ? 1000 : 250;
+	if (!found.hung && found.any && !SendMessageTimeoutW(found.any, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, pingMs, &result)) {
 		found.hung = true;
 	}
 	auto now = GetTickCount64();
@@ -711,25 +727,26 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				nightlight::restore(); // no tint without a live crash-recovery process
 				log(L"nightlight disabled: guard exited");
 			}
-			nightlight::tick();
+			{ SlowStep s(L"nightlight::tick"); nightlight::tick(); }
 			if (uiHidden) {
-				if (options.taskbar) taskbar::reapply();
-				if (options.icons) desktop::reapplyIcons();
+				if (options.taskbar) { SlowStep s(L"taskbar::reapply"); taskbar::reapply(); }
+				if (options.icons) { SlowStep s(L"desktop::reapplyIcons"); desktop::reapplyIcons(); }
 			}
 			// Wallpaper changes rewrite ii's palette; Windows follows.
-			if (options.theme) theme::apply();
+			if (options.theme) { SlowStep s(L"theme::apply"); theme::apply(); }
 		} else if (wParam == TIMER_RESTART_SHELL) {
 			KillTimer(hwnd, TIMER_RESTART_SHELL);
 			if (!shuttingDown && !startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
 		} else if (wParam == TIMER_HEALTH) {
-			evaluateBanners();
-			if (options.hook) keyboard::refreshContext(); // reconcile what the hook reads (shell, foreground, shortcuts.ini)
+			{ SlowStep s(L"evaluateBanners"); evaluateBanners(); }
+			if (options.hook) { SlowStep s(L"keyboard::refreshContext"); keyboard::refreshContext(); } // reconcile what the hook reads (shell, foreground, shortcuts.ini)
 		} else if (wParam == TIMER_WATCHDOG) {
+			SlowStep s(L"watchShell");
 			watchShell();
 		} else if (wParam == TIMER_BOOT_FAST) {
 			// Explorer is still starting: hide its taskbar (and icons) as soon as they appear.
-			if (uiHidden && options.taskbar) taskbar::reapply();
-			if (uiHidden && options.icons) desktop::reapplyIcons();
+			if (uiHidden && options.taskbar) { SlowStep s(L"boot taskbar::reapply"); taskbar::reapply(); }
+			if (uiHidden && options.icons) { SlowStep s(L"boot desktop::reapplyIcons"); desktop::reapplyIcons(); }
 			static ULONGLONG fastUntil = GetTickCount64() + BOOT_FAST_FOR_MS;
 			if (GetTickCount64() > fastUntil) KillTimer(hwnd, TIMER_BOOT_FAST);
 		} else if (wParam == TIMER_BOOT_END) {
@@ -860,7 +877,10 @@ int runHost() {
 	if (options.nightlight) nightlight::start(guardReady);
 	watchExplorer();
 	SetTimer(hostWindow, TIMER_REAPPLY, 2000, nullptr);
-	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr);
+	// The fast tick startShell() set while the shell comes up must stay: this line used to put the slow 5 s
+	// housekeeping tick on top of it, so the shell was only noticed as ready ~5 s after launch even when its
+	// wallpaper had been up for 2.
+	SetTimer(hostWindow, TIMER_WATCHDOG, (shellProcess && !shellReady) ? std::min<UINT>(250, watchdogMs()) : watchdogMs(), nullptr);
 	SetTimer(hostWindow, TIMER_HEALTH, 1000, nullptr); // heartbeat expiry is judged on the host's own clock
 	if (options.hook) keyboard::install(hostWindow);
 	WTSRegisterSessionNotification(hostWindow, NOTIFY_FOR_THIS_SESSION);

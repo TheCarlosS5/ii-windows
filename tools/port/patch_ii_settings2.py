@@ -328,8 +328,8 @@ edit(path('modules', 'common', 'Persistent.qml'), [
 ])
 edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
     ('import qs.modules.ii.sidebarRight\n', 'import qs.modules.ii.sidebarRight\nimport qs.modules.ii.tour\n'),
-    ('    PanelLoader { component: WallpaperSelector {} }\n',
-     '    PanelLoader { component: WallpaperSelector {} }\n    PanelLoader { component: Tour {} } // ii-windows: the guided tour\n'),
+    ('    PanelLoader { phase: 3; component: WallpaperSelector {} }\n',
+     '    PanelLoader { phase: 3; component: WallpaperSelector {} }\n    PanelLoader { phase: 3; component: Tour {} } // ii-windows: the guided tour\n'),
 ])
 
 
