@@ -9,7 +9,9 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 
 // ii-windows: right click on a dock app, like the Windows taskbar's: the app, a new window,
-// pin or unpin, close its window(s). Opens above the button; any click elsewhere closes it.
+// pin or unpin, close its window(s). Right click on the dock itself (or the overview button)
+// opens the dock's own menu: pin it, move it, settings. Opens next to the dock; any click
+// elsewhere closes it.
 PopupWindow {
     id: root
 
@@ -18,10 +20,12 @@ PopupWindow {
     readonly property var appToplevel: button?.appToplevel ?? null
     readonly property var desktopEntry: button?.desktopEntry ?? null
     readonly property int windowCount: appToplevel?.toplevels?.length ?? 0
+    readonly property bool forDock: button === null
     // The dock lists apps by lower-cased id while pins keep the Start menu's casing
     // (Microsoft.Windows.Explorer): compare without case, pin with the proper id.
     readonly property string appId: desktopEntry?.id ?? appToplevel?.appId ?? ""
     readonly property bool pinned: Config.options.dock.pinnedApps.some(id => id.toLowerCase() === root.appId.toLowerCase())
+    readonly property string edge: dockApps.edge
 
     function togglePin() {
         const pins = Config.options.dock.pinnedApps;
@@ -30,11 +34,13 @@ PopupWindow {
             : pins.concat([root.appId]);
     }
     property bool shown: false
-    property real centerX: 0
+    property real center: 0
 
     function open(target) {
         root.button = target;
-        root.centerX = dockApps.popupCenterXForButton(target);
+        root.center = target ? dockApps.centerOfButton(target) : dockApps.width / 2;
+        if (!target)
+            root.center = dockApps.vertical ? dockApps.height / 2 : dockApps.width / 2;
         root.shown = true;
     }
     function close() {
@@ -42,6 +48,21 @@ PopupWindow {
     }
 
     readonly property var entries: {
+        if (root.forDock) {
+            return [
+                { icon: Config.options.dock.pinnedOnStartup ? "keep_off" : "keep",
+                  text: Config.options.dock.pinnedOnStartup ? Translation.tr("Let the dock hide") : Translation.tr("Keep the dock visible"),
+                  action: () => { Config.options.dock.pinnedOnStartup = !Config.options.dock.pinnedOnStartup; } },
+                { icon: "south", text: Translation.tr("Dock at the bottom"), enabled: root.edge !== "bottom",
+                  action: () => { Config.options.dock.position = "bottom"; } },
+                { icon: "west", text: Translation.tr("Dock on the left"), enabled: root.edge !== "left",
+                  action: () => { Config.options.dock.position = "left"; } },
+                { icon: "east", text: Translation.tr("Dock on the right"), enabled: root.edge !== "right",
+                  action: () => { Config.options.dock.position = "right"; } },
+                { icon: "settings", text: Translation.tr("Dock settings"),
+                  action: () => Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("settings.qml")]) },
+            ];
+        }
         const list = [
             { icon: "open_in_new", text: Translation.tr("New window"), enabled: root.desktopEntry !== null,
               action: () => root.desktopEntry?.execute() },
@@ -58,13 +79,18 @@ PopupWindow {
     anchor {
         window: root.dockApps.QsWindow.window
         adjustment: PopupAdjustment.None
-        gravity: Edges.Top | Edges.Right
+        rect.x: root.edge === "left" ? root.dockApps.edgeGap + root.dockApps.bgThick + 4
+            : root.edge === "right" ? root.dockApps.width - (root.dockApps.edgeGap + root.dockApps.bgThick + 4) : 0
+        rect.y: root.edge === "bottom" ? root.dockApps.height - (root.dockApps.edgeGap + root.dockApps.bgThick + 4) : 0
+        rect.width: 1
+        rect.height: 1
+        gravity: root.edge === "bottom" ? (Edges.Top | Edges.Right) : root.edge === "left" ? (Edges.Bottom | Edges.Right) : (Edges.Bottom | Edges.Left)
         edges: Edges.Top | Edges.Left
     }
     visible: menu.opacity > 0
     color: "transparent"
-    implicitWidth: root.dockApps.QsWindow.window?.width ?? 1
-    implicitHeight: menu.implicitHeight + Appearance.sizes.elevationMargin * 2
+    implicitWidth: root.dockApps.vertical ? menu.width + Appearance.sizes.elevationMargin * 2 : (root.dockApps.QsWindow.window?.width ?? 1)
+    implicitHeight: root.dockApps.vertical ? (root.dockApps.QsWindow.window?.height ?? 1) : menu.implicitHeight + Appearance.sizes.elevationMargin * 2
 
     HyprlandFocusGrab {
         windows: [root, root.dockApps.QsWindow.window]
@@ -85,9 +111,11 @@ PopupWindow {
         Behavior on opacity {
             animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
         }
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Appearance.sizes.elevationMargin
-        x: Math.max(Appearance.sizes.elevationMargin, Math.min(root.centerX - width / 2, parent.width - width - Appearance.sizes.elevationMargin))
+        readonly property real margin: Appearance.sizes.elevationMargin
+        x: root.edge === "bottom" ? Math.max(margin, Math.min(root.center - width / 2, parent.width - width - margin))
+            : root.edge === "left" ? margin : parent.width - width - margin
+        y: root.edge === "bottom" ? parent.height - height - margin
+            : Math.max(margin, Math.min(root.center - height / 2, parent.height - height - margin))
         width: 240
         implicitHeight: menuColumn.implicitHeight + 12
         radius: Appearance.rounding.normal
@@ -101,8 +129,9 @@ PopupWindow {
 
             // The app, as the Windows taskbar shows it at the top of the list.
             Item {
+                visible: !root.forDock
                 width: menuColumn.width
-                height: 44
+                height: root.forDock ? 0 : 44
                 IconImage {
                     id: appIcon
                     anchors.left: parent.left
@@ -125,9 +154,10 @@ PopupWindow {
             }
 
             Rectangle {
+                visible: !root.forDock
                 width: menuColumn.width - 12
                 x: 6
-                height: 1
+                height: root.forDock ? 0 : 1
                 color: Appearance.colors.colOutlineVariant
             }
 

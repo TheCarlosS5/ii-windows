@@ -28,7 +28,7 @@ Item {
     // Keep the menu clear of the bar and of the dock (both sit above the desktop).
     readonly property real topLimit: (Config.options.bar.bottom ? 0 : Appearance.sizes.barHeight) + 8
     readonly property real bottomLimit: root.height - 8 - (Config.options.bar.bottom ? Appearance.sizes.barHeight : 0)
-        - (Config.options.dock.enable ? Config.options.dock.height + 16 : 0)
+        - (Config.options.dock.enable ? GlobalStates.dockInsetBottom + 16 : 0)
 
     // Options of the widget under the pointer (its menuEntries), shown first.
     property var widgetEntries: []
@@ -78,42 +78,24 @@ Item {
         entry.enable = enabling;
     }
 
+    // Like Windows' own desktop menu, in ii's style and short: what you do on a desktop (new, paste,
+    // sort), ii's settings, display settings and the native Windows menu (graphics control panel,
+    // "Open with ...", Terminal ...) behind "More options". Wallpaper and widgets are changed from
+    // Settings and from the edit mode, not from here.
+    function desktopEntry(key) {
+        return root.desktopEntries.find(e => e.key === key);
+    }
     readonly property var entries: root.customEntries ?? [
         ...root.widgetEntries,
         ...(root.widgetEntries.length > 0 ? [{ separator: true }] : []),
-        ...root.desktopEntries,
+        ...[root.desktopEntry("new"), root.desktopEntry("paste"), root.desktopEntry("sort")].filter(e => e !== undefined),
         ...(root.desktopEntries.length > 0 ? [{ separator: true }] : []),
-        { icon: "wallpaper", text: Translation.tr("Change wallpaper"), action: () => root.changeWallpaper() },
-        // From the wallpaper folder; with nothing there yet, one from Konachan (saved there).
-        { icon: "shuffle", text: Translation.tr("Random wallpaper"),
-          action: () => Wallpapers.folderModel.count > 0 ? Wallpapers.randomFromCurrentFolder()
-                                                         : Quickshell.execDetached(["ii-shim", "randomwall", "konachan"]) },
-        { icon: "cloud_download", text: Translation.tr("Random: Konachan"),
-          action: () => Quickshell.execDetached(["ii-shim", "randomwall", "konachan"]) },
-        { separator: true },
-        { header: Translation.tr("Widgets") },
-        // Two columns of toggles: the menu has to fit on small screens too.
-        { widgets: [
-            { icon: "schedule", text: Translation.tr("Clock"), widget: "clock" },
-            { icon: "music_note", text: Translation.tr("Music"), widget: "media" },
-            { icon: "image", text: Translation.tr("Photo"), widget: "photo" },
-            { icon: "folder", text: Translation.tr("Recent"), widget: "folder" },
-            { icon: "partly_cloudy_day", text: Translation.tr("Weather"), widget: "weather" },
-            { icon: "apps", text: Translation.tr("Icons"), widget: "desktopIcons" },
-            { icon: "calendar_month", text: Translation.tr("Calendar"), widget: "calendar" },
-            { icon: "checklist", text: Translation.tr("To Do"), widget: "todo" },
-            { icon: "timer", text: Translation.tr("Timer"), widget: "timer" },
-            { icon: "monitoring", text: Translation.tr("Resources"), widget: "resources" },
-            { icon: "sticky_note_2", text: Translation.tr("Note"), widget: "notes" },
-            { icon: "translate", text: Translation.tr("Japanese clock"), widget: "japaneseClock" },
-        ] },
-        { icon: "dashboard_customize", text: Translation.tr("Edit desktop"), action: () => GlobalStates.desktopEditMode = true },
-        { separator: true },
-        { icon: "layers", text: Translation.tr("Overlay widgets"), action: () => GlobalStates.overlayOpen = true },
-        { icon: "settings", text: Translation.tr("Settings"),
+        { icon: "palette", text: Translation.tr("Personalize"),
           action: () => Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("settings.qml")]) },
+        { icon: "dashboard_customize", text: Translation.tr("Edit desktop"), action: () => GlobalStates.desktopEditMode = true },
         { icon: "desktop_windows", text: Translation.tr("Display settings"),
           action: () => Quickshell.execDetached(["xdg-open", "ms-settings:display"]) },
+        ...[root.desktopEntry("terminal"), root.desktopEntry("more")].filter(e => e !== undefined),
     ]
 
     PanelWindow {

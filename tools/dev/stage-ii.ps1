@@ -58,6 +58,9 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\patch_ii_timers.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_timers.py failed" }
 # Secrets: the Gelbooru key moves from config.json to the per-user secret store (R11).
 & python -I "$root\tools\port\patch_ii_secrets.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_secrets.py failed" }
+# UX round 2026-10-15: dock options, bar, battery, defaults.
+& python -I "$root\tools\port\patch_ii_ux.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ux.py failed" }
+& python -I "$root\tools\port\patch_ii_ux2.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ux2.py failed" }
 # Every folder/file the QML imports must be there and not empty (a submodule that was never
 # initialised leaves an empty folder, and the shell then dies on start): refuse to stage such a tree.
 $importCheck = & python -I "$root\tools\dev\check-qml-imports.py" $dest

@@ -455,15 +455,17 @@ Item {
 
     // Added to the desktop menu (right click on the wallpaper).
     readonly property var desktopEntries: [
-        { icon: "create_new_folder", text: Translation.tr("New folder"),
+        { key: "new", icon: "create_new_folder", text: Translation.tr("New folder"),
           action: () => root.newFolderAt(root.menu.originX, root.menu.originY) },
-        { icon: "content_paste", text: Translation.tr("Paste"), action: () => root.paste() },
-        { icon: "sort", text: Translation.tr("Sort by"), choices: [
+        { key: "paste", icon: "content_paste", text: Translation.tr("Paste"), action: () => root.paste() },
+        { key: "sort", icon: "sort", text: Translation.tr("Sort by"), choices: [
             { text: Translation.tr("Name"), checked: root.sortMode === "name", action: () => root.sortBy("name") },
             { text: Translation.tr("Date"), checked: root.sortMode === "date", action: () => root.sortBy("date") },
             { text: Translation.tr("Type"), checked: root.sortMode === "type", action: () => root.sortBy("type") },
         ] },
-        { icon: "more_horiz", text: Translation.tr("More options"),
+        { key: "terminal", icon: "terminal", text: Translation.tr("Open in Terminal"),
+          action: () => Quickshell.execDetached(["wt", "-d", root.nativePath(root.userDesktop)]) },
+        { key: "more", icon: "more_horiz", text: Translation.tr("More options"),
           action: () => { menuProc.command = ["ii-shim", "files", "menu", "--background", root.nativePath(root.userDesktop)]; menuProc.running = true; } },
     ]
 

@@ -142,7 +142,10 @@ int aiRequest(const std::vector<std::wstring>& args) {
 		sweepStaleRequests(args[0]);
 		auto data = readRequest(args[0]);
 		auto url = expandEnvironment(std::wstring(data.GetNamedString(L"url")));
-		auto body = winrt::to_string(data.GetNamedString(L"body"));
+		// POST by default; {"method":"GET"} (no body) lists what a provider offers, e.g. Gemini's models.
+		std::wstring httpMethod = L"POST";
+		if (data.HasKey(L"method") && std::wstring(data.GetNamedString(L"method")) == L"GET") httpMethod = L"GET";
+		auto body = data.HasKey(L"body") ? winrt::to_string(data.GetNamedString(L"body")) : std::string();
 		require(body.size() <= std::numeric_limits<DWORD>::max(), "request body too large");
 		require(!hasControl(url) && url.find_first_of(L" \\") == std::wstring::npos, "invalid request URL");
 
@@ -180,7 +183,7 @@ int aiRequest(const std::vector<std::wstring>& args) {
 		Internet connection(WinHttpConnect(session.get(), host.c_str(), parts.nPort, 0));
 		httpRequire(connection != nullptr, "HTTP connection failed");
 		auto flags = parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0;
-		Internet request(WinHttpOpenRequest(connection.get(), L"POST", target.c_str(), nullptr,
+		Internet request(WinHttpOpenRequest(connection.get(), httpMethod.c_str(), target.c_str(), nullptr,
 		                                   WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags));
 		httpRequire(request != nullptr, "cannot create HTTP request");
 		// curl did not follow redirects; keep credentials on the specified endpoint.

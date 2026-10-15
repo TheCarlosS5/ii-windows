@@ -352,48 +352,7 @@ edit(path('modules', 'ii', 'overview', 'OverviewWindow.qml'), [
     ('        captureSource: GlobalStates.overviewOpen ? root.toplevel : null',
      '        captureSource: GlobalStates.overviewOpen && !root.windowData?.hidden ? root.toplevel : null'),
 ])
-# Dock: right click opens a menu like the Windows taskbar's (DockContextMenu.qml: new window,
-# pin/unpin, close window(s)) instead of silently toggling the pin.
-edit(path('modules', 'ii', 'dock', 'DockAppButton.qml'), [
-    ('''    altAction: () => {
-        TaskbarApps.togglePin(appToplevel.appId);
-    }''',
-     '''    altAction: () => {
-        appListRoot.openContextMenu(root);
-    }'''),
-])
-# Dock, like the Windows taskbar: clicking the app whose window is in front minimizes it.
-edit(path('modules', 'ii', 'dock', 'DockAppButton.qml'), [
-    ('''        lastFocused = (lastFocused + 1) % appToplevel.toplevels.length
-        appToplevel.toplevels[lastFocused].activate()''',
-     '''        const windows = appToplevel.toplevels;
-        if (windows.length === 1 && windows[0].activated && !windows[0].minimized) {
-            windows[0].minimized = true;
-            return;
-        }
-        lastFocused = (lastFocused + 1) % windows.length
-        windows[lastFocused].activate()'''),
-])
-edit(path('modules', 'ii', 'dock', 'DockApps.qml'), [
-    ('    property bool requestDockShow: previewPopup.show',
-     '    property bool requestDockShow: previewPopup.show || contextMenu.shown'),
-    ('        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0',
-     '        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0 && !contextMenu.shown'),
-    ('''    PopupWindow {
-        id: previewPopup''',
-     '''    function openContextMenu(button) {
-        previewPopup.show = false;
-        contextMenu.open(button);
-    }
-
-    DockContextMenu {
-        id: contextMenu
-        dockApps: root
-    }
-
-    PopupWindow {
-        id: previewPopup'''),
-])
+# Dock: now a full overlay (overlay/ii/modules/ii/dock): magnifying icons, right-click menu, minimize on click.
 
 # Bar: Windows app ids are AppUserModelIDs (Microsoft.WindowsTerminal_8wekyb3d8bbwe!App) or exe
 # names; show the app's name from the Start menu instead, as a Linux class name would read.
