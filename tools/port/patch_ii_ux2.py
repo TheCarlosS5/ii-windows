@@ -99,3 +99,173 @@ edit(path('services', 'Ai.qml'), [
     property var modelList: Object.keys(root.models)
 '''),
 ])
+
+
+# --- Overview: GNOME-style search (overlay: Overview.qml, SearchWidget.qml, AppGrid.qml) ----------------------
+# SearchBar: no Google Lens / music recognition buttons (neither works here); the keys that move
+# through the results go to SearchWidget; the pill keeps one width.
+edit(path('modules', 'ii', 'overview', 'SearchBar.qml'), [
+    ('''    property string searchingText
+
+    function forceFocus() {''',
+     '''    property string searchingText
+    property bool navigating: false
+    signal navigate(string direction)
+    signal activate()
+
+    function forceFocus() {'''),
+    ('''        implicitWidth: root.searchingText == "" ? Appearance.sizes.searchWidthCollapsed : Appearance.sizes.searchWidth
+''',
+     '''        implicitWidth: 400
+'''),
+    ('''        onTextChanged: LauncherSearch.query = text
+
+        onAccepted: {
+            if (appResults.count > 0) {
+                // Get the first visible delegate and trigger its click
+                let firstItem = appResults.itemAtIndex(0);
+                if (firstItem && firstItem.clicked) {
+                    firstItem.clicked();
+                }
+            }
+        }
+
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Tab) {
+                if (LauncherSearch.results.length === 0) return;
+                const tabbedText = LauncherSearch.results[0].name;
+                LauncherSearch.query = tabbedText;
+                searchInput.text = tabbedText;
+                event.accepted = true;
+            }
+        }
+''',
+     '''        onTextChanged: {
+            LauncherSearch.query = text;
+            root.navigating = false;
+        }
+
+        onAccepted: root.activate()
+
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Tab) {
+                if (LauncherSearch.results.length === 0) return;
+                const tabbedText = LauncherSearch.results[0].name;
+                LauncherSearch.query = tabbedText;
+                searchInput.text = tabbedText;
+                event.accepted = true;
+            } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
+                root.navigating = true;
+                root.navigate(event.key === Qt.Key_Down ? "down" : "up");
+                event.accepted = true;
+            } else if (root.navigating && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+                root.navigate(event.key === Qt.Key_Left ? "left" : "right");
+                event.accepted = true;
+            }
+        }
+'''),
+])
+_sb = open(path('modules', 'ii', 'overview', 'SearchBar.qml'), encoding='utf-8', newline='').read().replace('\r\n', '\n')
+_a = _sb.index('    IconToolbarButton {\n        Layout.topMargin: 4\n        Layout.bottomMargin: 4\n        onClicked: {\n            GlobalStates.overviewOpen = false;')
+_sb = _sb[:_a].rstrip() + '\n}\n'
+open(path('modules', 'ii', 'overview', 'SearchBar.qml'), 'w', encoding='utf-8', newline='').write(_sb)
+print('patched', path('modules', 'ii', 'overview', 'SearchBar.qml'), '(buttons removed)')
+
+edit(path('modules', 'ii', 'overview', 'SearchItem.qml'), [
+    ('    readonly property bool selected: (root.hovered || root.focus)\n',
+     '    property bool forcedSelected: false // ii-windows: the keyboard selection of the grid-style results\n'
+     '    readonly property bool selected: (root.hovered || root.focus || root.forcedSelected)\n'),
+])
+
+
+def add_translations(code, strings):
+    import json
+    file = path('translations', code + '.json')
+    with open(file, encoding='utf-8') as f:
+        data = json.load(f)
+    for key, value in strings.items():
+        data.setdefault(key, value)
+    with open(file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write('\n')
+
+
+ES_UX2 = {
+    "Show applications": "Mostrar aplicaciones",
+    "Online | Google's model | Available with your key": "En línea | Modelo de Google | Disponible con tu clave",
+}
+add_translations('es_MX', ES_UX2)
+
+
+# --- Lock keys indicator, Windows' wallpaper adopted, wallpaper refits on a new resolution -----------------------
+edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
+    ('    PanelLoader { component: OnScreenDisplay {} }\n',
+     '    PanelLoader { component: OnScreenDisplay {} }\n    PanelLoader { component: LockKeysOsd {} } // ii-windows: Caps/Num/Scroll Lock\n'),
+    # "Overlay widgets" (crosshair, FPS limiter, recorder, mixer, notes, ...): nobody asked for them and
+    # they cost memory and time at start, so the panel is not loaded at all.
+    ('    PanelLoader { component: Overlay {} }\n', ''),
+])
+edit(path('shell.qml'), [
+    ("        DesktopCleanup.load() // ii-windows: empty desktops don't pile up\n",
+     "        DesktopCleanup.load() // ii-windows: empty desktops don't pile up\n"
+     "        LockKeys.load() // ii-windows: Caps/Num/Scroll Lock indicator\n"
+     "        Quickshell.execDetached([\"switchwall\", \"--adopt-windows\"]) // ii-windows: the wallpaper Windows has is ii's too\n"),
+])
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject osd: JsonObject {
+                property int timeout: 1000
+''',
+     '''            property JsonObject osd: JsonObject {
+                property int timeout: 1000
+                property bool lockKeys: true // ii-windows: "Caps Lock on" and the like
+'''),
+])
+edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
+    ('''            onValueChanged: {
+                Config.options.osd.timeout = value;
+            }
+        }
+''',
+     '''            onValueChanged: {
+                Config.options.osd.timeout = value;
+            }
+        }
+        ConfigSwitch {
+            buttonIcon: "keyboard_capslock"
+            text: Translation.tr("Show Caps Lock, Num Lock and Scroll Lock")
+            checked: Config.options.osd.lockKeys
+            onCheckedChanged: Config.options.osd.lockKeys = checked
+        }
+'''),
+])
+# A new resolution or display scale refits the picture (it was measured once, when the wallpaper changed).
+edit(path('modules', 'ii', 'background', 'Background.qml'), [
+    ('''        onWallpaperPathChanged: {
+            bgRoot.updateZoomScale();
+            // Clock position gets updated after zoom scale is updated
+        }
+''',
+     '''        onWallpaperPathChanged: {
+            bgRoot.updateZoomScale();
+            // Clock position gets updated after zoom scale is updated
+        }
+        // ii-windows: a new resolution or display scale refits the picture.
+        readonly property real fitKey: screen.width * 100003 + screen.height * 7 + (screen.devicePixelRatio ?? 1) * 1000
+        onFitKeyChanged: updateZoomScale()
+'''),
+])
+# The song-recognition toggle is not offered any more (SongRec does not exist on Windows).
+edit(path('modules', 'common', 'Config.qml'), [
+    ('"mic", "musicRecognition", "notifications"', '"mic", "notifications"'),
+])
+
+ES_UX4 = {
+    "Caps Lock on": "Bloq Mayús activado",
+    "Caps Lock off": "Bloq Mayús desactivado",
+    "Num Lock on": "Bloq Num activado",
+    "Num Lock off": "Bloq Num desactivado",
+    "Scroll Lock on": "Bloq Despl activado",
+    "Scroll Lock off": "Bloq Despl desactivado",
+    "Show Caps Lock, Num Lock and Scroll Lock": "Mostrar Bloq Mayús, Bloq Num y Bloq Despl",
+}
+add_translations('es_MX', ES_UX4)

@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Effects
 import QtCore
 import Qt.labs.folderlistmodel
 import Quickshell
@@ -27,7 +28,11 @@ Item {
 
     property real topInset: Config.options.bar.bottom ? 0 : Appearance.sizes.barHeight
     property real bottomInset: Config.options.bar.bottom ? Appearance.sizes.barHeight : 0
-    property int iconSize: Config.options.background.widgets.desktopIcons.iconSize
+    // ii-windows: icons follow the screen (a 720p laptop gets smaller ones than a 1440p monitor); the
+    // size in Settings is used when "Adjust to the screen" is off.
+    readonly property bool autoSize: Config.options.background.widgets.desktopIcons.autoSize ?? true
+    property int iconSize: autoSize ? Math.max(36, Math.min(72, Math.round(48 * Math.max(1, root.height) / 1080 / 4) * 4))
+                                    : Config.options.background.widgets.desktopIcons.iconSize
     property int cellWidth: iconSize + 44
     property int cellHeight: iconSize + 52
 
@@ -893,6 +898,17 @@ Item {
                 text: root.displayName(item.fileName)
                 style: item.selected ? Text.Normal : Text.Outline
                 styleColor: ColorUtils.transparentize("black", 0.55)
+                // The shadow Windows puts under the names, so they read on any wallpaper.
+                layer.enabled: (Config.options.background.widgets.desktopIcons.textShadow ?? true) && !item.selected
+                layer.effect: MultiEffect {
+                    autoPaddingEnabled: true
+                    shadowEnabled: true
+                    shadowColor: "black"
+                    shadowOpacity: 0.9
+                    shadowBlur: 0.55
+                    shadowHorizontalOffset: 1
+                    shadowVerticalOffset: 1
+                }
             }
 
             MouseArea {

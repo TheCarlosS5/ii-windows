@@ -44,27 +44,7 @@ edit(path('modules', 'ii', 'sidebarLeft', 'SidebarLeft.qml'), [
 '''),
 ])
 
-# The overview pops in (Hyprland's "popin"): a short fade and zoom from 94 %.
-edit(path('modules', 'ii', 'overview', 'Overview.qml'), [
-    ('''        Column {
-            id: columnLayout
-            visible: GlobalStates.overviewOpen
-''',
-     '''        Column {
-            id: columnLayout
-            visible: GlobalStates.overviewOpen
-            // ii-windows: pops in, as Hyprland animates the layer on Linux.
-            opacity: GlobalStates.overviewOpen ? 1 : 0
-            scale: GlobalStates.overviewOpen ? 1 : 0.94
-            transformOrigin: Item.Top
-            Behavior on opacity {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
-            Behavior on scale {
-                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-            }
-'''),
-])
+# The overview pops in too: done in overlay/ii/modules/ii/overview/Overview.qml.
 
 edit(path('modules', 'ii', 'sidebarRight', 'SidebarRight.qml'), [
     ('''        id: panelWindow

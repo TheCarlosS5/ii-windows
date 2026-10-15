@@ -254,3 +254,48 @@ def add_translations(code, strings):
 
 
 add_translations('es_MX', ES_UX)
+
+
+# --- Desktop icons: readable names, size that follows the screen ----------------------------------------------------
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                    property JsonObject desktopIcons: JsonObject {
+                        property bool enable: true
+                        property int iconSize: 48
+''',
+     '''                    property JsonObject desktopIcons: JsonObject {
+                        property bool enable: true
+                        property int iconSize: 48
+                        property bool autoSize: true // ii-windows: follow the screen's resolution
+                        property bool textShadow: true // ii-windows: shadow under the names, like Windows
+'''),
+])
+edit(path('modules', 'settings', 'BackgroundConfig.qml'), [
+    ('''        ConfigSpinBox {
+            icon: "photo_size_select_large"
+            text: Translation.tr("Icon size")
+            value: Config.options.background.widgets.desktopIcons.iconSize
+''',
+     '''        ConfigSwitch {
+            buttonIcon: "aspect_ratio"
+            text: Translation.tr("Adjust to the screen")
+            checked: Config.options.background.widgets.desktopIcons.autoSize
+            onCheckedChanged: Config.options.background.widgets.desktopIcons.autoSize = checked
+        }
+        ConfigSwitch {
+            buttonIcon: "text_fields"
+            text: Translation.tr("Shadow under the names")
+            checked: Config.options.background.widgets.desktopIcons.textShadow
+            onCheckedChanged: Config.options.background.widgets.desktopIcons.textShadow = checked
+        }
+        ConfigSpinBox {
+            enabled: !Config.options.background.widgets.desktopIcons.autoSize
+            icon: "photo_size_select_large"
+            text: Translation.tr("Icon size")
+            value: Config.options.background.widgets.desktopIcons.iconSize
+'''),
+])
+ES_UX3 = {
+    "Adjust to the screen": "Ajustar a la pantalla",
+    "Shadow under the names": "Sombra bajo los nombres",
+}
+add_translations('es_MX', ES_UX3)

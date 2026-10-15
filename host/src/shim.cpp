@@ -425,6 +425,38 @@ std::vector<DWORD> pidsNamed(std::wstring name) {
 	return pids;
 }
 
+// keystate: "caps=1 num=0 scroll=0" now and again whenever a lock key changes, until the program that
+// started it is gone. ii shows "Caps Lock on" from it (services/LockKeys.qml): one tiny process that
+// sleeps 120 ms at a time instead of starting a process per poll from QML.
+int keystate(const Args&) {
+	DWORD parentPid = 0;
+	if (HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); snapshot != INVALID_HANDLE_VALUE) {
+		PROCESSENTRY32W entry {sizeof(entry)};
+		DWORD me = GetCurrentProcessId();
+		for (BOOL more = Process32FirstW(snapshot, &entry); more; more = Process32NextW(snapshot, &entry)) {
+			if (entry.th32ProcessID == me) {
+				parentPid = entry.th32ParentProcessID;
+				break;
+			}
+		}
+		CloseHandle(snapshot);
+	}
+	HANDLE parent = parentPid ? OpenProcess(SYNCHRONIZE, FALSE, parentPid) : nullptr;
+	int last = -1;
+	for (;;) {
+		int now = (GetKeyState(VK_CAPITAL) & 1) | ((GetKeyState(VK_NUMLOCK) & 1) << 1) | ((GetKeyState(VK_SCROLL) & 1) << 2);
+		if (now != last) {
+			last = now;
+			if (std::printf("caps=%d num=%d scroll=%d\n", now & 1, (now >> 1) & 1, (now >> 2) & 1) < 0 || std::fflush(stdout) != 0) return 0;
+		}
+		if (parent) {
+			if (WaitForSingleObject(parent, 120) == WAIT_OBJECT_0) return 0;
+		} else {
+			Sleep(120);
+		}
+	}
+}
+
 int pidof(const Args& args) {
 	if (args.empty()) return 1;
 	auto pids = pidsNamed(args.back());
@@ -567,6 +599,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"playerctl") return playerctl(args);
 	if (command == L"wpctl") return wpctl(args);
 	if (command == L"pidof") return pidof(args);
+	if (command == L"keystate") return keystate(args);
 	if (command == L"ydotool") return ydotool(args);
 	if (command == L"secret-tool") return secretTool(args);
 	if (command == L"cliphist") return cliphist(args);

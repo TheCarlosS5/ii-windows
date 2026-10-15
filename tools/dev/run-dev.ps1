@@ -4,13 +4,14 @@
 # end of this script.
 #   run-dev.ps1 [-Config <dir>] [-Stop] [-WaitSec 25] [-Shot <png>]
 #   -Stop     only stop ii (rescue) and exit; start the installed one again with "Iniciar ii".
-param([string]$Config = '', [switch]$Stop, [int]$WaitSec = 25, [string]$Shot = '', [string]$ShellExe = '', [double]$Scale = 0)
+param([string]$Config = '', [switch]$Stop, [int]$WaitSec = 25, [string]$Shot = '', [string]$ShellExe = '', [double]$Scale = 0, [string]$Runtime = '')
 $root = (Resolve-Path "$PSScriptRoot\..\..").Path
 if (-not $Config) { $Config = "$root\build\ii" }
 $inst = "$env:LOCALAPPDATA\Programs\ii-windows"
 $cur = (Get-Content "$inst\current.txt" | Where-Object { $_ -like 'active=*' }) -replace 'active=', ''
 $hostExe = if ($cur -and (Test-Path "$inst\versions\$cur\ii-host.exe")) { "$inst\versions\$cur\ii-host.exe" } else { "$inst\bin\ii-host.exe" }
 $shell = Join-Path (Split-Path $hostExe) 'quickshell\quickshell.exe'
+if ($Runtime) { $hostExe = "$Runtime\ii-host.exe"; $shell = "$Runtime\quickshell\quickshell.exe" }
 # -Shell <exe> to try a fresh build (dist\quickshell may be older than the installed one).
 if ($ShellExe) { $shell = $ShellExe }
 

@@ -325,29 +325,7 @@ edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
     ('''                    windowData: windowByAddress[address]''',
      '''                    windowData: root.gridLayout[address] ?? windowByAddress[address]'''),
 ])
-# Under the overview, a strip with Windows' virtual desktops and "New desktop", like Task View
-# (overlay modules/ii/overview/DesktopStrip.qml).
-edit(path('modules', 'ii', 'overview', 'Overview.qml'), [
-    ('''                sourceComponent: OverviewWidget {
-                    screen: panelWindow.screen
-                    visible: (panelWindow.searchingText == "")
-                }
-            }''',
-     '''                sourceComponent: OverviewWidget {
-                    screen: panelWindow.screen
-                    visible: (panelWindow.searchingText == "")
-                }
-            }
-
-            Loader {
-                anchors.horizontalCenter: parent.horizontalCenter
-                active: overviewLoader.active
-                visible: panelWindow.searchingText == ""
-                sourceComponent: DesktopStrip {
-                    screen: panelWindow.screen
-                }
-            }'''),
-])
+# Overview.qml, SearchWidget.qml and AppGrid.qml are overlay files now (GNOME-style overview, desktop strip on top).
 edit(path('modules', 'ii', 'overview', 'OverviewWindow.qml'), [
     ('        captureSource: GlobalStates.overviewOpen ? root.toplevel : null',
      '        captureSource: GlobalStates.overviewOpen && !root.windowData?.hidden ? root.toplevel : null'),

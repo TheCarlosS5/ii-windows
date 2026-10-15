@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cwctype>
 #include <functional>
 #include <map>
 #include <memory>
@@ -465,6 +466,145 @@ bool writeTerminalScheme(const mcu::DynamicScheme& scheme, const std::vector<mcu
 	return writeUtf8(localAppData() + L"\\Microsoft\\Windows Terminal\\Fragments\\ii-windows\\ii-windows.json", json);
 }
 
+// --- Windows' own wallpaper -------------------------------------------------------------------
+// One background, not two: ii adopts the wallpaper Windows has the first time (and whenever the user
+// changes it in Windows), and a wallpaper chosen in ii becomes Windows' too. The file Windows had
+// before ii is noted once so the rescue/uninstall can put it back.
+
+std::wstring windowsWallpaper() {
+	wchar_t buffer[MAX_PATH * 2] = {};
+	if (SystemParametersInfoW(SPI_GETDESKWALLPAPER, static_cast<UINT>(sizeof(buffer) / sizeof(buffer[0])), buffer, 0) && buffer[0]) return buffer;
+	// A slideshow (or Spotlight) has no single file for SPI_GETDESKWALLPAPER: Explorer notes the picture
+	// it is showing in its own key.
+	buffer[0] = 0;
+	DWORD size = sizeof(buffer);
+	if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Wallpapers", L"CurrentWallpaperPath",
+	                 RRF_RT_REG_SZ, nullptr, buffer, &size) == ERROR_SUCCESS && buffer[0]) return buffer;
+	return {};
+}
+
+std::wstring syncStatePath() { return localAppData() + L"\\ii-windows\\wallpaper-sync.ini"; }
+
+std::wstring normalizedPath(std::wstring path) {
+	for (auto& c: path) c = c == L'\\' ? L'/' : static_cast<wchar_t>(towlower(c));
+	if (path.rfind(L"file:///", 0) == 0) path = path.substr(8);
+	return path;
+}
+
+std::wstring syncStateValue(const char* key) {
+	auto text = readUtf8(syncStatePath());
+	auto prefix = std::string(key) + "=";
+	size_t at = 0;
+	while (at < text.size()) {
+		auto end = text.find('\n', at);
+		if (end == std::string::npos) end = text.size();
+		auto line = text.substr(at, end - at);
+		if (!line.empty() && line.back() == '\r') line.pop_back();
+		if (line.rfind(prefix, 0) == 0) return std::wstring(winrt::to_hstring(line.substr(prefix.size())));
+		at = end + 1;
+	}
+	return {};
+}
+
+void writeSyncState(const std::wstring& applied, const std::wstring& original, const std::wstring& originalStyle) {
+	CreateDirectoryW((localAppData() + L"\\ii-windows").c_str(), nullptr);
+	auto text = std::string("applied=") + toUtf8(applied) + "\noriginal=" + toUtf8(original) + "\noriginalStyle=" + toUtf8(originalStyle) + "\n";
+	writeUtf8(syncStatePath(), text);
+}
+
+std::wstring wallpaperStyleValue() {
+	wchar_t buffer[16] = {};
+	DWORD size = sizeof(buffer);
+	if (RegGetValueW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", L"WallpaperStyle", RRF_RT_REG_SZ, nullptr, buffer, &size) != ERROR_SUCCESS) return L"10";
+	return buffer;
+}
+
+// Makes `path` Windows' wallpaper, filled (cropped to the screen like ii does).
+bool applyToWindows(const std::wstring& path) {
+	auto original = syncStateValue("original");
+	auto originalStyle = syncStateValue("originalStyle");
+	if (original.empty()) {
+		original = windowsWallpaper();
+		originalStyle = wallpaperStyleValue();
+	}
+	std::wstring native = path;
+	for (auto& c: native) {
+		if (c == L'/') c = L'\\';
+	}
+	HKEY key = nullptr;
+	if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", 0, KEY_SET_VALUE, &key) == ERROR_SUCCESS) {
+		RegSetValueExW(key, L"WallpaperStyle", 0, REG_SZ, reinterpret_cast<const BYTE*>(L"10"), 3 * sizeof(wchar_t));
+		RegSetValueExW(key, L"TileWallpaper", 0, REG_SZ, reinterpret_cast<const BYTE*>(L"0"), 2 * sizeof(wchar_t));
+		RegCloseKey(key);
+	}
+	auto ok = SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, native.data(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) != 0;
+	writeSyncState(native, original, originalStyle);
+	return ok;
+}
+
+// Copies Windows' current wallpaper next to ii's own wallpapers and returns the copy ("" = nothing to adopt).
+std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool force) {
+	auto windows = windowsWallpaper();
+	auto windowsUsable = !windows.empty() && GetFileAttributesW(windows.c_str()) != INVALID_FILE_ATTRIBUTES;
+	auto known = syncStateValue("applied");
+	if (known.empty() && !force) {
+		// First time ii looks at Windows' wallpaper. If ii still has its stock picture (or the file is gone),
+		// the user's own wallpaper wins and ii takes it. If ii already has a picture the user chose, that
+		// one is kept and becomes Windows' too (the original is noted for the rescue).
+		std::wstring native = currentConfigPath;
+		for (auto& c: native) {
+			if (c == L'/') c = L'\\';
+		}
+		auto stock = currentConfigPath.empty() || normalizedPath(currentConfigPath).find(L"default_wallpaper") != std::wstring::npos
+		             || GetFileAttributesW(native.c_str()) == INVALID_FILE_ATTRIBUTES;
+		if (!stock) {
+			applyToWindows(currentConfigPath);
+			return {};
+		}
+	}
+	if (!windowsUsable) return {};
+	auto sameAsIi = normalizedPath(windows) == normalizedPath(currentConfigPath);
+	if (!force && !known.empty() && normalizedPath(known) == normalizedPath(windows)) return {}; // nothing changed in Windows
+	auto original = syncStateValue("original");
+	if (sameAsIi) {
+		writeSyncState(windows, original.empty() ? windows : original, syncStateValue("originalStyle"));
+		return {};
+	}
+	// A copy ii owns: Windows may delete or replace its own file (the slideshow keeps rewriting it).
+	wchar_t* pictures = nullptr;
+	std::wstring folder = localAppData() + L"\\ii-windows\\wallpapers";
+	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Pictures, 0, nullptr, &pictures)) && pictures) {
+		folder = std::wstring(pictures) + L"\\Wallpapers";
+		CoTaskMemFree(pictures);
+	}
+	CreateDirectoryW(folder.c_str(), nullptr);
+	if (GetFileAttributesW(folder.c_str()) == INVALID_FILE_ATTRIBUTES) {
+		CreateDirectoryW((localAppData() + L"\\ii-windows").c_str(), nullptr);
+		folder = localAppData() + L"\\ii-windows\\wallpapers";
+		CreateDirectoryW(folder.c_str(), nullptr);
+	}
+	auto dot = windows.find_last_of(L'.');
+	auto slash = windows.find_last_of(L"\\/");
+	auto ext = (dot != std::wstring::npos && (slash == std::wstring::npos || dot > slash)) ? windows.substr(dot) : std::wstring(L".jpg");
+	auto target = folder + L"\\windows-wallpaper" + ext;
+	if (!CopyFileW(windows.c_str(), target.c_str(), FALSE)) return {};
+	writeSyncState(windows, original.empty() ? windows : original, syncStateValue("originalStyle"));
+	return target;
+}
+
+// Puts back the wallpaper Windows had before ii (rescue / uninstall).
+bool restoreWindowsWallpaper() {
+	auto original = syncStateValue("original");
+	if (original.empty()) return false;
+	HKEY key = nullptr;
+	auto style = syncStateValue("originalStyle");
+	if (!style.empty() && RegOpenKeyExW(HKEY_CURRENT_USER, L"Control Panel\\Desktop", 0, KEY_SET_VALUE, &key) == ERROR_SUCCESS) {
+		RegSetValueExW(key, L"WallpaperStyle", 0, REG_SZ, reinterpret_cast<const BYTE*>(style.c_str()), static_cast<DWORD>((style.size() + 1) * sizeof(wchar_t)));
+		RegCloseKey(key);
+	}
+	return SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, original.data(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) != 0;
+}
+
 } // namespace
 
 int switchwall(const Args& args) {
@@ -474,6 +614,9 @@ int switchwall(const Args& args) {
 	std::wstring type;
 	std::wstring image;
 	bool noswitch = false;
+	bool adoptWindows = false;
+	bool forceAdopt = false;
+	bool restoreWindows = false;
 	bool colorGiven = false;
 	std::wstring colorArg;
 	for (size_t i = 0; i < args.size(); ++i) {
@@ -483,6 +626,9 @@ int switchwall(const Args& args) {
 		else if (a == L"--type") type = next();
 		else if (a == L"--image") image = next();
 		else if (a == L"--noswitch") noswitch = true;
+		else if (a == L"--adopt-windows") adoptWindows = true;
+		else if (a == L"--force") forceAdopt = true;
+		else if (a == L"--restore-windows") restoreWindows = true;
 		else if (a == L"--color") {
 			colorGiven = true;
 			mcu::Argb ignored = 0;
@@ -490,10 +636,22 @@ int switchwall(const Args& args) {
 		} else if (image.empty()) image = a;
 	}
 
+	if (restoreWindows) return restoreWindowsWallpaper() ? 0 : 1;
+
 	auto config = loadConfig();
 	auto appearance = child(config, L"appearance");
 	auto palette = child(appearance, L"palette");
 	auto background = child(config, L"background");
+	// background.syncWindowsWallpaper (default on): Windows and ii show the same picture.
+	auto syncWindows = !(background.HasKey(L"syncWindowsWallpaper") && background.GetNamedValue(L"syncWindowsWallpaper").ValueType() == json::JsonValueType::Boolean
+	                     && !background.GetNamedBoolean(L"syncWindowsWallpaper"));
+	auto adopted = false;
+	if (adoptWindows) {
+		if (!syncWindows) return 0;
+		image = adoptedWindowsWallpaper(getString(background, L"wallpaperPath"), forceAdopt);
+		if (image.empty()) return 0; // nothing new in Windows
+		adopted = true;
+	}
 
 	// --color: an explicit accent replaces the wallpaper as the palette's source.
 	if (colorGiven) {
@@ -548,6 +706,15 @@ int switchwall(const Args& args) {
 
 	// Config first (wallpaper path), then the palette: ii reloads each file when it changes.
 	writeUtf8(configPath(), toUtf8(std::wstring(config.Stringify())));
+	// What ii shows is what Windows shows (a picture, not a video wallpaper).
+	if (!image.empty() && !noswitch && !adopted && syncWindows) {
+		auto lower = normalizedPath(image);
+		auto endsWith = [&](const wchar_t* suffix) {
+			std::wstring s(suffix);
+			return lower.size() >= s.size() && lower.compare(lower.size() - s.size(), s.size(), s) == 0;
+		};
+		if (!(endsWith(L".mp4") || endsWith(L".mkv") || endsWith(L".mov") || endsWith(L".avi") || endsWith(L".webm"))) applyToWindows(image);
+	}
 	writeUtf8(sourceColorPath(), hex(source) + "\n");
 	TermProps props;
 	auto termConfig = existing(existing(appearance, L"wallpaperTheming"), L"terminalGenerationProps");
