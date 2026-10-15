@@ -452,3 +452,34 @@ edit(path('modules', 'settings', 'DockConfig.qml'), [
     ('            text: Translation.tr("Magnification reach")\n', '            text: Translation.tr("Magnification reach")\n            textWidth: 220\n'),
 ])
 add_translations('es_MX', {"Development build": "Versión de desarrollo"})
+
+
+# "Force specific monitor" for notifications: the option does not exist in this build (the page logged errors) and the
+# example is a Linux monitor name; the notifications follow the active screen.
+edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
+    ('''        ConfigSwitch {
+            buttonIcon: "monitor"
+            text: Translation.tr("Force specific monitor")
+            checked: Config.options.notifications.forceMonitor.enable
+            onCheckedChanged: {
+                Config.options.notifications.forceMonitor.enable = checked;
+            }
+            StyledToolTip {
+                text: Translation.tr("If you have multiple monitors and want notifications to only show on one of them, enable this and enter the monitor name below (e.g., eDP-1)")
+            }
+        }
+
+        ConfigRow {
+            enabled: Config.options.notifications.forceMonitor.enable
+            MaterialTextArea {
+                Layout.fillWidth: true
+                placeholderText: Translation.tr("Monitor name to show notifications on (e.g., eDP-1)")
+                text: Config.options.notifications.forceMonitor.name
+                wrapMode: TextEdit.Wrap
+                onTextChanged: {
+                    Config.options.notifications.forceMonitor.name = text;
+                }
+            }
+        }
+''', ''),
+])

@@ -155,6 +155,25 @@ void hide() {
 	log(L"taskbar: hidden");
 }
 
+// Windows 11's Start button is a popup OWNED by the taskbar window (class "Button", title "Inicio"/"Start"). Hiding the
+// taskbar hides its owned windows only at that moment: a Start button created later (Explorer restarted, the
+// taskbar rebuilt) stays on screen, floating over ii's dock. Those popups are hidden with the bar and shown with it.
+std::vector<HWND> trayPopups(HWND bar) {
+	struct Context {
+		HWND bar;
+		std::vector<HWND> found;
+	} context {bar, {}};
+	EnumWindows([](HWND hwnd, LPARAM data) -> BOOL {
+		auto* c = reinterpret_cast<Context*>(data); // NOLINT
+		if (GetWindow(hwnd, GW_OWNER) != c->bar) return TRUE;
+		wchar_t cls[32] {};
+		GetClassNameW(hwnd, cls, 32);
+		if (wcscmp(cls, L"Button") == 0) c->found.push_back(hwnd);
+		return TRUE;
+	}, reinterpret_cast<LPARAM>(&context)); // NOLINT
+	return context.found;
+}
+
 void conceal(HWND bar) {
 	RECT box {};
 	auto type = GetWindowRgnBox(bar, &box);
@@ -164,6 +183,11 @@ void conceal(HWND bar) {
 		SetWindowRgn(bar, CreateRectRgn(0, 0, 0, 0), FALSE);
 	}
 	if (IsWindowVisible(bar)) ShowWindow(bar, SW_HIDE);
+	if (state::get(L"taskbarHidden", 0) != 0) {
+		for (auto* popup: trayPopups(bar)) {
+			if (IsWindowVisible(popup)) ShowWindow(popup, SW_HIDE);
+		}
+	}
 }
 
 void reapply() {
@@ -178,6 +202,9 @@ void restore(bool force) {
 	restoreRegions();
 	for (auto* bar: allTaskbars()) {
 		if (!IsWindowVisible(bar)) ShowWindow(bar, SW_SHOWNA);
+		for (auto* popup: trayPopups(bar)) {
+			if (!IsWindowVisible(popup)) ShowWindow(popup, SW_SHOWNA);
+		}
 	}
 
 	auto original = state::get(L"taskbarOriginalState", -1);

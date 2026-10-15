@@ -70,10 +70,15 @@ de tu usuario (arranca unos segundos más tarde).
 
 ## Instalar
 
-1. Descarga el `.zip` de la última versión en *Releases* y descomprímelo.
-2. Doble clic en `install.cmd`. Pregunta antes de cada paso; pide administrador solo para el
-   punto de restauración opcional y para crear la tarea de inicio.
-3. ii arranca con Windows. Para quitarlo: *Desinstalar ii-windows*.
+1. Descarga `ii-windows-Setup-<versión>.exe` de la última versión en *Releases* y ábrelo.
+2. Asistente en español: **Siguiente → Acepto → (opciones: iniciar con Windows, cursor, comando
+   fastfetch) → Instalar → Iniciar ii ahora**. Solo para tu usuario; Windows pide administrador
+   únicamente para crear la tarea de inicio.
+3. ii arranca con Windows. Para quitarlo: *Desinstalar ii-windows* (menú Inicio o Configuración >
+   Aplicaciones): una ventana, un botón, y Windows queda como estaba.
+
+También hay un `.zip` con `install.cmd` (versión de consola, pregunta antes de cada paso) para quien
+lo prefiera o para automatizar la instalación.
 
 Requisitos: Windows 11 (probado en 24H2/25H2), x64.
 

@@ -118,7 +118,8 @@ begin
     WizardForm.StatusLabel.Caption := CustomMessage('Installing');
     WizardForm.FilenameLabel.Caption := '';
     ForceDirectories(ExpandConstant('{localappdata}\ii-windows'));
-    Args := '/c powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\ii-package\install.ps1') + '" -Yes';
+    // PSModulePath cleared: Windows PowerShell must find its own modules even when this setup was started from PowerShell 7.
+    Args := '/c set "PSModulePath=" && powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\ii-package\install.ps1') + '" -Yes';
     if not WizardIsTaskSelected('autostart') then Args := Args + ' -NoAutostart';
     if not WizardIsTaskSelected('cursor') then Args := Args + ' -NoCursor';
     if not WizardIsTaskSelected('fastfetch') then Args := Args + ' -NoFastfetch';
