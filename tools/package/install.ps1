@@ -177,7 +177,7 @@ foreach ($stable in 'ii-launcher.exe') {
     $src = Join-Path $here $stable
     if (Test-Path $src) { Copy-Item $src $installDir -Force }
 }
-foreach ($script in 'uninstall.ps1', 'uninstall.cmd', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1') {
+foreach ($script in 'uninstall.ps1', 'uninstall-gui.ps1', 'uninstall.cmd', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1') {
     Copy-Item (Join-Path $here $script) $installDir -Force
 }
 foreach ($folder in 'rescue', 'cursors', 'bin') {
@@ -418,7 +418,7 @@ if (-not $Sandbox) {
     $entry = @{
         DisplayName = 'ii-windows (illogical-impulse para Windows)'; DisplayVersion = $version; Publisher = 'ii-windows'
         InstallLocation = $installDir; DisplayIcon = "$hostExe,0"
-        UninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$installDir\uninstall.ps1`""
+        UninstallString = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$installDir\uninstall-gui.ps1`""
     }
     foreach ($k in $entry.Keys) { Set-ItemProperty $uninstallKey -Name $k -Value $entry[$k] }
     Set-ItemProperty $uninstallKey -Name NoModify -Value 1 -Type DWord

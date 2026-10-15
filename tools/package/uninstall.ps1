@@ -133,6 +133,16 @@ if ((Test-Path $cursorBackup) -and -not $haveCursorChanges) {
     }
 }
 
+# 2b. the wallpaper Windows had before ii (ii makes the picture chosen in it Windows' wallpaper too; the first
+# time it noted what Windows had, in wallpaper-sync.ini)
+if (-not $Sandbox) {
+    $switchwall = Get-ChildItem -LiteralPath $installDir -Recurse -Filter switchwall.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($switchwall) {
+        & $switchwall.FullName --restore-windows | Out-Null
+        if ($LASTEXITCODE -eq 0) { Say 'Fondo de pantalla de Windows devuelto.' }
+    }
+}
+
 # 3. autostart, uninstall entry, shortcuts
 # The logon task: only ours (per user, \ii-windows\Logon-<SID>), plus the old flat \ii-windows task if
 # it is provably this user's and this installation's. Another user's task, or one with that name
@@ -231,7 +241,7 @@ if ((Test-Path -LiteralPath $fragmentDir) -and -not $Sandbox) {
 
 # 4. files (this script may live in the folder it deletes: finish from a temporary copy)
 foreach ($line in (Invoke-IiDataRemoval -LocalAppData $env:LOCALAPPDATA -KeepConfig:$KeepConfig -KeepSecrets:$KeepSecrets)) { Say $line }
-foreach ($f in 'state.ini', 'install.json', 'banners.txt', 'theme.txt') {
+foreach ($f in 'state.ini', 'install.json', 'banners.txt', 'theme.txt', 'wallpaper-sync.ini') {
     if ($f -eq 'install.json' -and $remainingFonts.Count -gt 0) { continue }
     Remove-Item (Join-Path $dataDir $f) -ErrorAction SilentlyContinue
 }

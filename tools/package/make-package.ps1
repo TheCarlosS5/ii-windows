@@ -92,7 +92,7 @@ $files = New-IiPayloadManifest $app
 
 # Installer scripts: UTF-8 with BOM, so Windows PowerShell 5.1 reads them correctly.
 $utf8Bom = New-Object System.Text.UTF8Encoding $true
-foreach ($script in 'install.ps1', 'uninstall.ps1', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1') {
+foreach ($script in 'install.ps1', 'uninstall.ps1', 'uninstall-gui.ps1', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1') {
     $text = [IO.File]::ReadAllText((Join-Path $PSScriptRoot $script))
     [IO.File]::WriteAllText((Join-Path $pkg $script), $text, $utf8Bom)
 }
