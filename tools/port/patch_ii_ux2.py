@@ -269,3 +269,104 @@ ES_UX4 = {
     "Show Caps Lock, Num Lock and Scroll Lock": "Mostrar Bloq Mayús, Bloq Num y Bloq Despl",
 }
 add_translations('es_MX', ES_UX4)
+
+
+# --- Right sidebar: the toggles act in place (they used to open Windows' Settings for one switch) --------------
+edit(path('modules', 'common', 'models', 'quickToggles', 'GameModeToggle.qml'), [
+    ('''    toggled: false
+    hasStatusText: false
+    icon: "gamepad"
+
+    mainAction: () => {
+        Quickshell.execDetached(["xdg-open", "ms-settings:gaming-gamemode"]);
+    }
+''',
+     '''    // Windows' Game Mode (priority for the game in front): HKCU\\Software\\Microsoft\\GameBar. Absent = on.
+    toggled: true
+    hasStatusText: false
+    icon: "gamepad"
+
+    mainAction: () => {
+        setProc.command = ["reg", "add", "HKCU\\\\Software\\\\Microsoft\\\\GameBar", "/v", "AutoGameModeEnabled", "/t", "REG_DWORD", "/d", root.toggled ? "0" : "1", "/f"];
+        setProc.running = true;
+    }
+    Process {
+        id: readProc
+        running: true
+        command: ["reg", "query", "HKCU\\\\Software\\\\Microsoft\\\\GameBar", "/v", "AutoGameModeEnabled"]
+        stdout: StdioCollector {
+            onStreamFinished: root.toggled = !/0x0\\s*$/m.test(text)
+        }
+    }
+    Process {
+        id: setProc
+        onExited: readProc.running = true
+    }
+'''),
+])
+edit(path('modules', 'common', 'models', 'quickToggles', 'OnScreenKeyboardToggle.qml'), [
+    ('''        Quickshell.execDetached(["xdg-open", "ms-settings:easeofaccess-keyboard"]);''',
+     '''        Quickshell.execDetached(["osk.exe"]); // Windows' on-screen keyboard, right away'''),
+])
+
+
+# --- Right sidebar on short screens (laptops at 125-150 %): notifications and the calendar no longer pile up ---------
+# The notification list got whatever the calendar left; on 720-800 px-high screens that was nothing and its
+# buttons ended up under the quick toggles. The list keeps a minimum and the calendar folds itself.
+edit(path('modules', 'ii', 'sidebarRight', 'SidebarRightContent.qml'), [
+    ('''            CenterWidgetGroup {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillHeight: true
+                Layout.fillWidth: true
+            }
+
+            BottomWidgetGroup {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillHeight: false
+                Layout.fillWidth: true
+                Layout.preferredHeight: implicitHeight
+            }''',
+     '''            CenterWidgetGroup {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillHeight: true
+                Layout.fillWidth: true
+                Layout.minimumHeight: 160 // ii-windows: never squeezed into the toggles
+            }
+
+            BottomWidgetGroup {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillHeight: false
+                Layout.fillWidth: true
+                Layout.preferredHeight: implicitHeight
+                // ii-windows: on a short screen the calendar folds to its header (the arrow opens it).
+                forceCollapsed: root.height < 790
+            }'''),
+])
+edit(path('modules', 'ii', 'sidebarRight', 'BottomWidgetGroup.qml'), [
+    ('''    property bool collapsed: Persistent.states.sidebar.bottomGroup.collapsed
+''',
+     '''    property bool forceCollapsed: false // ii-windows: short screens fold the calendar...
+    property bool userExpanded: false // ...until the arrow is pressed
+    property bool collapsed: (forceCollapsed && !userExpanded) || Persistent.states.sidebar.bottomGroup.collapsed
+'''),
+    ('''    function setCollapsed(state) {
+        Persistent.states.sidebar.bottomGroup.collapsed = state;''',
+     '''    function setCollapsed(state) {
+        root.userExpanded = !state;
+        Persistent.states.sidebar.bottomGroup.collapsed = state;'''),
+])
+
+
+# --- small things found testing the settings ----------------------------------------------------------------------
+edit(path('modules', 'settings', 'QuickConfig.qml'), [
+    ('''    NoticeBox {
+        Layout.fillWidth: true
+        text: Translation.tr('Not all options are available in this app.''',
+     '''    NoticeBox {
+        visible: false // ii-windows: a note about a config file nobody has to touch
+        Layout.fillWidth: true
+        text: Translation.tr('Not all options are available in this app.'''),
+])
+edit(path('settings.qml'), [
+    ('    title: "illogical-impulse Settings"\n', '    title: "ii-windows"\n'),
+])

@@ -28,7 +28,6 @@ Los atajos de ii se resuelven dentro de ii también con una aplicación maximiza
 | Win+V | Clipboard history | available | `overviewClipboardToggle` |  |
 | Win+Period | Emoji picker | available | `overviewEmojiToggle` |  |
 | Win+M | Media controls | available | `mediaControlsToggle` |  |
-| Win+G | Overlay widgets | available | `overlayToggle` |  |
 | Win+J | Show or hide the bar | available | `barToggle` |  |
 | Win+K | On-screen keyboard | available | `oskToggle` |  |
 | Win+Slash | This cheatsheet | available | `cheatsheetToggle` |  |
@@ -43,8 +42,6 @@ Los atajos de ii se resuelven dentro de ii también con una aplicación maximiza
 | Win+X | Session menu (power, sign out, lock) | partial | `sessionToggle` | Win+X opens ii's session menu; the system tools menu of Windows (Task Manager, Device Manager...) has no ii counterpart yet. |
 | Shift+Win+S | Region screenshot | available | `regionScreenshot` |  |
 | Print | Region screenshot (Print Screen) | available | `regionScreenshot` |  |
-| Shift+Win+A | Search a region | available | `regionSearch` |  |
-| Shift+Win+X | Text from a region (OCR) | available | `regionOcr` |  |
 | Shift+Win+T | Translate a region | available | `screenTranslate` |  |
 | Shift+Win+R | Record a region | partial | `regionRecord` | The region is chosen; there is no video encoder behind it yet (C03). |
 | Alt+Win+R | Record a region | partial | `regionRecord` | The region is chosen; there is no video encoder behind it yet (C03). |

@@ -14,7 +14,6 @@ Shortcut {true, false, false, false, 'N', L"sidebarRightToggle"}, // sidebar-rig
 Shortcut {true, false, false, false, 'V', L"overviewClipboardToggle"}, // clipboard
 Shortcut {true, false, false, false, VK_OEM_PERIOD, L"overviewEmojiToggle"}, // emoji
 Shortcut {true, false, false, false, 'M', L"mediaControlsToggle"}, // media
-Shortcut {true, false, false, false, 'G', L"overlayToggle"}, // overlay
 Shortcut {true, false, false, false, 'J', L"barToggle"}, // bar
 Shortcut {true, false, false, false, 'K', L"oskToggle"}, // osk
 Shortcut {true, false, false, false, VK_OEM_2, L"cheatsheetToggle"}, // cheatsheet
@@ -29,8 +28,6 @@ Shortcut {true, false, false, false, 'R', L"searchToggle"}, // run
 Shortcut {true, false, false, false, 'X', L"sessionToggle"}, // tools-menu
 Shortcut {true, false, false, true, 'S', L"regionScreenshot"}, // screenshot
 Shortcut {false, false, false, false, VK_SNAPSHOT, L"regionScreenshot"}, // screenshot-print
-Shortcut {true, false, false, true, 'A', L"regionSearch"}, // region-search
-Shortcut {true, false, false, true, 'X', L"regionOcr"}, // region-ocr
 Shortcut {true, false, false, true, 'T', L"screenTranslate"}, // region-translate
 Shortcut {true, false, false, true, 'R', L"regionRecord"}, // region-record
 Shortcut {true, false, true, false, 'R', L"regionRecord"}, // region-record
