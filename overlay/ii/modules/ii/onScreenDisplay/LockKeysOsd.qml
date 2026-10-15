@@ -31,6 +31,7 @@ Scope {
             }
             root.on = on;
             hideTimer.restart();
+            loader.shown = true; // before the window exists: its opacity binding reads it at creation
             loader.active = true;
         }
     }
@@ -60,8 +61,6 @@ Scope {
                 top: Appearance.sizes.barHeight + 8
                 bottom: Appearance.sizes.barHeight + 8
             }
-            // Never takes the mouse.
-            mask: Region {}
             implicitWidth: pillWrap.implicitWidth
             implicitHeight: pillWrap.implicitHeight
 
