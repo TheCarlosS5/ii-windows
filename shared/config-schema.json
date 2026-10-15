@@ -95,6 +95,7 @@
   "sounds",
   "time",
   "time.pomodoro",
+  "tour",
   "tray",
   "updates",
   "waffles",
@@ -261,6 +262,9 @@
   "background.parallax.workspaceZoom": {
    "kind": "real"
   },
+  "background.syncWindowsWallpaper": {
+   "kind": "bool"
+  },
   "background.thumbnailPath": {
    "kind": "string"
   },
@@ -379,6 +383,9 @@
   "background.widgets.clock.y": {
    "kind": "real"
   },
+  "background.widgets.desktopIcons.autoSize": {
+   "kind": "bool"
+  },
   "background.widgets.desktopIcons.enable": {
    "kind": "bool"
   },
@@ -388,6 +395,9 @@
     24,
     128
    ]
+  },
+  "background.widgets.desktopIcons.textShadow": {
+   "kind": "bool"
   },
   "background.widgets.folder.enable": {
    "kind": "bool"
@@ -685,6 +695,9 @@
   "bar.workspaces.numberMap": {
    "kind": "strings"
   },
+  "bar.workspaces.onlyOpen": {
+   "kind": "bool"
+  },
   "bar.workspaces.removeEmptyDesktops": {
    "kind": "bool"
   },
@@ -798,8 +811,17 @@
   "dock.hoverToReveal": {
    "kind": "bool"
   },
+  "dock.iconSize": {
+   "kind": "real"
+  },
   "dock.ignoredAppRegexes": {
    "kind": "strings"
+  },
+  "dock.magnification": {
+   "kind": "real"
+  },
+  "dock.magnificationRange": {
+   "kind": "real"
   },
   "dock.monochromeIcons": {
    "kind": "bool"
@@ -808,6 +830,12 @@
    "kind": "strings"
   },
   "dock.pinnedOnStartup": {
+   "kind": "bool"
+  },
+  "dock.position": {
+   "kind": "string"
+  },
+  "dock.showLabels": {
    "kind": "bool"
   },
   "hacks.arbitraryRaceConditionDelay": {
@@ -892,18 +920,10 @@
    "kind": "bool"
   },
   "musicRecognition.interval": {
-   "kind": "int",
-   "range": [
-    2,
-    10
-   ]
+   "kind": "int"
   },
   "musicRecognition.timeout": {
-   "kind": "int",
-   "range": [
-    10,
-    100
-   ]
+   "kind": "int"
   },
   "networking.userAgent": {
    "kind": "string"
@@ -920,6 +940,9 @@
     1000,
     60000
    ]
+  },
+  "osd.lockKeys": {
+   "kind": "bool"
   },
   "osd.timeout": {
    "kind": "int",
@@ -1001,18 +1024,10 @@
    "kind": "bool"
   },
   "regionSelector.circle.padding": {
-   "kind": "int",
-   "range": [
-    0,
-    100
-   ]
+   "kind": "int"
   },
   "regionSelector.circle.strokeWidth": {
-   "kind": "int",
-   "range": [
-    1,
-    20
-   ]
+   "kind": "int"
   },
   "regionSelector.rect.showAimLines": {
    "kind": "bool"
@@ -1234,6 +1249,9 @@
   },
   "time.shortDateFormat": {
    "kind": "string"
+  },
+  "tour.showOnFirstStart": {
+   "kind": "bool"
   },
   "tray.filterPassive": {
    "kind": "bool"

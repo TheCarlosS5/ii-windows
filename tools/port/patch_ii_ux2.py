@@ -459,3 +459,26 @@ if _app.count(_marker) != 1:
     raise SystemExit('Appearance.qml: animationCurves not found')
 _app = _app.replace(_marker, '    // ii-windows: 0 with "Reduce animations" (Settings > Appearance), 1 otherwise.\n    readonly property real motionFactor: (Config?.options?.appearance?.reduceMotion ?? false) ? 0 : 1\n\n' + _marker)
 write(path('modules', 'common', 'Appearance.qml'), _app)
+
+
+# The overview: no giant desktop number behind the windows (the desktop strip above names them).
+edit(path('modules', 'ii', 'overview', 'OverviewWidget.qml'), [
+    ('''                            StyledText {
+                                anchors.centerIn: parent
+                                text: workspace.workspaceValue
+''',
+     '''                            StyledText {
+                                visible: false // ii-windows: the desktop strip above names the desktop
+                                anchors.centerIn: parent
+                                text: workspace.workspaceValue
+'''),
+])
+
+
+# Transparency without blur: on Hyprland ii's panels sit on a blurred wallpaper; Windows has no blur behind our
+# panels, so text behind (a terminal under the sidebar) showed through and was hard to read. The automatic amount
+# is capped lower: panels stay translucent, not glassy.
+edit(path('modules', 'common', 'Appearance.qml'), [
+    ('        return Math.max(0, Math.min(0.22, y)) - 0.12 * (m3colors.darkmode ? 0 : 1)',
+     '        return Math.max(0, Math.min(0.11, y)) - 0.06 * (m3colors.darkmode ? 0 : 1) // ii-windows: capped (no blur behind panels here)'),
+])

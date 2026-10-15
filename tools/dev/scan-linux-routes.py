@@ -20,7 +20,7 @@ SHIM = {
     'bash', 'qs', 'switchwall', 'test', 'magick', 'ddcutil', 'brightnessctl', 'cava', 'ydotool', 'secret-tool',
     'cliphist', 'hyprpicker', 'trans', 'ls', 'mkdir', 'rm', 'which',
 }
-WINDOWS = {'shutdown.exe', 'explorer.exe', 'taskmgr.exe', 'cmd', 'cmd.exe', 'powershell.exe', 'whoami', 'clip', 'where'}
+WINDOWS = {'shutdown.exe', 'explorer.exe', 'taskmgr.exe', 'cmd', 'cmd.exe', 'powershell.exe', 'whoami', 'clip', 'where', 'reg', 'osk.exe', 'wt', 'winget'}
 OPTIONAL = {'warp-cli', 'mako', 'openwith'}
 
 # command: [ "name"   |   execDetached(["name"   |   exec(["name"
