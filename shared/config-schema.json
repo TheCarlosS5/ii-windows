@@ -241,6 +241,9 @@
     100
    ]
   },
+  "background.externalProvider": {
+   "kind": "string"
+  },
   "background.hideWhenFullscreen": {
    "kind": "bool"
   },
@@ -838,6 +841,9 @@
   "dock.showLabels": {
    "kind": "bool"
   },
+  "dock.showStore": {
+   "kind": "bool"
+  },
   "hacks.arbitraryRaceConditionDelay": {
    "kind": "int"
   },
@@ -985,6 +991,9 @@
   "overview.enable": {
    "kind": "bool"
   },
+  "overview.frequentCount": {
+   "kind": "int"
+  },
   "overview.orderBottomUp": {
    "kind": "bool"
   },
@@ -1000,6 +1009,9 @@
   },
   "overview.scale": {
    "kind": "real"
+  },
+  "overview.showFrequent": {
+   "kind": "bool"
   },
   "panelFamily": {
    "kind": "string"

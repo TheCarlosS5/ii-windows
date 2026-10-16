@@ -81,8 +81,11 @@ Item {
         if (apps.length > 0)
             list.push({ appId: "SEPARATOR_END", toplevels: [], pinned: false });
         list.push({ appId: "LAUNCHPAD", toplevels: [], pinned: false });
+        if (Config.options.dock.showStore ?? true)
+            list.push({ appId: "STORE", toplevels: [], pinned: false });
         return list;
     }
+    property real storeLaunchedAt: 0 // the store button ignores a second click within a few seconds
     function isSeparator(e) {
         return e.appId === "SEPARATOR" || e.appId === "SEPARATOR_END";
     }
@@ -191,7 +194,7 @@ Item {
             if (moved[i].pinned) keys.push(moved[i].appId);
         const next = [];
         for (const key of keys) {
-            const original = pinsCfg.find(id => id.toLowerCase() === key.toLowerCase());
+            const original = pinsCfg.find(id => TaskbarApps.canonicalId(id) === key.toLowerCase());
             if (original !== undefined) next.push(original);
         }
         for (const id of pinsCfg)
@@ -313,6 +316,8 @@ Item {
     function nameFor(entry) {
         if (entry.appId === "LAUNCHPAD")
             return Translation.tr("Overview");
+        if (entry.appId === "STORE")
+            return Translation.tr("App store");
         const de = DesktopEntries.heuristicLookup(entry.appId);
         if (de && de.name)
             return de.name;

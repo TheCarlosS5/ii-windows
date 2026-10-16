@@ -65,7 +65,7 @@ PopupWindow {
         }
         const list = [
             { icon: "open_in_new", text: Translation.tr("New window"), enabled: root.desktopEntry !== null,
-              action: () => root.desktopEntry?.execute() },
+              action: () => AppUsage.launch(root.desktopEntry) },
             { icon: root.pinned ? "keep_off" : "keep", text: root.pinned ? Translation.tr("Unpin from dock") : Translation.tr("Pin to dock"),
               action: () => root.togglePin() },
         ];

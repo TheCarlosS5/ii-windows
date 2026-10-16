@@ -20,9 +20,16 @@ Item {
 
     readonly property bool isSeparator: appToplevel.appId === "SEPARATOR" || appToplevel.appId === "SEPARATOR_END"
     readonly property bool isLaunchpad: appToplevel.appId === "LAUNCHPAD"
+    readonly property bool isStore: appToplevel.appId === "STORE"
+    readonly property bool isSpecial: isLaunchpad || isStore // the two tiles that are not apps
     readonly property var windows: appToplevel.toplevels ?? []
     readonly property bool appIsActive: windows.find(t => t.activated === true) !== undefined
-    property var desktopEntry: isSeparator || isLaunchpad ? null : DesktopEntries.heuristicLookup(appToplevel.appId)
+    // Bumped when the Start menu list changes, so the lookup below runs again (a binding, not an assignment).
+    property int entriesRevision: 0
+    readonly property var desktopEntry: {
+        slot.entriesRevision;
+        return isSeparator || isSpecial ? null : DesktopEntries.heuristicLookup(appToplevel.appId);
+    }
     property int lastFocused: -1
 
     readonly property var edge: appListRoot.edge
@@ -50,8 +57,7 @@ Item {
     Connections {
         target: DesktopEntries
         function onApplicationsChanged() {
-            if (!slot.isSeparator && !slot.isLaunchpad)
-                slot.desktopEntry = DesktopEntries.heuristicLookup(slot.appToplevel.appId);
+            slot.entriesRevision++;
         }
     }
 
@@ -95,7 +101,7 @@ Item {
         Loader {
             id: iconLoader
             anchors.fill: parent
-            active: !slot.isLaunchpad && !slot.isSeparator
+            active: !slot.isSpecial && !slot.isSeparator
             sourceComponent: IconImage {
                 implicitSize: slot.vis
                 mipmap: true
@@ -121,16 +127,16 @@ Item {
             }
         }
 
-        // The overview button: a tile like macOS' Launchpad.
+        // The overview button (apps) and the store: tiles like macOS' Launchpad.
         Rectangle {
-            visible: slot.isLaunchpad
+            visible: slot.isSpecial
             anchors.fill: parent
             anchors.margins: slot.vis * 0.06
             radius: slot.vis * 0.24
             color: Appearance.m3colors.m3primaryContainer
             MaterialSymbol {
                 anchors.centerIn: parent
-                text: "apps"
+                text: slot.isStore ? "storefront" : "apps"
                 iconSize: slot.vis * 0.58
                 color: Appearance.m3colors.m3onPrimaryContainer
             }
@@ -143,7 +149,11 @@ Item {
             acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
             cursorShape: Qt.PointingHandCursor
             property real pressMain: 0
+            property point pressPoint: Qt.point(0, 0)
             property bool wasDragged: false
+            // Qt delivers released before clicked: wasDragged is already cleared when clicked runs, so a
+            // press that moved keeps its own flag until the next press (a drag must not minimize or launch).
+            property bool suppressClick: false
 
             onEntered: {
                 if (slot.windows.length > 0) {
@@ -158,13 +168,19 @@ Item {
             }
             onPressed: mouse => {
                 wasDragged = false;
-                pressMain = slot.vertical ? mapToItem(slot.appListRoot, mouse.x, mouse.y).y
-                                          : mapToItem(slot.appListRoot, mouse.x, mouse.y).x;
+                suppressClick = false;
+                pressPoint = mapToItem(slot.appListRoot, mouse.x, mouse.y);
+                pressMain = slot.vertical ? pressPoint.y : pressPoint.x;
             }
             onPositionChanged: mouse => {
-                if (!(mouse.buttons & Qt.LeftButton) || !slot.appToplevel.pinned)
+                if (!(mouse.buttons & Qt.LeftButton))
                     return;
                 const p = mapToItem(slot.appListRoot, mouse.x, mouse.y);
+                // Moved away from where it was pressed: not a click, whether the icon can be dragged or not.
+                if (Math.abs(p.x - pressPoint.x) > 10 || Math.abs(p.y - pressPoint.y) > 10)
+                    suppressClick = true;
+                if (!slot.appToplevel.pinned)
+                    return;
                 const m = slot.vertical ? p.y : p.x;
                 if (!wasDragged && Math.abs(m - pressMain) > 10) {
                     wasDragged = true;
@@ -186,16 +202,16 @@ Item {
                 }
             }
             onClicked: mouse => {
-                if (wasDragged)
+                if (suppressClick)
                     return;
                 if (mouse.button === Qt.RightButton) {
-                    if (slot.isLaunchpad)
+                    if (slot.isSpecial)
                         slot.appListRoot.openContextMenu(null);
                     else
                         slot.appListRoot.openContextMenu(slot);
                 } else if (mouse.button === Qt.MiddleButton) {
-                    if (!slot.isLaunchpad) {
-                        slot.desktopEntry?.execute();
+                    if (!slot.isSpecial) {
+                        AppUsage.launch(slot.desktopEntry);
                         bounceAnim.restart();
                     }
                 } else {
@@ -207,11 +223,20 @@ Item {
 
     function activateApp() {
         if (isLaunchpad) {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            GlobalStates.toggleOverview("apps");
+            return;
+        }
+        if (isStore) {
+            bounceAnim.restart();
+            // One store at a time: a second click within a few seconds is a double click, not a second window.
+            if (Date.now() - slot.appListRoot.storeLaunchedAt < 4000)
+                return;
+            slot.appListRoot.storeLaunchedAt = Date.now();
+            Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("store.qml")]);
             return;
         }
         if (windows.length === 0) {
-            desktopEntry?.execute();
+            AppUsage.launch(desktopEntry);
             bounceAnim.restart();
             return;
         }
@@ -226,7 +251,7 @@ Item {
 
     // Running indicator (a dot on the side of the screen edge).
     Rectangle {
-        visible: !slot.isSeparator && !slot.isLaunchpad && slot.windows.length > 0
+        visible: !slot.isSeparator && !slot.isSpecial && slot.windows.length > 0
         radius: height / 2
         width: slot.vertical ? 4 : (slot.appIsActive ? 12 : 4)
         height: slot.vertical ? (slot.appIsActive ? 12 : 4) : 4

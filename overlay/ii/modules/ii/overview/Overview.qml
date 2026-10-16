@@ -14,7 +14,13 @@ import Quickshell.Hyprland
 Scope {
     id: overviewScope
     property bool dontAutoCancelSearch: false
-    property bool showApps: false // ii-windows: the app grid instead of the windows
+    // ii-windows: Win opens the app grid (GNOME's "Show applications"), Win+Tab the windows.
+    readonly property bool showApps: GlobalStates.overviewMode === "apps"
+    // Room from `top` (a position inside the column) down to the buttons at the bottom of the screen
+    // (the app grid and the search card must not run under them).
+    function heightBelow(top) {
+        return panelWindow.height - top - (GlobalStates.dockInsetBottom + 36 + 56 + 24);
+    }
 
     PanelWindow {
         id: panelWindow
@@ -43,8 +49,9 @@ Scope {
         Connections {
             target: GlobalStates
             function onOverviewOpenChanged() {
-                overviewScope.showApps = false;
                 if (!GlobalStates.overviewOpen) {
+                    // Whatever opens it next (the bar, a script) gets the grid, unless it asks for windows.
+                    GlobalStates.overviewMode = "apps";
                     searchWidget.disableExpandAnimation();
                     overviewScope.dontAutoCancelSearch = false;
                     GlobalFocusGrab.dismiss();
@@ -60,6 +67,8 @@ Scope {
         Connections {
             target: GlobalFocusGrab
             function onDismissed() {
+                if (GlobalStates.overviewOpen)
+                    GlobalStates.overviewDismissedAt = Date.now();
                 GlobalStates.overviewOpen = false;
             }
         }
@@ -109,8 +118,9 @@ Scope {
 
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
-                    if (overviewScope.showApps)
-                        overviewScope.showApps = false;
+                    // First Esc clears the search, like GNOME; the next one closes.
+                    if (panelWindow.searchingText !== "")
+                        searchWidget.cancelSearch();
                     else
                         GlobalStates.overviewOpen = false;
                 }
@@ -128,6 +138,8 @@ Scope {
             SearchWidget {
                 id: searchWidget
                 anchors.horizontalCenter: parent.horizontalCenter
+                gridNavigator: appGridLoader.item
+                availableHeight: overviewScope.heightBelow(searchWidget.y)
                 Synchronizer on searchingText {
                     property alias source: panelWindow.searchingText
                 }
@@ -136,18 +148,21 @@ Scope {
             Loader {
                 id: overviewLoader
                 anchors.horizontalCenter: parent.horizontalCenter
-                active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true) && !overviewScope.showApps
+                // The big windows only in the "windows" mode (Win+Tab); the grid mode never builds them.
+                active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true) && !overviewScope.showApps && panelWindow.searchingText == ""
                 sourceComponent: OverviewWidget {
                     screen: panelWindow.screen
-                    visible: (panelWindow.searchingText == "")
                 }
             }
 
             Loader {
+                id: appGridLoader
                 anchors.horizontalCenter: parent.horizontalCenter
                 active: GlobalStates.overviewOpen && overviewScope.showApps && panelWindow.searchingText == ""
                 visible: active
-                sourceComponent: AppGrid {}
+                sourceComponent: AppGrid {
+                    availableHeight: overviewScope.heightBelow(appGridLoader.y)
+                }
             }
         }
 
@@ -163,6 +178,7 @@ Scope {
             }
             implicitWidth: 56
             implicitHeight: 56
+            focusPolicy: Qt.NoFocus // a button that takes the focus leaves Esc and typing without a target
             buttonRadius: Appearance.rounding.full
             colBackground: Appearance.colors.colBackgroundSurfaceContainer
             onClicked: {
@@ -193,23 +209,26 @@ Scope {
             }
             implicitWidth: 56
             implicitHeight: 56
+            focusPolicy: Qt.NoFocus
             buttonRadius: Appearance.rounding.full
             toggled: overviewScope.showApps
             colBackground: Appearance.colors.colBackgroundSurfaceContainer
             colBackgroundToggled: Appearance.colors.colPrimary
+            // Switches between the grid and the windows (the open overview keeps its search field).
             onClicked: {
-                overviewScope.showApps = !overviewScope.showApps;
-                if (overviewScope.showApps) searchWidget.cancelSearch();
+                GlobalStates.overviewMode = overviewScope.showApps ? "windows" : "apps";
+                searchWidget.cancelSearch();
+                searchWidget.focusSearchInput();
             }
             contentItem: MaterialSymbol {
                 anchors.centerIn: parent
                 horizontalAlignment: Text.AlignHCenter
-                text: "apps"
+                text: overviewScope.showApps ? "select_window" : "apps"
                 iconSize: 28
                 color: appsButton.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
             }
             StyledToolTip {
-                text: Translation.tr("Show applications")
+                text: overviewScope.showApps ? Translation.tr("Show windows") : Translation.tr("Show applications")
             }
         }
     }
@@ -221,6 +240,7 @@ Scope {
         }
         overviewScope.dontAutoCancelSearch = true;
         panelWindow.setSearchingText(Config.options.search.prefix.clipboard);
+        GlobalStates.overviewMode = "apps";
         GlobalStates.overviewOpen = true;
     }
 
@@ -231,6 +251,7 @@ Scope {
         }
         overviewScope.dontAutoCancelSearch = true;
         panelWindow.setSearchingText(Config.options.search.prefix.emojis);
+        GlobalStates.overviewMode = "apps";
         GlobalStates.overviewOpen = true;
     }
 
@@ -238,15 +259,16 @@ Scope {
         target: "search"
 
         function toggle() {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            GlobalStates.toggleOverview("apps");
         }
         function workspacesToggle() {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            GlobalStates.toggleOverview("windows");
         }
         function close() {
             GlobalStates.overviewOpen = false;
         }
         function open() {
+            GlobalStates.overviewMode = "apps";
             GlobalStates.overviewOpen = true;
         }
         function toggleReleaseInterrupt() {
@@ -262,7 +284,7 @@ Scope {
         description: "Toggles search on press"
 
         onPressed: {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            GlobalStates.toggleOverview("apps");
         }
     }
     GlobalShortcut {
@@ -278,7 +300,7 @@ Scope {
         description: "Toggles overview on press"
 
         onPressed: {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            GlobalStates.toggleOverview("windows");
         }
     }
     GlobalShortcut {
@@ -294,7 +316,7 @@ Scope {
                 GlobalStates.superReleaseMightTrigger = true;
                 return;
             }
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+            GlobalStates.toggleOverview("apps");
         }
     }
     GlobalShortcut {
