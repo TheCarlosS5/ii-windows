@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import qs.modules.common
 
 // ii-windows: Wallpaper Engine / Lively next to ii.
@@ -42,6 +43,25 @@ Singleton {
         root.settle();
     }
 
+    // Windows keeps a wallpaper per virtual desktop, and on every desktop switch it shows that one for a moment
+    // before the live wallpaper is drawn again: a different static picture. While a live wallpaper runs, the
+    // desktop we are on gets a still of it as its Windows wallpaper (only if it showed ii's own picture); when
+    // the live wallpaper is gone it gets ii's back. A desktop not visited yet is fixed the first time it is.
+    function assistDesktop() {
+        if (!enabled || !Persistent.ready)
+            return;
+        if (root.active && root.preview !== "") {
+            Persistent.states.externalWallpaper.stillUsed = true;
+            stillProc.command = ["ii-shim", "switchwall", "--desktop-still", root.preview];
+        } else if (Persistent.states.externalWallpaper.stillUsed) {
+            stillProc.command = ["ii-shim", "switchwall", "--desktop-still-restore"];
+        } else {
+            return;
+        }
+        if (!stillProc.running)
+            stillProc.running = true;
+    }
+
     function parse(text) {
         let data;
         try {
@@ -54,7 +74,13 @@ Singleton {
         root.title = data.title ?? "";
         root.preview = data.preview ?? "";
         root.settle();
+        const key = root.active + "|" + root.preview;
+        if (key !== root.assistedKey) {
+            root.assistedKey = key;
+            root.assistDesktop();
+        }
     }
+    property string assistedKey: ""
 
     // Brings the palette in line with what is running. The last preview a palette was made from is kept in
     // Persistent, so a restart neither redoes it nor forgets to undo it (the program was closed meanwhile).
@@ -84,6 +110,22 @@ Singleton {
     }
     Process {
         id: paletteProc
+    }
+    Process {
+        id: stillProc
+    }
+
+    // A desktop switch: the new desktop gets the still (or its own wallpaper back) right away.
+    Connections {
+        target: Hyprland
+        function onFocusedWorkspaceChanged() {
+            stillTimer.restart();
+        }
+    }
+    Timer {
+        id: stillTimer
+        interval: 120
+        onTriggered: root.assistDesktop()
     }
 
     // Cheap (one process snapshot and two small files), so every few seconds; not at all when switched off.

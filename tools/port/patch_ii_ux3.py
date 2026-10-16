@@ -137,6 +137,8 @@ edit(path('modules', 'common', 'Persistent.qml'), [
             property JsonObject externalWallpaper: JsonObject {
                 // ii-windows: the preview picture the palette was last made from while a live wallpaper ran
                 property string palette: ""
+                // a still of a live wallpaper was set as Windows' wallpaper at some point: the restore check keeps running
+                property bool stillUsed: false
             }
             property JsonObject tour: JsonObject {
 '''),

@@ -4,6 +4,8 @@
 //   switchwall [--mode dark|light] [--type scheme-...|auto] [--image <file> | <file>]
 //              [--noswitch] [--color [#rrggbb|clear]] [--palette-from <image>]
 //   --palette-from: only the colors, from this picture (a live wallpaper's preview); nothing else changes.
+//   --desktop-still <image> / --desktop-still-restore: Windows' wallpaper of the current virtual desktop shows
+//   a still of the live wallpaper (so the desktop-switch gap looks alike), and goes back when it is gone.
 //
 // Colors come from Google's material-color-utilities (Celebi quantizer + Score + dynamic scheme),
 // the algorithm ii uses through matugen / materialyoucolor. "auto" picks the scheme the way ii's
@@ -543,9 +545,110 @@ bool applyToWindows(const std::wstring& path) {
 	return ok;
 }
 
+// ---- A still of a live wallpaper as Windows' own wallpaper -------------------------------------------------
+// Wallpaper Engine / Lively draw above Windows' wallpaper, which stays visible for a moment on every
+// virtual-desktop switch (the live window is redrawn a few hundred ms late): a different static picture
+// shows. Windows 11 keeps one wallpaper PER DESKTOP and SPI_SETDESKWALLPAPER sets the current one, so
+// while a live wallpaper runs, each desktop gets a still of it (the preview picture) the moment ii sees it.
+std::wstring stillPath() { return localAppData() + L"\\ii-windows\\extwall-still.png"; }
+
+// First frame of `src` as a PNG in `dst` (a sidecar remembers which source it came from). True when `dst`
+// was (re)made.
+bool convertToPng(const std::wstring& src, const std::wstring& dst, bool& remade) {
+	remade = false;
+	WIN32_FILE_ATTRIBUTE_DATA data {};
+	if (!GetFileAttributesExW(src.c_str(), GetFileExInfoStandard, &data)) return false;
+	auto stamp = toUtf8(src) + "|" + std::to_string((static_cast<unsigned long long>(data.ftLastWriteTime.dwHighDateTime) << 32) | data.ftLastWriteTime.dwLowDateTime);
+	auto sidecar = dst + L".txt";
+	if (GetFileAttributesW(dst.c_str()) != INVALID_FILE_ATTRIBUTES && readUtf8(sidecar) == stamp) return true;
+
+	ComPtr<IWICImagingFactory> wic;
+	ComPtr<IWICBitmapDecoder> decoder;
+	ComPtr<IWICBitmapFrameDecode> frame;
+	ComPtr<IWICFormatConverter> converter;
+	if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic)))
+	    || FAILED(wic->CreateDecoderFromFilename(src.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder))
+	    || FAILED(decoder->GetFrame(0, &frame)) || FAILED(wic->CreateFormatConverter(&converter))
+	    || FAILED(converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom)))
+		return false;
+	CreateDirectoryW((localAppData() + L"\\ii-windows").c_str(), nullptr);
+	auto temp = dst + L".tmp";
+	// A preview is small (often 160 x 160): Windows would blow it up in blocks. Scaled here with a smooth
+	// filter to cover the screen and cropped to its shape, it is a soft version of the scene instead.
+	IWICBitmapSource* source = converter.Get();
+	ComPtr<IWICBitmapScaler> scaler;
+	ComPtr<IWICBitmapClipper> clipper;
+	{
+		UINT w = 0, h = 0;
+		converter->GetSize(&w, &h);
+		auto screenW = static_cast<UINT>(std::max(1280, GetSystemMetrics(SM_CXSCREEN)));
+		auto screenH = static_cast<UINT>(std::max(720, GetSystemMetrics(SM_CYSCREEN)));
+		if (w > 0 && h > 0 && (w < screenW || h < screenH)) {
+			auto k = std::max(static_cast<double>(screenW) / w, static_cast<double>(screenH) / h);
+			auto nw = static_cast<UINT>(std::ceil(w * k)), nh = static_cast<UINT>(std::ceil(h * k));
+			WICRect crop {static_cast<INT>((nw - screenW) / 2), static_cast<INT>((nh - screenH) / 2), static_cast<INT>(screenW), static_cast<INT>(screenH)};
+			if (SUCCEEDED(wic->CreateBitmapScaler(&scaler)) && SUCCEEDED(scaler->Initialize(converter.Get(), nw, nh, WICBitmapInterpolationModeHighQualityCubic))
+			    && SUCCEEDED(wic->CreateBitmapClipper(&clipper)) && SUCCEEDED(clipper->Initialize(scaler.Get(), &crop)))
+				source = clipper.Get();
+		}
+	}
+	{
+		ComPtr<IWICStream> stream;
+		ComPtr<IWICBitmapEncoder> encoder;
+		ComPtr<IWICBitmapFrameEncode> out;
+		ComPtr<IPropertyBag2> options;
+		UINT width = 0, height = 0;
+		source->GetSize(&width, &height);
+		WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+		if (FAILED(wic->CreateStream(&stream)) || FAILED(stream->InitializeFromFilename(temp.c_str(), GENERIC_WRITE))
+		    || FAILED(wic->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder)) || FAILED(encoder->Initialize(stream.Get(), WICBitmapEncoderNoCache))
+		    || FAILED(encoder->CreateNewFrame(&out, &options)) || FAILED(out->Initialize(options.Get())) || FAILED(out->SetSize(width, height))
+		    || FAILED(out->SetPixelFormat(&format)) || FAILED(out->WriteSource(source, nullptr)) || FAILED(out->Commit()) || FAILED(encoder->Commit()))
+			return false;
+	}
+	if (!MoveFileExW(temp.c_str(), dst.c_str(), MOVEFILE_REPLACE_EXISTING)) return false;
+	writeUtf8(sidecar, stamp);
+	remade = true;
+	return true;
+}
+
+bool setWindowsWallpaperFile(const std::wstring& path) {
+	std::wstring native = path;
+	for (auto& c: native) {
+		if (c == L'/') c = L'\\';
+	}
+	return SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, native.data(), SPIF_UPDATEINIFILE | SPIF_SENDCHANGE) != 0;
+}
+
+// The current desktop's Windows wallpaper becomes the still, but only if it shows ii's own picture (or the
+// still already): a wallpaper the user chose for that desktop is left alone.
+int desktopStill(const std::wstring& image, const std::wstring& iiPath) {
+	auto still = stillPath();
+	bool remade = false;
+	if (image.empty() || !convertToPng(image, still, remade)) return 1;
+	auto current = windowsWallpaper();
+	auto known = syncStateValue("applied");
+	auto isStill = normalizedPath(current) == normalizedPath(still);
+	auto isIi = (!iiPath.empty() && normalizedPath(current) == normalizedPath(iiPath)) || (!known.empty() && normalizedPath(current) == normalizedPath(known));
+	if ((isStill && remade) || (!isStill && isIi)) setWindowsWallpaperFile(still); // a new picture at the same path: set it again
+	return 0;
+}
+
+// The live wallpaper is gone: this desktop's Windows wallpaper goes back to ii's (or the original) if it still shows the still.
+int desktopStillRestore() {
+	if (normalizedPath(windowsWallpaper()) != normalizedPath(stillPath())) return 0;
+	auto target = syncStateValue("applied");
+	if (target.empty() || GetFileAttributesW(target.c_str()) == INVALID_FILE_ATTRIBUTES) target = syncStateValue("original");
+	if (target.empty()) return 0;
+	setWindowsWallpaperFile(target);
+	return 0;
+}
+
 // Copies Windows' current wallpaper next to ii's own wallpapers and returns the copy ("" = nothing to adopt).
 std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool force) {
 	auto windows = windowsWallpaper();
+	// The still of a live wallpaper (above) is ours, not a picture the user chose in Windows.
+	if (normalizedPath(windows) == normalizedPath(stillPath())) return {};
 	auto windowsUsable = !windows.empty() && GetFileAttributesW(windows.c_str()) != INVALID_FILE_ATTRIBUTES;
 	auto known = syncStateValue("applied");
 	if (known.empty() && !force) {
@@ -623,10 +726,14 @@ int switchwall(const Args& args) {
 	// --palette-from <image>: the colors come from this picture (the preview of a Wallpaper Engine / Lively
 	// wallpaper), but the wallpaper ii shows, Windows' wallpaper and config.json stay as they are.
 	std::wstring paletteFrom;
+	std::wstring desktopStillImage;
+	bool desktopStillGiven = false, desktopStillRestoreGiven = false;
 	for (size_t i = 0; i < args.size(); ++i) {
 		const auto& a = args[i];
 		auto next = [&]() { return i + 1 < args.size() ? args[++i] : std::wstring(); };
 		if (a == L"--palette-from") paletteFrom = next();
+		else if (a == L"--desktop-still") { desktopStillGiven = true; desktopStillImage = next(); }
+		else if (a == L"--desktop-still-restore") desktopStillRestoreGiven = true;
 		else if (a == L"--mode") mode = next();
 		else if (a == L"--type") type = next();
 		else if (a == L"--image") image = next();
@@ -642,6 +749,8 @@ int switchwall(const Args& args) {
 	}
 
 	if (restoreWindows) return restoreWindowsWallpaper() ? 0 : 1;
+	if (desktopStillRestoreGiven) return desktopStillRestore();
+	if (desktopStillGiven) return desktopStill(desktopStillImage, getString(child(loadConfig(), L"background"), L"wallpaperPath"));
 
 	auto config = loadConfig();
 	auto appearance = child(config, L"appearance");
