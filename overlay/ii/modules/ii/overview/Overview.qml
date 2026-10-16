@@ -2,6 +2,7 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
 import Qt.labs.synchronizer
 import QtQuick
 import QtQuick.Controls
@@ -84,7 +85,9 @@ Scope {
         Rectangle {
             id: backdrop
             anchors.fill: parent
-            color: Appearance.colors.colScrim
+            // A light veil only (the full scrim, 50 % black, made the overview much darker than the bar and the
+            // dock, which are glass over the wallpaper): the same transparency everywhere.
+            color: ColorUtils.transparentize(Appearance.colors.colScrim, 0.75)
             opacity: GlobalStates.overviewOpen ? 1 : 0
             visible: opacity > 0
             Behavior on opacity {

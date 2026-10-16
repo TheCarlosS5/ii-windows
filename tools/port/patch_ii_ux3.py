@@ -112,7 +112,74 @@ edit(path('modules', 'common', 'Persistent.qml'), [
                 // ii-windows: {"<entry id, lower case>": {"n": launches, "t": time of the last one, ms}}
                 property var counts: ({})
             }
+            property JsonObject externalWallpaper: JsonObject {
+                // ii-windows: the preview picture the palette was last made from while a live wallpaper ran
+                property string palette: ""
+            }
             property JsonObject tour: JsonObject {
+'''),
+])
+
+# --- Wallpaper Engine / Lively: ii's own picture steps aside so the live wallpaper shows through -----------------
+edit(path('modules', 'ii', 'background', 'Background.qml'), [
+    ('                opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo) ? 1 : 0\n',
+     '                // ii-windows: not while Wallpaper Engine / Lively runs (the window is transparent: its animation shows through)\n'
+     '                opacity: (status === Image.Ready && !bgRoot.wallpaperIsVideo && (!ExternalWallpaper.active || GlobalStates.screenLocked)) ? 1 : 0\n'),
+])
+
+ES_UX3.update({
+    "Live wallpapers": "Fondos animados",
+    "Show the live wallpaper of Wallpaper Engine or Lively when it is open": "Mostrar el fondo animado de Wallpaper Engine o Lively cuando esté abierto",
+    "ii stops drawing its own wallpaper while one of them runs, so the animation shows behind your icons and widgets. The colors come from the wallpaper's preview picture.": "ii deja de dibujar su propio fondo mientras uno de ellos está abierto, así la animación se ve detrás de tus iconos y widgets. Los colores salen de la imagen de vista previa del fondo.",
+    "Detected: %1 — %2": "Detectado: %1 — %2",
+    "No live wallpaper program is open": "No hay ningún programa de fondos animados abierto",
+    "Make the colors from this wallpaper again": "Volver a calcular los colores con este fondo",
+})
+add_translations('es_MX', ES_UX3)
+edit(path('modules', 'settings', 'AdvancedConfig.qml'), [
+    ('''    ContentSection {
+        icon: "backup"
+''',
+     '''    ContentSection {
+        icon: "animation"
+        title: Translation.tr("Live wallpapers")
+
+        ConfigSwitch {
+            buttonIcon: "wallpaper_slideshow"
+            text: Translation.tr("Show the live wallpaper of Wallpaper Engine or Lively when it is open")
+            checked: Config.options.background.externalProvider !== "off"
+            onCheckedChanged: Config.options.background.externalProvider = checked ? "auto" : "off"
+        }
+        StyledText {
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            font.pixelSize: Appearance.font.pixelSize.small
+            color: Appearance.colors.colSubtext
+            text: Translation.tr("ii stops drawing its own wallpaper while one of them runs, so the animation shows behind your icons and widgets. The colors come from the wallpaper's preview picture.")
+        }
+        StyledText {
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            font.pixelSize: Appearance.font.pixelSize.small
+            color: Appearance.colors.colOnLayer1
+            text: ExternalWallpaper.active
+                ? Translation.tr("Detected: %1 — %2").arg(ExternalWallpaper.providerName).arg(ExternalWallpaper.title)
+                : Translation.tr("No live wallpaper program is open")
+        }
+        Flow {
+            Layout.fillWidth: true
+            spacing: 5
+            RippleButtonWithIcon {
+                visible: ExternalWallpaper.active
+                materialIcon: "palette"
+                mainText: Translation.tr("Make the colors from this wallpaper again")
+                onClicked: ExternalWallpaper.recalc()
+            }
+        }
+    }
+
+    ContentSection {
+        icon: "backup"
 '''),
 ])
 

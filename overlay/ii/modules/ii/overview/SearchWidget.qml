@@ -170,7 +170,10 @@ Item {
         implicitWidth: searchBar.implicitWidth + 24
         implicitHeight: searchBar.implicitHeight + 10
         radius: height / 2
-        color: Appearance.colors.colBackgroundSurfaceContainer
+        // Same glass as the bar and the dock (colLayer0 and its border).
+        color: Appearance.colors.colLayer0
+        border.width: 1
+        border.color: Appearance.colors.colLayer0Border
 
         SearchBar {
             id: searchBar
@@ -199,7 +202,9 @@ Item {
         width: root.resultsWidth
         implicitHeight: Math.min(flick.contentHeight, root.maxResultsHeight) + 24
         radius: Appearance.rounding.large
-        color: Appearance.colors.colBackgroundSurfaceContainer
+        color: Appearance.colors.colLayer0
+        border.width: 1
+        border.color: Appearance.colors.colLayer0Border
         clip: true
 
         Behavior on implicitHeight {

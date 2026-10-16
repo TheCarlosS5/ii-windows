@@ -97,7 +97,10 @@ Item {
         width: root.implicitWidth
         height: root.implicitHeight
         radius: Appearance.rounding.large
-        color: Appearance.colors.colBackgroundSurfaceContainer
+        // Same glass as the bar and the dock (colLayer0 and its border).
+        color: Appearance.colors.colLayer0
+        border.width: 1
+        border.color: Appearance.colors.colLayer0Border
         clip: true
 
         // The most used apps.

@@ -2,7 +2,8 @@
 // writes the Material 3 palette ii reads (colors.json, the keys of its matugen template).
 //
 //   switchwall [--mode dark|light] [--type scheme-...|auto] [--image <file> | <file>]
-//              [--noswitch] [--color [#rrggbb|clear]]
+//              [--noswitch] [--color [#rrggbb|clear]] [--palette-from <image>]
+//   --palette-from: only the colors, from this picture (a live wallpaper's preview); nothing else changes.
 //
 // Colors come from Google's material-color-utilities (Celebi quantizer + Score + dynamic scheme),
 // the algorithm ii uses through matugen / materialyoucolor. "auto" picks the scheme the way ii's
@@ -619,10 +620,14 @@ int switchwall(const Args& args) {
 	bool restoreWindows = false;
 	bool colorGiven = false;
 	std::wstring colorArg;
+	// --palette-from <image>: the colors come from this picture (the preview of a Wallpaper Engine / Lively
+	// wallpaper), but the wallpaper ii shows, Windows' wallpaper and config.json stay as they are.
+	std::wstring paletteFrom;
 	for (size_t i = 0; i < args.size(); ++i) {
 		const auto& a = args[i];
 		auto next = [&]() { return i + 1 < args.size() ? args[++i] : std::wstring(); };
-		if (a == L"--mode") mode = next();
+		if (a == L"--palette-from") paletteFrom = next();
+		else if (a == L"--mode") mode = next();
 		else if (a == L"--type") type = next();
 		else if (a == L"--image") image = next();
 		else if (a == L"--noswitch") noswitch = true;
@@ -664,7 +669,8 @@ int switchwall(const Args& args) {
 		}
 	}
 
-	if (noswitch) image = getString(background, L"wallpaperPath");
+	if (!paletteFrom.empty()) noswitch = true; // nothing is switched, only the palette is computed
+	if (noswitch) image = paletteFrom.empty() ? getString(background, L"wallpaperPath") : paletteFrom;
 	mcu::Argb accent = 0;
 	auto hasAccent = parseHex(getString(palette, L"accentColor"), accent);
 	if (image.empty() && !hasAccent && !noswitch) {
@@ -705,7 +711,7 @@ int switchwall(const Args& args) {
 	out += "}\n";
 
 	// Config first (wallpaper path), then the palette: ii reloads each file when it changes.
-	writeUtf8(configPath(), toUtf8(std::wstring(config.Stringify())));
+	if (paletteFrom.empty()) writeUtf8(configPath(), toUtf8(std::wstring(config.Stringify())));
 	// What ii shows is what Windows shows (a picture, not a video wallpaper).
 	if (!image.empty() && !noswitch && !adopted && syncWindows) {
 		auto lower = normalizedPath(image);

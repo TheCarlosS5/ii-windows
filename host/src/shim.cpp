@@ -542,6 +542,7 @@ int ocrFile(const std::vector<std::wstring>& args);
 // switchwall.cpp
 int switchwall(const std::vector<std::wstring>& args);
 int thumbnail(const std::vector<std::wstring>& args);
+int extwall(const std::vector<std::wstring>& args); // extwall.cpp
 int magick(const std::vector<std::wstring>& args);
 int vdesk(const std::vector<std::wstring>& args);
 // configtool.cpp
@@ -575,6 +576,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"screenshot") return screenshot(args);
 	if (command == L"crop") return crop(args);
 	if (command == L"switchwall") return switchwall(args);
+	if (command == L"extwall") return extwall(args);
 	if (command == L"randomwall") return randomwall(args);
 	if (command == L"fetch") return fetch(args);
 	if (command == L"ai-request") return aiRequest(args);
