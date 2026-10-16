@@ -189,7 +189,7 @@ edit(path('services', 'Booru.qml'), [
 edit(path('modules', 'ii', 'bar', 'StyledPopup.qml'), [
     ('    active: hoverTarget && hoverTarget.containsMouse\n',
      '''    // ii-windows: kept for a while, hidden, after the pointer leaves (no window per hover).
-    readonly property bool shown: !!hoverTarget && hoverTarget.containsMouse
+    property bool shown: !!hoverTarget && hoverTarget.containsMouse
     property Timer keepAlive: Timer {
         interval: 20000
     }

@@ -65,6 +65,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\patch_ii_settings2.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_settings2.py failed" }
 # The app store (winget): where it opens from and its Spanish.
 & python -I "$root\tools\port\patch_ii_store.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_store.py failed" }
+# Tray overflow by click, overview modes (Win = app grid), launch counter, external wallpapers.
+& python -I "$root\tools\port\patch_ii_ux3.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ux3.py failed" }
 # Every folder/file the QML imports must be there and not empty (a submodule that was never
 # initialised leaves an empty folder, and the shell then dies on start): refuse to stage such a tree.
 $importCheck = & python -I "$root\tools\dev\check-qml-imports.py" $dest
