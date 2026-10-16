@@ -24,6 +24,7 @@ Singleton {
     property var activeWorkspace: null
     property var monitors: []
     property var layers: ({})
+    property string lastSignature: ""
 
     // Convenient stuff (unchanged from upstream)
     function toplevelsForWorkspace(workspace) {
@@ -67,9 +68,9 @@ Singleton {
 
     function rebuild() {
         const monitorObjects = Hyprland.monitors.values;
-        root.monitors = monitorObjects.map(m => m.lastIpcObject);
+        const monitors = monitorObjects.map(m => m.lastIpcObject);
         const monitorById = {};
-        for (const m of root.monitors) monitorById[m.id] = m;
+        for (const m of monitors) monitorById[m.id] = m;
 
         const toplevels = ToplevelManager.toplevels.values;
         const current = Hyprland.focusedWorkspace?.id ?? 1;
@@ -107,12 +108,6 @@ Singleton {
                 "inhibitingIdle": false,
             });
         }
-        root.windowList = list;
-        const byAddress = {};
-        for (const w of list) byAddress[w.address] = w;
-        root.windowByAddress = byAddress;
-        root.addresses = list.map(w => w.address);
-
         const focused = Hyprland.focusedMonitor;
         const workspaces = Hyprland.workspaces.values.map(w => {
             const windows = list.filter(win => win.workspace.id === w.id);
@@ -129,6 +124,19 @@ Singleton {
                 "ispersistent": true,
             };
         });
+        // This runs every second (titles and geometry have no change signal): when nothing changed, publish
+        // nothing, so the overview, bar and dock bound to these lists are not re-evaluated for nothing.
+        const signature = JSON.stringify([list, workspaces, monitors, current]);
+        if (signature === root.lastSignature)
+            return;
+        root.lastSignature = signature;
+
+        root.monitors = monitors;
+        root.windowList = list;
+        const byAddress = {};
+        for (const w of list) byAddress[w.address] = w;
+        root.windowByAddress = byAddress;
+        root.addresses = list.map(w => w.address);
         root.workspaces = workspaces;
         root.workspaceIds = workspaces.map(w => w.id);
         const byId = {};

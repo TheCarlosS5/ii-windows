@@ -328,18 +328,29 @@ Item {
     // Window previews on hover (running apps).
     PopupWindow {
         id: previewPopup
-        property var appTopLevel: root.lastHoveredButton?.appToplevel
+        // The app whose windows are previewed. It only follows the icon under the pointer once the pointer has
+        // rested there (updateTimer): sweeping across the dock used to create (and destroy) a set of live DWM
+        // thumbnails for every icon it crossed, which is what made the dock hitch.
+        property var appTopLevel: null
+        readonly property var hoveredTopLevel: root.lastHoveredButton?.appToplevel
 
-        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && appTopLevel && appTopLevel.toplevels && appTopLevel.toplevels.length > 0 && !contextMenu.shown && !root.dragging
+        property bool shouldShow: (popupMouseArea.containsMouse || root.buttonHovered) && hoveredTopLevel && hoveredTopLevel.toplevels && hoveredTopLevel.toplevels.length > 0 && !contextMenu.shown && !root.dragging
 
         property bool show: false
         property real cachedCenter: 0
+
+        // Nothing visible any more: let go of the thumbnails (each one polls the window every 33 ms).
+        onVisibleChanged: {
+            if (!visible)
+                appTopLevel = null;
+        }
 
         Connections {
             target: root
             function onLastHoveredButtonChanged() {
                 if (root.lastHoveredButton && root.QsWindow)
                     previewPopup.cachedCenter = root.centerOfButton(root.lastHoveredButton);
+                updateTimer.restart();
             }
             function onButtonHoveredChanged() {
                 if (root.buttonHovered && root.lastHoveredButton && root.QsWindow)
@@ -353,7 +364,14 @@ Item {
         Timer {
             id: updateTimer
             interval: 120
-            onTriggered: previewPopup.show = previewPopup.shouldShow
+            onTriggered: {
+                if (previewPopup.shouldShow) {
+                    previewPopup.appTopLevel = previewPopup.hoveredTopLevel;
+                    if (root.lastHoveredButton && root.QsWindow)
+                        previewPopup.cachedCenter = root.centerOfButton(root.lastHoveredButton); // magnification moved it
+                }
+                previewPopup.show = previewPopup.shouldShow;
+            }
         }
 
         // Anchored at the outer limit of the magnified dock, so the popup sits just above (beside) it.
@@ -408,12 +426,7 @@ Item {
                 y: Appearance.sizes.elevationMargin
                 implicitHeight: previewRowLayout.implicitHeight + padding * 2
                 implicitWidth: previewRowLayout.implicitWidth + padding * 2
-                Behavior on implicitWidth {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
-                Behavior on implicitHeight {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                }
+                // (No size animation here: it resized a native window on every frame.)
 
                 RowLayout {
                     id: previewRowLayout
@@ -477,14 +490,8 @@ Item {
                                         live: true
                                         paintCursor: true
                                         constraintSize: Qt.size(root.maxWindowPreviewWidth, root.maxWindowPreviewHeight)
-                                        layer.enabled: true
-                                        layer.effect: OpacityMask {
-                                            maskSource: Rectangle {
-                                                width: screencopyView.width
-                                                height: screencopyView.height
-                                                radius: Appearance.rounding.small
-                                            }
-                                        }
+                                        // (No rounded-corner mask: DWM draws the thumbnail above everything, the
+                                        // mask never showed and cost an offscreen texture per preview.)
                                     }
                                 }
                             }
