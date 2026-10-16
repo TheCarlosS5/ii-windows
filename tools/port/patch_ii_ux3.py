@@ -249,6 +249,10 @@ edit(path('GlobalStates.qml'), [
      '''    property bool overviewOpen: false
     property string overviewMode: "apps" // ii-windows: "apps" (the grid, Win) or "windows" (Win+Tab)
     property real overviewDismissedAt: 0
+    // The pinned dock (Dock.qml): the space it takes from the bottom, and where it ends left and right.
+    property real dockExclusiveBottom: 0
+    property real dockSpanLeft: 0
+    property real dockSpanRight: 0
     // A press on a dock/bar button first "clicks outside" (which closes the overview), and then the click
     // itself arrives: don't reopen what that same click just closed.
     function toggleOverview(mode) {
@@ -280,6 +284,41 @@ edit(path('modules', 'ii', 'verticalBar', 'VerticalBarContent.qml'), [
 ])
 
 
+# The translator tab of the left sidebar is on by default (it was off, so a new install had no Translator tab).
+edit(path('modules', 'common', 'Config.qml'), [
+    ('                    property bool enable: false\n                    property int delay: 300',
+     '                    property bool enable: true // ii-windows: on by default\n                    property int delay: 300'),
+])
+ES_UX3.update({
+    "Detect language": "Detectar idioma",
+    "System language": "Mi idioma",
+    "Swap languages": "Intercambiar idiomas",
+    "Pick the two languages to swap them": "Elige los dos idiomas para intercambiarlos",
+    "Translating...": "Traduciendo...",
+    "Paste": "Pegar",
+    "Clear": "Borrar",
+    "Copy": "Copiar",
+    "Search the web": "Buscar en la web",
+})
+add_translations('es_MX', ES_UX3)
+
+
+# --- Side panels use the corner next to a pinned dock ------------------------------------------------------------
+# A pinned dock reserves space at the bottom, so the panels stop above it even where the dock does not reach (an
+# empty corner, and cramped content). Down to the screen edge when the dock's span does not touch the panel.
+edit(path('modules', 'ii', 'sidebarRight', 'SidebarRight.qml'), [
+    ('        implicitWidth: sidebarWidth\n        WlrLayershell.namespace: "quickshell:sidebarRight"\n',
+     '        implicitWidth: sidebarWidth\n'
+     '        margins.bottom: (GlobalStates.dockExclusiveBottom > 0 && GlobalStates.dockSpanRight < (screen?.width ?? 0) - sidebarWidth - 16) ? -GlobalStates.dockExclusiveBottom : 0\n'
+     '        WlrLayershell.namespace: "quickshell:sidebarRight"\n'),
+])
+edit(path('modules', 'ii', 'sidebarLeft', 'SidebarLeft.qml'), [
+    ('            implicitWidth: Appearance.sizes.sidebarWidthExtended + Appearance.sizes.elevationMargin\n',
+     '            implicitWidth: Appearance.sizes.sidebarWidthExtended + Appearance.sizes.elevationMargin\n'
+     '            margins.bottom: (GlobalStates.dockExclusiveBottom > 0 && GlobalStates.dockSpanLeft > implicitWidth + 16) ? -GlobalStates.dockExclusiveBottom : 0\n'),
+])
+
+
 # --- Tray overflow: the popup stays open while the pointer is on it ----------------------------------------
 # StyledPopup (patched in patch_ii_p0.py) shows its window only while the hover target is hovered. The tray
 # overflow opens by click, so it must stay visible while trayOverflowOpen is true (otherwise moving the
@@ -297,6 +336,13 @@ edit(path('modules', 'ii', 'bar', 'SysTray.qml'), [
 '''),
     ('        windows: [trayOverflowLayout.QsWindow?.window, root.activeMenu]\n',
      '        windows: [trayOverflowLayout.QsWindow?.window, trayOverflowButton.QsWindow?.window, root.activeMenu]\n'),
+    # A left click on an icon of the popup opens its app: the popup closes then, as Windows' hidden icons do.
+    ('                            onMenuOpened: (qsWindow) => root.setExtraWindowAndGrabFocus(qsWindow);\n',
+     '                            onMenuOpened: (qsWindow) => root.setExtraWindowAndGrabFocus(qsWindow);\n'
+     '                            onActivated: {\n'
+     '                                root.trayOverflowOpen = false;\n'
+     '                                root.closeOverflowMenu();\n'
+     '                            }\n'),
     ('            downAction: () => root.trayOverflowOpen = !root.trayOverflowOpen\n',
      '''            downAction: () => {
                 if (Date.now() - root.overflowClearedAt < 350) return;

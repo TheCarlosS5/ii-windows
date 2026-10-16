@@ -84,6 +84,26 @@ Scope {
                 height: !dockRoot.vertical ? crossSize : mainSize
             }
 
+            // What the side panels need to know to use the corner next to a pinned dock (they stop above the
+            // space it reserves, which leaves an empty corner where the dock does not reach). The span is
+            // the dock at rest plus room for its magnification, so it does not jump while the pointer is on it.
+            readonly property real spanSlack: (dockApps.maxScale - 1) * dockApps.iconSize * 4
+            Binding {
+                target: GlobalStates
+                property: "dockExclusiveBottom"
+                value: (root.pinned && root.edge === "bottom") ? dockApps.reservedThickness : 0
+            }
+            Binding {
+                target: GlobalStates
+                property: "dockSpanLeft"
+                value: dockApps.width / 2 - dockApps.layout.restTotal / 2 - dockApps.pad - dockRoot.spanSlack
+            }
+            Binding {
+                target: GlobalStates
+                property: "dockSpanRight"
+                value: dockApps.width / 2 + dockApps.layout.restTotal / 2 + dockApps.pad + dockRoot.spanSlack
+            }
+
             DockApps {
                 id: dockApps
                 anchors.fill: parent

@@ -17,6 +17,7 @@ MouseArea {
 
     signal menuOpened(qsWindow: var)
     signal menuClosed()
+    signal activated() // ii-windows: a left click opened the app (the overflow popup closes, as Windows' does)
 
     hoverEnabled: true
     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
@@ -34,6 +35,7 @@ MouseArea {
                 root.lastLeftPress = Date.now();
                 item.activate();
             }
+            root.activated();
             break;
         case Qt.RightButton:
             if (item.hasMenu)
