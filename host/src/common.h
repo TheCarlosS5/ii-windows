@@ -102,7 +102,17 @@ namespace theme {
 void start();   // follow ii's palette (dark/light, accent) from now on; records originals first
 void apply();   // re-apply if the palette changed (cheap to call often)
 void restore(); // puts every recorded value back
+void refresh(); // apply again on the next apply() even if the palette did not change (an option changed)
 } // namespace theme
+
+namespace windowfx {
+// Light transparency for other programs' windows and no loud accent borders (see windowfx.cpp).
+void start();          // read the options, watch new windows
+void tick();           // once a second: options changed, windows the events missed
+void stop();           // give back every window this run touched and stop watching
+void restore();        // give back every marked window, from any process (the rescue calls it)
+bool accentBorders();  // appearance.windowEffects.accentBorders (default false)
+} // namespace windowfx
 
 namespace splash {
 void show();               // cover windows (plain colour) over Explorer's desktop while the shell loads

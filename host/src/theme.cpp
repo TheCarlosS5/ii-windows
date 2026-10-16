@@ -187,12 +187,14 @@ void applyNow() {
 	changed |= setValue(ACCENT, L"AccentPalette", REG_BINARY, palette, sizeof(palette));
 	changed |= setDword(ACCENT, L"AccentColorMenu", abgr(shades[4]));
 	changed |= setDword(ACCENT, L"StartColorMenu", abgr(shades[5]));
-	// Title bars and window borders in the accent, like ii's own surfaces.
+	// Title bars and window borders in the accent only if the user wants them (appearance.windowEffects.
+	// accentBorders, off by default): some wallpapers give loud borders. Without it they keep the plain
+	// frame of the light/dark theme; the accent still colours Start, selections and focus rings.
 	auto titleBar = dark ? shades[5] : shades[2];
 	changed |= setDword(DWM, L"AccentColor", abgr(titleBar));
 	changed |= setDword(DWM, L"ColorizationColor", argb(titleBar, 0xC4));
 	changed |= setDword(DWM, L"ColorizationAfterglow", argb(titleBar, 0xC4));
-	changed |= setDword(DWM, L"ColorPrevalence", 1);
+	changed |= setDword(DWM, L"ColorPrevalence", windowfx::accentBorders() ? 1 : 0);
 
 	if (changed) {
 		state::set(L"themeApplied", 1);
@@ -216,6 +218,8 @@ void start() {
 	lastSeen = {};
 	apply();
 }
+
+void refresh() { lastSeen = {}; }
 
 void apply() {
 	if (!active || !colorsChanged()) return;

@@ -8,6 +8,7 @@
   "appearance.transparency",
   "appearance.wallpaperTheming",
   "appearance.wallpaperTheming.terminalGenerationProps",
+  "appearance.windowEffects",
   "apps",
   "audio",
   "audio.protection",
@@ -196,6 +197,22 @@
   },
   "appearance.wallpaperTheming.terminalGenerationProps.termFgBoost": {
    "kind": "real"
+  },
+  "appearance.windowEffects.accentBorders": {
+   "kind": "bool"
+  },
+  "appearance.windowEffects.exclude": {
+   "kind": "string"
+  },
+  "appearance.windowEffects.opacity": {
+   "kind": "int",
+   "range": [
+    60,
+    100
+   ]
+  },
+  "appearance.windowEffects.transparency": {
+   "kind": "bool"
   },
   "apps.bluetooth": {
    "kind": "string"

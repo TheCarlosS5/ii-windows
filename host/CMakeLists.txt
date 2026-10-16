@@ -14,6 +14,7 @@ add_executable(ii-host WIN32
 	src/keyboard.cpp
 	src/keyrouter.cpp
 	src/volume.cpp
+	src/windowfx.cpp
 	src/showdesktop.cpp
 	src/banners.cpp
 	src/theme.cpp

@@ -67,6 +67,7 @@ void restoreAll(bool restartExplorer, bool force) {
 		desktop::restoreIcons(force);
 	}
 	banners::restore();
+	windowfx::restore();
 	theme::restore();
 
 	if (!restartExplorer) return;

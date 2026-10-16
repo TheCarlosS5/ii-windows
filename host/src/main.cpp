@@ -60,6 +60,7 @@ struct Options {
 	bool banners = true;
 	bool theme = true;
 	bool nightlight = true;
+	bool windowfx = true; // light transparency for other programs' windows (windowfx.cpp)
 	bool boot = false;
 	bool splash = true;
 };
@@ -357,6 +358,7 @@ void applyAll() {
 	if (options.icons) { SlowStep s(L"desktop::hideIcons"); desktop::hideIcons(); }
 	// Banners are not touched here: see evaluateBanners().
 	if (options.theme) { SlowStep s(L"theme::start"); theme::start(); }
+	if (options.windowfx) { SlowStep s(L"windowfx::start"); windowfx::start(); }
 }
 
 // Gives Explorer's taskbar and desktop icons back without ending the host: used while a shell
@@ -385,6 +387,7 @@ void restoreAndStop(int code) {
 	stopShell();
 	if (code == 0 && shellReady) rememberGoodConfig(); // a clean end: what the shell last wrote is good
 	splash::close();
+	windowfx::stop();
 	restoreAll(false);
 	uiHidden = false;
 	state::set(L"hostClean", 1);
@@ -740,6 +743,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (!shuttingDown && !startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
 		} else if (wParam == TIMER_HEALTH) {
 			{ SlowStep s(L"evaluateBanners"); evaluateBanners(); }
+			if (options.windowfx && uiHidden) { SlowStep s(L"windowfx::tick"); windowfx::tick(); }
 			if (options.hook) { SlowStep s(L"keyboard::refreshContext"); keyboard::refreshContext(); } // reconcile what the hook reads (shell, foreground, shortcuts.ini)
 		} else if (wParam == TIMER_WATCHDOG) {
 			SlowStep s(L"watchShell");
@@ -959,6 +963,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		else if (a == L"--keep-banners") options.banners = false;
 		else if (a == L"--no-theme") options.theme = false;
 		else if (a == L"--no-nightlight") options.nightlight = false;
+		else if (a == L"--no-windowfx") options.windowfx = false;
 		else if (a == L"--boot") options.boot = true;
 		else if (a == L"--no-splash") options.splash = false;
 		else if (a == L"--rescue" || a == L"--restore") rescue = true;

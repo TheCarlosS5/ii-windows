@@ -284,6 +284,89 @@ edit(path('modules', 'ii', 'verticalBar', 'VerticalBarContent.qml'), [
 ])
 
 
+# --- Windows of other programs: light transparency, calmer borders (ii-host does the work: host/src/windowfx.cpp) --
+edit(path('modules', 'common', 'Config.qml'), [
+    ('                property JsonObject wallpaperTheming: JsonObject {\n                    property bool enableAppsAndShell: true',
+     '''                property JsonObject windowEffects: JsonObject {
+                    // ii-windows: read by ii-host (windowfx.cpp), not by the shell
+                    property bool transparency: true // other programs' windows a little translucent
+                    property int opacity: 94 // percent, 60-100
+                    property bool accentBorders: false // window borders and title bars in the wallpaper's accent colour
+                    property string exclude: "" // programs that keep their windows opaque: "chrome.exe; code.exe"
+                }
+                property JsonObject wallpaperTheming: JsonObject {
+                    property bool enableAppsAndShell: true'''),
+])
+ES_UX3.update({
+    "Windows of other programs": "Ventanas de otros programas",
+    "Light transparency in windows": "Transparencia ligera en las ventanas",
+    "Makes the windows of your programs a little translucent. Games, fullscreen windows and programs that already use transparency are never touched. Turn it off and every window goes back to normal.": "Hace las ventanas de tus programas un poco translúcidas. Nunca toca juegos, ventanas a pantalla completa ni programas que ya usan transparencia. Si la apagas, todas las ventanas vuelven a la normalidad.",
+    "Window opacity (%)": "Opacidad de las ventanas (%)",
+    "Colored window borders": "Bordes de color en las ventanas",
+    "Window borders and title bars take the accent color of the wallpaper. Off: they stay calm.": "Los bordes y barras de título toman el color de énfasis del fondo. Apagado: se quedan tranquilos.",
+    "Keep these programs opaque": "Mantener opacos estos programas",
+    "Program names separated by ; (for example chrome.exe; code.exe)": "Nombres de programas separados por ; (por ejemplo chrome.exe; code.exe)",
+})
+add_translations('es_MX', ES_UX3)
+edit(path('modules', 'settings', 'AppearanceConfig.qml'), [
+    ('''    ContentSection {
+        icon: "colors"
+        title: Translation.tr("Color generation")
+''',
+     '''    ContentSection {
+        icon: "web_asset"
+        title: Translation.tr("Windows of other programs")
+
+        ConfigSwitch {
+            buttonIcon: "opacity"
+            text: Translation.tr("Light transparency in windows")
+            checked: Config.options.appearance.windowEffects.transparency
+            onCheckedChanged: Config.options.appearance.windowEffects.transparency = checked
+            StyledToolTip {
+                text: Translation.tr("Makes the windows of your programs a little translucent. Games, fullscreen windows and programs that already use transparency are never touched. Turn it off and every window goes back to normal.")
+            }
+        }
+        ConfigSpinBox {
+            enabled: Config.options.appearance.windowEffects.transparency
+            icon: "gradient"
+            text: Translation.tr("Window opacity (%)")
+            value: Config.options.appearance.windowEffects.opacity
+            from: 60
+            to: 100
+            stepSize: 2
+            onValueChanged: Config.options.appearance.windowEffects.opacity = value
+        }
+        ConfigSwitch {
+            buttonIcon: "border_color"
+            text: Translation.tr("Colored window borders")
+            checked: Config.options.appearance.windowEffects.accentBorders
+            onCheckedChanged: Config.options.appearance.windowEffects.accentBorders = checked
+            StyledToolTip {
+                text: Translation.tr("Window borders and title bars take the accent color of the wallpaper. Off: they stay calm.")
+            }
+        }
+        MaterialTextField {
+            Layout.fillWidth: true
+            enabled: Config.options.appearance.windowEffects.transparency
+            placeholderText: Translation.tr("Keep these programs opaque")
+            text: Config.options.appearance.windowEffects.exclude
+            onEditingFinished: Config.options.appearance.windowEffects.exclude = text
+        }
+        StyledText {
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            font.pixelSize: Appearance.font.pixelSize.smaller
+            color: Appearance.colors.colSubtext
+            text: Translation.tr("Program names separated by ; (for example chrome.exe; code.exe)")
+        }
+    }
+
+    ContentSection {
+        icon: "colors"
+        title: Translation.tr("Color generation")
+'''),
+])
+
 # The translator tab of the left sidebar is on by default (it was off, so a new install had no Translator tab).
 edit(path('modules', 'common', 'Config.qml'), [
     ('                    property bool enable: false\n                    property int delay: 300',
