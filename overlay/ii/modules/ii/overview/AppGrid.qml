@@ -27,10 +27,11 @@ Item {
 
     // The most used apps: one row at most.
     readonly property var frequent: (Config.options.overview.showFrequent ?? true) ? AppUsage.top.slice(0, columns) : []
-    readonly property bool hasFrequent: frequent.length > 0
-    readonly property real frequentBlockHeight: hasFrequent ? sectionTitleHeight + cell + 12 : 0
-
     readonly property real freeHeight: availableHeight > 0 ? availableHeight : windowHeight - 320
+    // That row only when there is room for it and still a row of the grid under it (small or scaled screens).
+    readonly property real frequentRowHeight: sectionTitleHeight + cell + 12
+    readonly property bool hasFrequent: frequent.length > 0 && freeHeight >= frequentRowHeight + 40 + cell
+    readonly property real frequentBlockHeight: hasFrequent ? frequentRowHeight : 0
     readonly property int rows: Math.max(1, Math.floor((freeHeight - 40 - frequentBlockHeight) / cell))
 
     implicitWidth: columns * cell + 40

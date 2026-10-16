@@ -17,10 +17,11 @@ Scope {
     property bool dontAutoCancelSearch: false
     // ii-windows: Win opens the app grid (GNOME's "Show applications"), Win+Tab the windows.
     readonly property bool showApps: GlobalStates.overviewMode === "apps"
-    // Room from `top` (a position inside the column) down to the buttons at the bottom of the screen
-    // (the app grid and the search card must not run under them).
+    // Room from `top` (a position inside the column) down to the buttons at the bottom (the app grid and the
+    // search card must not run under them). Measured from the button itself: how tall this window is depends
+    // on the work area, so a sum of margins was wrong at 125 % / 150 %.
     function heightBelow(top) {
-        return panelWindow.height - top - (GlobalStates.dockInsetBottom + 36 + 56 + 24);
+        return appsButton.y - 16 - top;
     }
 
     PanelWindow {
