@@ -105,6 +105,28 @@ edit(path('modules', 'common', 'Config.qml'), [
 ])
 
 
+# --- Window icons: the Start menu entry's, else the program's own icon, else a guess by name -----------------
+# A window class only gives a guess ("Valve.Steam.Client" matched nothing and the generic program icon showed);
+# `winfile:<exe>` is what Explorer shows for that program (the icon provider of the fork).
+edit(path('services', 'AppSearch.qml'), [
+    ('    function guessIcon(str) {\n',
+     '''    // ii-windows: the icon of a window (appId = its class, exe = the program's path, may be empty).
+    function iconForWindow(appId, exe) {
+        const entry = appId ? DesktopEntries.heuristicLookup(appId) : null;
+        if (entry && entry.icon)
+            return entry.icon;
+        const path = (exe ?? "").replace(/\\\\/g, "/");
+        // Store apps run inside ApplicationFrameHost: its own icon would be wrong for all of them.
+        if (path !== "" && !/applicationframehost\\.exe$/i.test(path))
+            return "winfile:" + path;
+        return root.guessIcon(appId);
+    }
+
+    function guessIcon(str) {
+'''),
+])
+
+
 # --- Launch counter ("most used" apps above the grid): services/AppUsage.qml keeps it here -----------------
 edit(path('modules', 'common', 'Persistent.qml'), [
     ('            property JsonObject tour: JsonObject {\n',

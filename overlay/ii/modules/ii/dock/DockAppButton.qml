@@ -33,6 +33,15 @@ Item {
     }
     property int lastFocused: -1
 
+    // The icon. The Start menu entry's when there is one; else the icon of the running program itself, as
+    // Windows' own taskbar shows it (a window class only guesses: "Valve.Steam.Client" matched nothing and the
+    // dock drew the generic "program" icon); only then the guess by name.
+    readonly property string iconName: {
+        if (desktopEntry && desktopEntry.icon)
+            return desktopEntry.icon;
+        return AppSearch.iconForWindow(appToplevel.appId, windows.length > 0 ? windows[0].executable : "");
+    }
+
     readonly property var edge: appListRoot.edge
     readonly property bool vertical: appListRoot.vertical
     readonly property bool dragged: appListRoot.dragIndex === slotIndex
@@ -106,7 +115,7 @@ Item {
             sourceComponent: IconImage {
                 implicitSize: slot.vis
                 mipmap: true
-                source: Quickshell.iconPath(AppSearch.guessIcon(slot.appToplevel.appId), "image-missing")
+                source: Quickshell.iconPath(slot.iconName, "image-missing")
             }
         }
         Loader {

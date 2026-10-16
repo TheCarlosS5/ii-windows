@@ -26,7 +26,44 @@ Singleton {
     property bool working: false
     property var current: null
 
-    function isInstalled(id) { return installed[String(id).toLowerCase()] !== undefined; }
+    // --- is it installed? ------------------------------------------------------------------------------------------------
+    // By id when winget knows the app ("Git.Git"). Apps installed by hand show up in `winget list` under another id
+    // ("ARP\Machine\X64\{GUID}", a different Python version...) and in the Start menu under their name: so by name too,
+    // with the version, the architecture and the maker's name taken out of both sides.
+    readonly property var nameNoise: ({ "x64": 1, "x86": 1, "bit": 1, "version": 1, "user": 1, "machine": 1, "preview": 1, "setup": 1, "installer": 1, "release": 1, "stable": 1, "beta": 1, "edition": 1, "community": 1, "lts": 1 })
+    readonly property var nameVendors: ({ "microsoft": 1, "google": 1, "jetbrains": 1, "mozilla": 1, "the": 1, "apache": 1, "gnu": 1 })
+    function nameKey(s) {
+        const tokens = String(s ?? "").toLowerCase()
+            .replace(/\([^)]*\)/g, " ")          // (User) (x64) (LTS) (64-bit)
+            .replace(/[^a-z0-9]+/g, " ").trim().split(" ")
+            .filter(t => t !== "" && !/^\d/.test(t) && !nameNoise[t]);   // 3.12, 25.01, x64 ...
+        if (tokens.length > 1 && nameVendors[tokens[0]]) tokens.shift();
+        return tokens.join(" ");
+    }
+    // name key -> the row of `winget list` (or a Start menu entry) that has it
+    readonly property var installedKeys: {
+        const map = {};
+        for (const r of installedList) {
+            const k = root.nameKey(r.name);
+            if (k && !(k in map)) map[k] = r;
+        }
+        for (const e of AppSearch.list) {
+            const k = root.nameKey(e.name);
+            if (k && !(k in map)) map[k] = { name: e.name, id: "", version: "", startMenu: true };
+        }
+        return map;
+    }
+    // The installed row of an app: by id, else by its name (or one of its other names, `aka`).
+    function installedRow(id, name, aka) {
+        const byId = installed[String(id).toLowerCase()];
+        if (byId) return byId;
+        for (const n of [name].concat(aka ?? [])) {
+            const k = root.nameKey(n);
+            if (k && installedKeys[k]) return installedKeys[k];
+        }
+        return null;
+    }
+    function isInstalled(id, name, aka) { return installedRow(id, name, aka) !== null; }
     function upgradeFor(id) { return upgrades.find(u => u.id.toLowerCase() === String(id).toLowerCase()) ?? null; }
     function stateOf(id) { return progress[String(id).toLowerCase()] ?? null; }
     function setState(id, value) {
@@ -143,17 +180,18 @@ Singleton {
     }
 
     // --- install / update / uninstall, one at a time ----------------------------------------------------------------------
-    function enqueue(op, id, name) {
+    // `target`: the id winget must act on, when the app is installed under another id than the catalogue's.
+    function enqueue(op, id, name, target) {
         if (!available) return;
         const st = stateOf(id);
         if (st && (st.state === "queued" || st.state === "running")) return;
-        queue = [...queue, { op: op, id: id, name: name }];
+        queue = [...queue, { op: op, id: id, name: name, target: target || id }];
         setState(id, { op: op, state: "queued", percent: -1, message: "" });
         runNext();
     }
     function install(id, name) { enqueue("install", id, name); }
     function upgrade(id, name) { enqueue("upgrade", id, name); }
-    function uninstall(id, name) { enqueue("uninstall", id, name); }
+    function uninstall(id, name, target) { enqueue("uninstall", id, name, target); }
     function upgradeAll() {
         for (const u of upgrades) enqueue("upgrade", u.id, u.name);
     }
@@ -161,7 +199,7 @@ Singleton {
 
     function commandFor(job) {
         if (job.op === "uninstall")
-            return ["winget", "uninstall", "--id", job.id, "--exact", "--silent", "--disable-interactivity"];
+            return ["winget", "uninstall", "--id", job.target, "--exact", "--silent", "--disable-interactivity"];
         return ["winget", job.op, "--id", job.id, "--exact", "--silent", "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"]
             .concat(job.op === "install" ? ["--source", "winget"] : []);
     }

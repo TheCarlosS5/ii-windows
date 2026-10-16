@@ -172,7 +172,7 @@ Item {
                                 IconImage {
                                     anchors.centerIn: parent
                                     implicitSize: 20
-                                    source: Quickshell.iconPath(AppSearch.guessIcon(parent.modelData.class), "image-missing")
+                                    source: Quickshell.iconPath(AppSearch.iconForWindow(parent.modelData.class, parent.modelData.executable), "image-missing")
                                 }
                             }
                         }

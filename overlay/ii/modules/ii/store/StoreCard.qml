@@ -13,9 +13,12 @@ Rectangle {
     property string description: ""
     property string site: ""
     property string version: ""
+    property var aka: [] // other names it has once installed (the store lists "Zoom", the PC says "Zoom Workplace")
 
     readonly property var opState: Winget.stateOf(appId)
-    readonly property bool isInstalled: Winget.isInstalled(appId)
+    // Installed by id, or by its name (an app installed by hand has another id in `winget list`).
+    readonly property var installedRow: Winget.installedRow(appId, name, aka)
+    readonly property bool isInstalled: installedRow !== null
     readonly property var upgradeInfo: Winget.upgradeFor(appId)
     readonly property bool running: opState && (opState.state === "queued" || opState.state === "running")
     readonly property bool failed: opState && opState.state === "error"
@@ -109,12 +112,13 @@ Rectangle {
             }
         }
         RippleButton {
-            visible: root.isInstalled && !root.running
+            // Winget can only remove what its list shows (not an app that is just in the Start menu).
+            visible: root.isInstalled && !root.running && (root.installedRow.id ?? "") !== ""
             Layout.alignment: Qt.AlignVCenter
             implicitWidth: 38
             implicitHeight: 38
             buttonRadius: Appearance.rounding.full
-            onClicked: Winget.uninstall(root.appId, root.name)
+            onClicked: Winget.uninstall(root.appId, root.name, root.installedRow.id)
             contentItem: MaterialSymbol {
                 anchors.centerIn: parent
                 horizontalAlignment: Text.AlignHCenter

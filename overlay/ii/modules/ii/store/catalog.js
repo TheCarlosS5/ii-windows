@@ -10,7 +10,7 @@ var categories = [
         { id: "GitHub.GitHubDesktop", name: "GitHub Desktop", site: "desktop.github.com", desc: "Git without the command line." },
         { id: "OpenJS.NodeJS.LTS", name: "Node.js (LTS)", site: "nodejs.org", desc: "JavaScript outside the browser, with npm." },
         { id: "Python.Python.3.12", name: "Python 3.12", site: "python.org", desc: "The Python language and pip." },
-        { id: "Rustlang.Rustup", name: "Rust (rustup)", site: "rust-lang.org", desc: "The Rust toolchain installer." },
+        { id: "Rustlang.Rustup", name: "Rust (rustup)", aka: ["rustup", "Rust"], site: "rust-lang.org", desc: "The Rust toolchain installer." },
         { id: "GoLang.Go", name: "Go", site: "go.dev", desc: "The Go language." },
         { id: "Microsoft.DotNet.SDK.9", name: ".NET SDK 9", site: "dotnet.microsoft.com", desc: "Build C#, F# and ASP.NET apps." },
         { id: "Docker.DockerDesktop", name: "Docker Desktop", site: "docker.com", desc: "Containers on your PC." },
@@ -49,8 +49,8 @@ var categories = [
         { id: "EpicGames.EpicGamesLauncher", name: "Epic Games Launcher", site: "epicgames.com", desc: "Epic's store and free games." },
         { id: "Playnite.Playnite", name: "Playnite", site: "playnite.link", desc: "All your game libraries in one place." },
         { id: "Discord.Discord", name: "Discord", site: "discord.com", desc: "Voice, video and text with friends." },
-        { id: "Telegram.TelegramDesktop", name: "Telegram", site: "telegram.org", desc: "Fast messaging." },
-        { id: "Zoom.Zoom", name: "Zoom", site: "zoom.us", desc: "Video calls." }
+        { id: "Telegram.TelegramDesktop", name: "Telegram", aka: ["Telegram Desktop"], site: "telegram.org", desc: "Fast messaging." },
+        { id: "Zoom.Zoom", name: "Zoom", aka: ["Zoom Workplace"], site: "zoom.us", desc: "Video calls." }
     ] },
     { key: "tools", icon: "build", name: "Tools", apps: [
         { id: "7zip.7zip", name: "7-Zip", site: "7-zip.org", desc: "Open and create .7z, .zip, .rar and more." },
@@ -61,11 +61,11 @@ var categories = [
         { id: "LocalSend.LocalSend", name: "LocalSend", site: "localsend.org", desc: "Send files to nearby devices." },
         { id: "CPUID.HWMonitor", name: "HWMonitor", site: "cpuid.com", desc: "Temperatures and voltages." },
         { id: "Rufus.Rufus", name: "Rufus", site: "rufus.ie", desc: "Make bootable USB drives." },
-        { id: "Balena.Etcher", name: "balenaEtcher", site: "etcher.balena.io", desc: "Flash images to USB and SD cards." },
+        { id: "Balena.Etcher", name: "balenaEtcher", aka: ["Etcher"], site: "etcher.balena.io", desc: "Flash images to USB and SD cards." },
         { id: "SumatraPDF.SumatraPDF", name: "SumatraPDF", site: "sumatrapdfreader.org", desc: "Light PDF reader." },
         { id: "AutoHotkey.AutoHotkey", name: "AutoHotkey", site: "autohotkey.com", desc: "Automate keys and clicks with scripts." },
         { id: "WinDirStat.WinDirStat", name: "WinDirStat", site: "windirstat.net", desc: "See what is using your disk." },
-        { id: "Microsoft.Sysinternals.ProcessExplorer", name: "Process Explorer", site: "learn.microsoft.com", desc: "A Task Manager with the details." }
+        { id: "Microsoft.Sysinternals.ProcessExplorer", name: "Process Explorer", aka: ["Sysinternals Process Explorer"], site: "learn.microsoft.com", desc: "A Task Manager with the details." }
     ] }
 ];
 

@@ -138,7 +138,7 @@ PopupWindow {
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
                     implicitSize: 26
-                    source: Quickshell.iconPath(AppSearch.guessIcon(root.appToplevel?.appId ?? ""), "image-missing")
+                    source: Quickshell.iconPath(AppSearch.iconForWindow(root.appToplevel?.appId ?? "", root.appToplevel?.toplevels?.[0]?.executable ?? ""), "image-missing")
                 }
                 StyledText {
                     anchors.left: appIcon.right

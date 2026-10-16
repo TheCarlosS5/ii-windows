@@ -97,6 +97,7 @@ Singleton {
                 "initialClass": t.appId,
                 "initialTitle": t.title,
                 "pid": t.pid,
+                "executable": t.executable ?? "", // ii-windows: for the program's own icon
                 "xwayland": false,
                 "pinned": false,
                 "fullscreen": t.fullscreen ? 2 : 0,

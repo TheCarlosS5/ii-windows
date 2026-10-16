@@ -291,6 +291,7 @@ ApplicationWindow {
                                     name: modelData.name
                                     description: Translation.tr(modelData.desc)
                                     site: modelData.site
+                                    aka: modelData.aka ?? []
                                 }
                             }
 
