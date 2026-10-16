@@ -246,6 +246,31 @@ int main() {
 		check(!k.router.winIsDown(), "reset clears the Win state");
 	}
 
+	// 15. Volume keys: ii takes them (press and release) so Windows shows no flyout of its own.
+	{
+		resetKeys();
+		Keyboard k;
+		k.context.volumeKeys = true;
+		auto up = k.press(VK_VOLUME_UP);
+		check(up.swallow && up.volumeVk == VK_VOLUME_UP, "volume up press: swallowed and handed to the host");
+		check(k.release(VK_VOLUME_UP).swallow, "volume up release: swallowed too");
+		auto mute = k.press(VK_VOLUME_MUTE);
+		check(mute.swallow && mute.volumeVk == VK_VOLUME_MUTE, "mute press: swallowed and handed to the host");
+		auto repeat = k.press(VK_VOLUME_DOWN);
+		check(repeat.swallow && repeat.volumeVk == VK_VOLUME_DOWN && repeat.postCount == 0, "volume down: one step, nothing posted to the shell");
+
+		Keyboard off;
+		check(!off.press(VK_VOLUME_UP).swallow, "option off (default): Windows keeps the volume keys");
+		Keyboard noShell;
+		noShell.context.volumeKeys = true;
+		noShell.context.shellPresent = false;
+		check(!noShell.press(VK_VOLUME_UP).swallow && noShell.press(VK_VOLUME_UP).volumeVk == 0, "no shell: Windows keeps the volume keys");
+		Keyboard game;
+		game.context.volumeKeys = true;
+		game.context.yieldToForeground = true;
+		check(!game.press(VK_VOLUME_DOWN).swallow, "a game in front: Windows keeps the volume keys");
+	}
+
 	// ---- Which foreground makes ii step aside ----------------------------------------------
 	{
 		ForegroundRules rules;

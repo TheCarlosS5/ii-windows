@@ -713,6 +713,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		return 0;
 	}
 	case keyboard::WM_II_SHORTCUT: dispatchShortcut(wParam, lParam); return 0;
+	case keyboard::WM_II_VOLUME: volume::handleKey(static_cast<unsigned>(wParam)); return 0;
 	case WM_II_SHELL_EXITED: onShellExited(); return 0;
 	case WM_HOTKEY:
 		if (wParam == HOTKEY_PANIC) {

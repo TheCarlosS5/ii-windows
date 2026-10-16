@@ -40,6 +40,7 @@ HWND notify = nullptr;
 // Written by the host thread, read by the hook thread.
 std::atomic<bool> cachedYield {false};
 std::atomic<bool> cachedDesktop {false};
+std::atomic<bool> cachedVolumeKeys {true}; // shortcuts.ini [audio] volumekeys = windows turns it off
 std::atomic<HWND> cachedSink {nullptr};
 std::atomic<bool> resetRequested {false};
 std::atomic<ULONGLONG> lastSinkLookup {0};
@@ -97,6 +98,7 @@ ForegroundRules loadRules() {
 	else if (policy == L"never") rules.policy = FullscreenPolicy::Never;
 	rules.yieldExes = read(L"yield", L"processes");
 	rules.keepExes = read(L"keep", L"processes");
+	rules.windowsVolumeKeys = read(L"audio", L"volumekeys") == L"windows";
 	log(L"keyboard: shortcuts.ini loaded (fullscreen=%s)", policy.empty() ? L"auto" : policy.c_str());
 	return rules;
 }
@@ -144,8 +146,11 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	context.shellPresent = shellSinkPresent();
 	context.yieldToForeground = cachedYield.load();
 	context.desktopInFront = cachedDesktop.load();
+	context.volumeKeys = cachedVolumeKeys.load();
 
 	auto result = router.onKey(key->vkCode, down, context);
+	// The audio is changed on the host's thread: the hook only posts (it must return at once).
+	if (result.volumeVk) PostMessageW(notify, WM_II_VOLUME, result.volumeVk, 0);
 	for (int i = 0; i < result.postCount; ++i) {
 		PostMessageW(notify, WM_II_SHORTCUT, result.posts[static_cast<size_t>(i)].pressed ? 1 : 0, result.posts[static_cast<size_t>(i)].index);
 	}
@@ -187,6 +192,8 @@ DWORD WINAPI hookThreadMain(LPVOID) {
 // second to reconcile (the sink window, shortcuts.ini, a window that went fullscreen in place).
 void refreshContext() {
 	cachedSink = findShellSink();
+	auto rules = loadRules();
+	cachedVolumeKeys = !rules.windowsVolumeKeys;
 	HWND fg = GetForegroundWindow();
 	if (!fg) {
 		cachedYield = false;
@@ -220,7 +227,7 @@ void refreshContext() {
 		                         && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 		facts.exe = lowerExeName(pid);
 	}
-	auto yield = shouldYield(facts, loadRules());
+	auto yield = shouldYield(facts, rules);
 	if (yield != cachedYield.load()) {
 		log(L"keyboard: shortcuts %s for %s", yield ? L"step aside" : L"active again", facts.exe.empty() ? L"(unknown)" : facts.exe.c_str());
 	}

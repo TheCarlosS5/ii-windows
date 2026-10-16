@@ -52,6 +52,7 @@ struct Context {
 	bool shellPresent = false;      // the shell's shortcut sink window exists
 	bool yieldToForeground = false; // a game / exclusive fullscreen app is in front: ii's shortcuts step aside
 	bool desktopInFront = false;    // Explorer's own desktop is the foreground window (Alt+F4 there opens ii's session menu)
+	bool volumeKeys = false;        // ii takes the volume keys (Windows would also show its own volume flyout)
 };
 
 struct Post {
@@ -63,6 +64,7 @@ struct Result {
 	bool swallow = false;       // do not pass this event on
 	bool maskWinRelease = false; // replay this Win key-up behind an unassigned key (no Start menu), and swallow the real one
 	unsigned winVk = 0;
+	unsigned volumeVk = 0;       // a volume key went down and ii handles it: the host changes the volume
 	std::array<Post, 4> posts {};
 	int postCount = 0;
 	void add(bool pressed, Index index) {
@@ -120,6 +122,7 @@ struct ForegroundRules {
 	FullscreenPolicy policy = FullscreenPolicy::Auto;
 	std::wstring yieldExes; // ';'-separated, lower case: always step aside for these (a game profile)
 	std::wstring keepExes;  // ';'-separated, lower case: never step aside for these
+	bool windowsVolumeKeys = false; // [audio] volumekeys = windows: leave the volume keys (and Windows' flyout) alone
 };
 
 // Auto (default): step aside for exclusive fullscreen / presentation mode and for borderless

@@ -141,6 +141,7 @@ void restoreAll(bool restartExplorer, bool force = false);
 namespace keyboard {
 // Window that receives shortcut notifications posted from the hook (handled outside the hook).
 constexpr UINT WM_II_SHORTCUT = WM_APP + 1; // wParam: 1 pressed / 0 released, lParam: index
+constexpr UINT WM_II_VOLUME = WM_APP + 3;   // wParam: VK_VOLUME_UP / _DOWN / _MUTE (WM_APP + 2 is the shell-exited message in main.cpp)
 bool install(HWND notifyWindow);
 void uninstall();
 const wchar_t* shortcutName(LPARAM index);
@@ -149,6 +150,12 @@ const wchar_t* shortcutName(LPARAM index);
 void refreshContext();
 void resetState();
 } // namespace keyboard
+
+namespace volume {
+// A volume key ii took from Windows (keyboard hook): one step up/down, or mute toggle, on the default
+// output. Runs on the host thread; ii's own indicator reacts to the change like to any other.
+void handleKey(unsigned vk);
+} // namespace volume
 
 // The shell (quickshell + ii) side receives shortcuts through WM_COPYDATA on this window.
 constexpr const wchar_t* SHELL_SINK_CLASS = L"IiShellShortcutSink";

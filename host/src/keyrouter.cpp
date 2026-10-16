@@ -78,6 +78,16 @@ Index Router::match(unsigned vk, bool win) const {
 Result Router::onKey(unsigned vk, bool down, const Context& context) {
 	Result r;
 
+	// The volume keys: ii changes the volume itself and shows its own indicator. If Windows saw the key
+	// it would change the volume too and show its flyout next to ii's. Both the press and the release
+	// are swallowed; with no shell (or a game in front) Windows keeps the keys.
+	if ((vk == VK_VOLUME_UP || vk == VK_VOLUME_DOWN || vk == VK_VOLUME_MUTE) && context.volumeKeys && context.shellPresent
+	    && !context.yieldToForeground) {
+		if (down) r.volumeVk = vk;
+		r.swallow = true;
+		return r;
+	}
+
 	if (vk == VK_LWIN || vk == VK_RWIN) {
 		if (down) {
 			if (!winDown) {
