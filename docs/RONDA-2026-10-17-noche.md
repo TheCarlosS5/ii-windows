@@ -7,7 +7,10 @@ Nada se sube a GitHub sin preguntar.
 
 ## Resumen para la mañana
 
-- **Instalada en tu PC:** `0.3.0-20261017-86346bb` (verificada; vuelta atrás `5dd9f1c`). ii está **detenido** como
+- **Instalada en tu PC:** `0.3.0-20261017-86346bb` (verificada), **la única**: a petición de Carlos (08:30) se
+  borraron las versiones anteriores con sus valores de GPU y cachés de QML, los paquetes viejos de `out\` (11 GB),
+  las copias de prueba y el runtime de desarrollo (`make-devrt.ps1` lo recrea). Copias del registro: quedan la
+  original (20261008) y la actual. ii está **detenido** como
   lo dejaste; arranca solo al iniciar sesión, o con menú Inicio > ii-windows > Iniciar ii.
 - **Arranque en un PC lento (emulado): 29 s → ~15 s**; primer arranque tras instalar 37 s → 18 s. En tu PC la
   bienvenida se va a los ~4,5 s (antes 6–10 s).
