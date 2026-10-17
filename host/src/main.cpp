@@ -71,6 +71,7 @@ struct Options {
 Options options;
 HWND hostWindow = nullptr;
 UINT taskbarCreatedMsg = 0;
+HWND knownExplorerTray = nullptr; // the Explorer taskbar window we know of: a different one means Explorer restarted
 HWINEVENTHOOK showHook = nullptr;
 HANDLE shellJob = nullptr;
 HANDLE shellProcess = nullptr;
@@ -721,10 +722,9 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	if (msg == taskbarCreatedMsg && taskbarCreatedMsg != 0) {
 		// ii's own tray also broadcasts this so apps re-announce their icons: only a new
 		// Explorer taskbar window means Explorer really restarted.
-		static HWND knownTray = nullptr;
 		auto* tray = explorerTray();
-		if (tray && tray == knownTray) return 0;
-		knownTray = tray;
+		if (tray && tray == knownExplorerTray) return 0;
+		knownExplorerTray = tray;
 		log(L"explorer (re)started, reapplying");
 		SetTimer(hwnd, TIMER_AFTER_EXPLORER, 1500, nullptr);
 		return 0;
@@ -875,6 +875,9 @@ int runHost() {
 	hostWindow = CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName, L"ii-host", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
 	taskbarCreatedMsg = RegisterWindowMessageW(L"TaskbarCreated");
 	ChangeWindowMessageFilterEx(hostWindow, taskbarCreatedMsg, MSGFLT_ALLOW, nullptr);
+	// The taskbar that is there already: the shell's own tray broadcasts TaskbarCreated as it starts, and that
+	// was taken for an Explorer restart (everything applied a second time a second after start).
+	knownExplorerTray = explorerTray();
 
 	// Never throttled as background work on battery (the keyboard hook lives here).
 	PROCESS_POWER_THROTTLING_STATE throttling {};
