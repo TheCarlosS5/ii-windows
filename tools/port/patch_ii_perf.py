@@ -285,3 +285,16 @@ edit(path('modules', 'common', 'models', 'WorkspaceModel.qml'), [
 edit(path('modules', 'ii', 'notificationPopup', 'NotificationPopup.qml'), [
     ('Config.options.notifications.forceMonitor.enable ? s.name', 'Config.options.notifications.forceMonitor?.enable ? s.name'),
 ])
+
+
+# --- Wallpaper decoded once: its size followed the item's, which changed when `magick identify` answered, so the
+# picture (often a big PNG: 3791x2000, 18 MB here) was decoded twice at every start. With PreserveAspectCrop a
+# sourceSize means "cover this", so the screen's size (zoom and scale included) is enough and never changes.
+edit(path('modules', 'ii', 'background', 'Background.qml'), [
+    ('''                source: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                fillMode: Image.PreserveAspectCrop''',
+     '''                source: bgRoot.wallpaperSafetyTriggered ? "" : bgRoot.wallpaperPath
+                fillMode: Image.PreserveAspectCrop
+                sourceSize: Qt.size(Math.ceil(bgRoot.screen.width * bgRoot.parallaxRation * (bgRoot.screen.devicePixelRatio ?? 1)),
+                    Math.ceil(bgRoot.screen.height * bgRoot.parallaxRation * (bgRoot.screen.devicePixelRatio ?? 1))) // ii-windows'''),
+])
