@@ -112,6 +112,21 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
 - El modo ligero se ofrece una vez por notificación a quien ya había hecho el recorrido (PC modesto).
 - README: sección "En un PC modesto".
 
+## Revisión e instalación (02:45–05:55)
+
+- Revisión independiente del diff (agente "critic"): nada que deje sin escritorio en uso normal. Corregido:
+  fallo de carga en segundo plano que dejaba un puntero liberado (LazyLoader), escaneo de apps en su propio hilo,
+  árbol QML con cambios de mayúsculas, fila "más usadas" vacía en PCs lentos, nombres/iconos que no se refrescaban
+  al cargar la lista de apps, cambio a Waffle revertido (podía dejar sin paneles), `trim_fonts.py` que se niega a
+  dejar una fuente sin sus pesos, limpieza de caché del instalador más prudente, `mkdir` que sigue tras un fallo,
+  memoria instalada real (16 GB, no 14 utilizables), aviso del modo ligero solo desde el shell.
+- Quedan anotados (bajo riesgo): un panel de fase 2/3 con `extraCondition` no se descargaría (hoy no hay ninguno);
+  un `TaskbarCreated` del mismo Explorador al iniciar sesión se ignora (el gancho de la barra la sigue ocultando).
+- **Instalada en el PC de Carlos:** `0.3.0-20261017-800f243` (anterior `c794259` como vuelta atrás; la `ecddf2f`
+  se quitó con su caché). Precompilado en el instalador: 5 s. Primer arranque: cubierta fuera a **4,5 s** (la
+  anterior, 9,7 s), `state=verified`, sin errores en el registro. `config.json` idéntico. Se dejó **detenida**,
+  como estaba; la tarea de inicio de sesión la arranca la próxima vez.
+
 ## Pendiente
 
 - Qt enumera **todas las fuentes del sistema** en el primer texto (~0,45 s aquí, ~1,5 s en un PC lento): no se
