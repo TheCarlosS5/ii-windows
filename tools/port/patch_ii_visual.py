@@ -371,11 +371,10 @@ edit(path('services', 'Wallpapers.qml'), [
         id: ensureFolderProc
         running: true
         command: ["ii-shim", "mkdir", FileUtils.trimFileProtocol(root.defaultFolder).replace(/^\/(?=[A-Za-z]:)/, "")]
+        // Runs once, as the service starts (before anyone can browse elsewhere): look at the folder again.
         onExited: (code, status) => {
-            if (FileUtils.trimFileProtocol(String(root.directory)) === FileUtils.trimFileProtocol(String(root.defaultFolder))) {
-                folderModel.folder = "";
-                folderModel.folder = Qt.resolvedUrl(root.defaultFolder);
-            }
+            folderModel.folder = "";
+            folderModel.folder = Qt.resolvedUrl(root.defaultFolder);
         }
     }
 
@@ -386,9 +385,10 @@ edit(path('services', 'FirstRunExperience.qml'), [
     ('''    function handleFirstRun() {''',
      r'''    function handleFirstRun() {
         // ii-windows: the wallpaper selector's folder starts with ii's own wallpaper in it
-        const wallDir = FileUtils.trimFileProtocol(`${Directories.pictures}/Wallpapers`).replace(/^\/(?=[A-Za-z]:)/, "").replace(/\//g, "\\");
-        const wallSrc = root.defaultWallpaperPath.replace(/^\/(?=[A-Za-z]:)/, "").replace(/\//g, "\\");
-        Quickshell.execDetached(["cmd", "/c", `if not exist "${wallDir}" mkdir "${wallDir}" & if not exist "${wallDir}\\ii-default.png" copy /y "${wallSrc}" "${wallDir}\\ii-default.png" >nul`]);'''),
+        const wallDir = FileUtils.trimFileProtocol(`${Directories.pictures}/Wallpapers`).replace(/^\/(?=[A-Za-z]:)/, "");
+        const wallSrc = root.defaultWallpaperPath.replace(/^\/(?=[A-Za-z]:)/, "");
+        // magick writes a PNG (and makes the folder): a copy without cmd, whose quoting Quickshell breaks
+        Quickshell.execDetached(["ii-shim", "magick", wallSrc, "-resize", "8192", `${wallDir}/ii-default.png`]);'''),
 ])
 
 # --- Desktop folder widget: the folder's name in the user's language ("Downloads" -> "Descargas") -----

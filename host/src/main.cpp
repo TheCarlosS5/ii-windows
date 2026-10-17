@@ -600,6 +600,21 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 	}
 }
 
+// The "are you alive" ping is asynchronous: SendMessageTimeout waited up to 250 ms on every tick while the
+// shell was busy loading, and the host's thread (the welcome cover's animation, the panic key...) stood
+// still meanwhile. The answer now arrives through pong() in the host's message loop.
+ULONGLONG pingSentAt = 0;
+ULONGLONG pongAt = 0;
+DWORD pingPid = 0;
+HWND pingWindow = nullptr;
+bool pingPending = false;
+
+VOID CALLBACK pong(HWND, UINT, ULONG_PTR pid, LRESULT) {
+	if (static_cast<DWORD>(pid) != pingPid) return; // an answer from a shell that is gone
+	pingPending = false;
+	pongAt = GetTickCount64();
+}
+
 void watchShell() {
 	if (!shellProcess || shuttingDown) return;
 	if (!shellReady) bench(L"watch-tick");
@@ -608,14 +623,20 @@ void watchShell() {
 	EnumDisplayMonitors(nullptr, nullptr, collectMonitor, reinterpret_cast<LPARAM>(&found.monitors)); // NOLINT
 	EnumWindows(inspectShellWindow, reinterpret_cast<LPARAM>(&found)); // NOLINT
 	// IsHungAppWindow skips tool/layered windows like the shell's: ask one directly.
-	DWORD_PTR result = 0;
-	// While the shell is still coming up its thread is busy creating panels: waiting a full second for it on every
-	// tick delayed "ready" (and the host's own keyboard hook) for nothing. A short wait says the same.
-	const UINT pingMs = shellReady ? 1000 : 250;
-	if (!found.hung && found.any && !SendMessageTimeoutW(found.any, WM_NULL, 0, 0, SMTO_ABORTIFHUNG | SMTO_BLOCK, pingMs, &result)) {
-		found.hung = true;
-	}
 	auto now = GetTickCount64();
+	// Unanswered for this long = not responding (shorter while it comes up, as the old blocking wait was).
+	const ULONGLONG pingMs = shellReady ? 1000 : 250;
+	// A new shell, or the window asked has closed since (its answer will never come): ask again.
+	if (pingPid != shellPid || (pingPending && !IsWindow(pingWindow))) {
+		pingPid = shellPid;
+		pingPending = false;
+	}
+	if (pingPending && now - pingSentAt > pingMs) found.hung = true;
+	if (!pingPending && found.any && SendMessageCallbackW(found.any, WM_NULL, 0, 0, pong, shellPid)) {
+		pingPending = true;
+		pingSentAt = now;
+		pingWindow = found.any;
+	}
 	if (!shellReady) {
 		if (monitorMarked.size() != found.monitors.size()) monitorMarked.assign(found.monitors.size(), false);
 		for (size_t i = 0; i < found.monitors.size(); ++i) {

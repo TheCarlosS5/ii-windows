@@ -401,6 +401,8 @@ bool writeFitted(const std::wstring& source, UINT max, const std::wstring& targe
 	factory->CreateBitmapScaler(&scaler);
 	if (FAILED(scaler->Initialize(frame.Get(), w, h, WICBitmapInterpolationModeHighQualityCubic))) return false;
 	// Write beside and move, so a half-written thumbnail is never displayed.
+	auto folder = target.substr(0, target.find_last_of(L"\\/"));
+	if (!folder.empty()) SHCreateDirectoryExW(nullptr, folder.c_str(), nullptr);
 	auto temp = target + L".part";
 	if (!savePng(factory.Get(), scaler.Get(), temp)) return false;
 	return MoveFileExW(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING) != 0;
