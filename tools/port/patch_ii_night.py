@@ -183,4 +183,29 @@ add_translations('es_MX', {
         "Configuración > Apariencia > Rendimiento > Ligero: sin animaciones ni transparencias, más recursos para tus programas.",
 })
 
+
+# --- Names and icons looked up before the Start menu list is loaded (it fills in the background now) are looked up
+# again once it is there: a cheap counter that bindings calling these functions depend on.
+edit(path('services', 'AppSearch.qml'), [
+    ('''    readonly property var preppedNames: list.map''',
+     '''    readonly property int appsVersion: list.length // ii-windows: read by lookups so their bindings rerun when the list loads
+
+    readonly property var preppedNames: list.map'''),
+    ('''    function guessIcon(str) {
+        if (!str || str.length == 0) return "image-missing";
+''', '''    function guessIcon(str) {
+        if (root.appsVersion < 0) return "image-missing"; // ii-windows: dependency only (see appsVersion)
+        if (!str || str.length == 0) return "image-missing";
+'''),
+    ('''    function iconForWindow(appId, exe) {
+''', '''    function iconForWindow(appId, exe) {
+        if (root.appsVersion < 0) return ""; // ii-windows: dependency only (see appsVersion)
+'''),
+])
+edit(path('modules', 'ii', 'bar', 'ActiveWindow.qml'), [
+    ('''    function friendlyName(id) {
+        if (!id || id.length === 0) return "";''', '''    function friendlyName(id) {
+        if (AppSearch.appsVersion < 0) return ""; // ii-windows: dependency only, reruns once the app list is loaded
+        if (!id || id.length === 0) return "";'''),
+])
 print('patch_ii_night: ok')
