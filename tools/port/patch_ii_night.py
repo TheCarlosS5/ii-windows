@@ -268,4 +268,85 @@ add_translations('es_MX', {
     "Icon: silence notifications. Rest of the button: 1 hour, until tomorrow 8:00, back on":
         "Icono: silenciar avisos. Resto del botón: 1 hora, hasta mañana a las 8:00, volver a mostrar",
 })
+
+# --- Synced lyrics in the media panel (services/Lyrics.qml): a lyrics button next to play/pause turns them on; the
+# current line shows under the artist and follows the song.
+edit(path('modules', 'common', 'Persistent.qml'), [
+    ('''            property JsonObject performance: JsonObject {''', '''            property JsonObject media: JsonObject {
+                property bool lyrics: false // ii-windows: synced lyrics in the media panel (LRCLIB), off until asked
+            }
+            property JsonObject performance: JsonObject {'''),
+])
+edit(path('modules', 'ii', 'mediaControls', 'PlayerControl.qml'), [
+    ('''                    text: root.player?.trackArtist
+                    animateChange: true
+                    animationDistanceX: 6
+                    animationDistanceY: 0
+                }
+''', '''                    // ii-windows: with lyrics on (Lyrics.qml) the current line takes the artist's place
+                    property string lyricLine: ""
+                    text: !Lyrics.enabled ? (root.player?.trackArtist ?? "")
+                        : Lyrics.status === "loading" ? Translation.tr("Looking for the lyrics…")
+                        : Lyrics.status === "none" ? `${root.player?.trackArtist ?? ""} · ${Translation.tr("no synced lyrics")}`
+                        : (lyricLine || "♪")
+                    animateChange: true
+                    animationDistanceX: 6
+                    animationDistanceY: 0
+                    Timer {
+                        running: Lyrics.enabled && Lyrics.lines.length > 0 && (trackArtist.QsWindow.window?.visible ?? false)
+                        interval: 250
+                        repeat: true
+                        triggeredOnStart: true
+                        onTriggered: trackArtist.lyricLine = Lyrics.lineAt(root.player?.position ?? 0)
+                    }
+                    Connections {
+                        target: root.player
+                        function onTrackTitleChanged() { lyricRequest.restart(); }
+                        function onTrackArtistChanged() { lyricRequest.restart(); }
+                    }
+                    Connections {
+                        target: Lyrics
+                        function onEnabledChanged() { lyricRequest.restart(); }
+                    }
+                    Component.onCompleted: lyricRequest.restart()
+                    Timer { // titles and lengths change one after the other: ask once they settled
+                        id: lyricRequest
+                        interval: 600
+                        onTriggered: Lyrics.request(root.player?.trackArtist ?? "", StringUtils.cleanMusicTitle(root.player?.trackTitle) ?? "", root.player?.length ?? 0)
+                    }
+                }
+'''),
+    ('''                    RippleButton {
+                        id: playPauseButton''', '''                    RippleButton { // ii-windows: synced lyrics on/off
+                        id: lyricsButton
+                        anchors.right: playPauseButton.left
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: playPauseButton.verticalCenter
+                        implicitWidth: 32
+                        implicitHeight: 32
+                        buttonRadius: 16
+                        downAction: () => Lyrics.toggle()
+                        colBackground: Lyrics.enabled ? blendedColors.colSecondaryContainer : ColorUtils.transparentize(blendedColors.colSecondaryContainer, 1)
+                        colBackgroundHover: blendedColors.colSecondaryContainerHover
+                        colRipple: blendedColors.colSecondaryContainerActive
+                        contentItem: MaterialSymbol {
+                            text: "lyrics"
+                            iconSize: Appearance.font.pixelSize.larger
+                            fill: Lyrics.enabled ? 1 : 0
+                            horizontalAlignment: Text.AlignHCenter
+                            color: blendedColors.colOnSecondaryContainer
+                        }
+                        StyledToolTip {
+                            text: Lyrics.enabled ? Translation.tr("Hide the lyrics") : Translation.tr("Show synced lyrics (looks the song up on lrclib.net)")
+                        }
+                    }
+                    RippleButton {
+                        id: playPauseButton'''),
+])
+add_translations('es_MX', {
+    "Looking for the lyrics…": "Buscando la letra…",
+    "no synced lyrics": "sin letra sincronizada",
+    "Hide the lyrics": "Ocultar la letra",
+    "Show synced lyrics (looks the song up on lrclib.net)": "Mostrar la letra sincronizada (busca la canción en lrclib.net)",
+})
 print('patch_ii_night: ok')
