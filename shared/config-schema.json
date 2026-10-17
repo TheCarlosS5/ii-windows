@@ -167,6 +167,9 @@
   "appearance.transparency.backgroundTransparency": {
    "kind": "real"
   },
+  "appearance.transparency.blurBehind": {
+   "kind": "bool"
+  },
   "appearance.transparency.contentTransparency": {
    "kind": "real"
   },

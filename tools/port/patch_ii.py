@@ -332,12 +332,7 @@ edit(path('modules', 'ii', 'overview', 'OverviewWindow.qml'), [
 ])
 # Dock: now a full overlay (overlay/ii/modules/ii/dock): magnifying icons, right-click menu, minimize on click.
 
-# Bar: Windows app ids are AppUserModelIDs (Microsoft.WindowsTerminal_8wekyb3d8bbwe!App) or exe
-# names; show the app's name from the Start menu instead, as a Linux class name would read.
-edit(path('modules', 'ii', 'bar', 'ActiveWindow.qml'), [
-    ('''                root.activeWindow?.appId :''',
-     '''                (DesktopEntries.heuristicLookup(root.activeWindow?.appId)?.name ?? root.activeWindow?.appId) :'''),
-])
+# Bar: the active window's line is overlay/ii/modules/ii/bar/ActiveWindow.qml (friendly app names).
 
 # Weather: on Windows "GPS" is the Location service, which pops a system permission prompt the
 # moment the weather turns on. Off by default: wttr.in then locates by IP (or uses `city`).
@@ -422,13 +417,6 @@ edit(path('modules', 'common', 'models', 'WorkspaceModel.qml'), [
             root.updateWorkspaceOccupied();
         }
     }'''),
-])
-
-# With no window, the bar names the virtual desktop as Windows does ("Escritorio 2", or the
-# name given in Task View) instead of "Workspace 2".
-edit(path('modules', 'ii', 'bar', 'ActiveWindow.qml'), [
-    ('(root.biggestWindow?.title) ?? `${Translation.tr("Workspace")} ${monitor?.activeWorkspace?.id ?? 1}`',
-     '(root.biggestWindow?.title) ?? ((monitor?.activeWorkspace?.name ?? "1") === `${monitor?.activeWorkspace?.id ?? 1}` ? Translation.tr("Desktop %1").arg(monitor?.activeWorkspace?.id ?? 1) : monitor.activeWorkspace.name)'),
 ])
 
 # The number of dots follows the desktops: for a moment a new dot has no "occupied" entry yet.

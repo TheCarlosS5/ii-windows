@@ -174,6 +174,7 @@ Item {
         color: Appearance.colors.colLayer0
         border.width: 1
         border.color: Appearance.colors.colLayer0Border
+        WallpaperBlur { anchors.fill: parent; radius: parent.radius; tint: parent.color; inset: parent.border.width } // ii-windows: frosted glass
 
         SearchBar {
             id: searchBar
@@ -205,6 +206,7 @@ Item {
         color: Appearance.colors.colLayer0
         border.width: 1
         border.color: Appearance.colors.colLayer0Border
+        WallpaperBlur { anchors.fill: parent; radius: parent.radius; tint: parent.color; inset: parent.border.width } // ii-windows: frosted glass
         clip: true
 
         Behavior on implicitHeight {

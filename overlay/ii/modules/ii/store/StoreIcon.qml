@@ -54,10 +54,17 @@ Item {
             color: Appearance.colors.colOnLayer1
         }
     }
+    // A light plate under the favicon, like an app icon: dark logos (GitHub, Epic...) vanished on the dark card.
+    Rectangle {
+        anchors.fill: parent
+        visible: image.status === Image.Ready
+        radius: root.size * 0.28
+        color: "#f4f4f6"
+    }
     Image {
         id: image
         anchors.fill: parent
-        anchors.margins: root.size * 0.1
+        anchors.margins: root.size * 0.16
         source: root.loaded !== "" ? Qt.resolvedUrl(root.loaded) : ""
         sourceSize: Qt.size(root.size * 2, root.size * 2)
         fillMode: Image.PreserveAspectFit

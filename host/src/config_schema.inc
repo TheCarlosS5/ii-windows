@@ -127,6 +127,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"appearance.reduceMotion", K_BOOL, false, 0, 0, {}},
 	{"appearance.transparency.automatic", K_BOOL, false, 0, 0, {}},
 	{"appearance.transparency.backgroundTransparency", K_REAL, false, 0, 0, {}},
+	{"appearance.transparency.blurBehind", K_BOOL, false, 0, 0, {}},
 	{"appearance.transparency.contentTransparency", K_REAL, false, 0, 0, {}},
 	{"appearance.transparency.enable", K_BOOL, false, 0, 0, {}},
 	{"appearance.wallpaperTheming.enableAppsAndShell", K_BOOL, false, 0, 0, {}},

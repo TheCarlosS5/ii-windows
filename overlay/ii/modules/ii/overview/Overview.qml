@@ -154,6 +154,9 @@ Scope {
                 anchors.horizontalCenter: parent.horizontalCenter
                 // The big windows only in the "windows" mode (Win+Tab); the grid mode never builds them.
                 active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true) && !overviewScope.showApps && panelWindow.searchingText == ""
+                // An inactive Loader keeps the height of the item it had: hidden, the Column skips it (else the
+                // app grid opened after Win+Tab sat ~570 px lower, under the buttons at the bottom).
+                visible: active
                 sourceComponent: OverviewWidget {
                     screen: panelWindow.screen
                 }

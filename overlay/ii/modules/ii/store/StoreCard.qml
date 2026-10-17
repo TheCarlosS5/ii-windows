@@ -113,7 +113,10 @@ Rectangle {
         }
         RippleButton {
             // Winget can only remove what its list shows (not an app that is just in the Start menu).
-            visible: root.isInstalled && !root.running && (root.installedRow.id ?? "") !== ""
+            // Hidden, it keeps its room: the main buttons of all the cards line up.
+            readonly property bool usable: root.isInstalled && !root.running && (root.installedRow?.id ?? "") !== ""
+            opacity: usable ? 1 : 0
+            enabled: usable
             Layout.alignment: Qt.AlignVCenter
             implicitWidth: 38
             implicitHeight: 38

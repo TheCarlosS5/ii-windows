@@ -103,6 +103,7 @@ Item {
         border.width: 1
         border.color: Appearance.colors.colLayer0Border
         clip: true
+        WallpaperBlur { anchors.fill: parent; radius: parent.radius; tint: parent.color; inset: parent.border.width } // ii-windows: frosted glass
 
         // The most used apps.
         Item {

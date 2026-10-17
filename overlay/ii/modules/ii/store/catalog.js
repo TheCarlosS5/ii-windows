@@ -26,7 +26,7 @@ var categories = [
         { id: "Anysphere.Cursor", name: "Cursor", site: "cursor.com", desc: "A code editor built around AI." }
     ] },
     { key: "web", icon: "language", name: "Browsers", apps: [
-        { id: "Mozilla.Firefox", name: "Firefox", site: "mozilla.org", desc: "Fast, private and open." },
+        { id: "Mozilla.Firefox", name: "Firefox", site: "firefox.com", desc: "Fast, private and open." },
         { id: "Google.Chrome", name: "Google Chrome", site: "google.com/chrome", desc: "Google's browser." },
         { id: "Brave.Brave", name: "Brave", site: "brave.com", desc: "Blocks ads and trackers by default." },
         { id: "Vivaldi.Vivaldi", name: "Vivaldi", site: "vivaldi.com", desc: "A browser you can customise to the last detail." }
