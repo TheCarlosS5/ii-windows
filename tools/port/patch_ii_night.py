@@ -292,8 +292,8 @@ edit(path('modules', 'ii', 'mediaControls', 'PlayerControl.qml'), [
                     animateChange: true
                     animationDistanceX: 6
                     animationDistanceY: 0
-                    Timer {
-                        running: Lyrics.enabled && Lyrics.lines.length > 0 && (trackArtist.QsWindow.window?.visible ?? false)
+                    Timer { // only while it plays: the desktop widget is always on screen
+                        running: Lyrics.enabled && Lyrics.lines.length > 0 && (root.player?.isPlaying ?? false) && (trackArtist.QsWindow.window?.visible ?? false)
                         interval: 250
                         repeat: true
                         triggeredOnStart: true
