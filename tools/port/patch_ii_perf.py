@@ -250,3 +250,38 @@ edit(path('modules', 'common', 'models', 'quickToggles', 'PowerProfilesToggle.qm
         triggeredOnStart: true
         repeat: true'''),
 ])
+
+
+# --- Left sidebar: created in the background now, its window's Loader is not done yet when Component.onCompleted
+# runs (TypeError: contentParent of null, an empty sidebar). The content goes in whenever the window is there.
+edit(path('modules', 'ii', 'sidebarLeft', 'SidebarLeft.qml'), [
+    ('''        sidebarLoader.item.contentParent.children = [root.sidebarContent];
+    }
+''',
+     '''        if (sidebarLoader.item) // ii-windows: else onLoaded below does it (background loading)
+            sidebarLoader.item.contentParent.children = [root.sidebarContent];
+    }
+'''),
+    ('''    Loader {
+        id: sidebarLoader
+        active: true
+''',
+     '''    Loader {
+        id: sidebarLoader
+        active: true
+        onLoaded: {
+            if (root.sidebarContent && !root.detach)
+                sidebarLoader.item.contentParent.children = [root.sidebarContent];
+        }
+'''),
+])
+
+
+# --- Two warnings at every start: the bar's model read monitor.id before the monitor was set, and the notification
+# popup read an option (notifications.forceMonitor) that this version's config does not have.
+edit(path('modules', 'common', 'models', 'WorkspaceModel.qml'), [
+    ('HyprlandData.monitors.find(m => m.id === monitor.id)', 'HyprlandData.monitors.find(m => m.id === monitor?.id)'),
+])
+edit(path('modules', 'ii', 'notificationPopup', 'NotificationPopup.qml'), [
+    ('Config.options.notifications.forceMonitor.enable ? s.name', 'Config.options.notifications.forceMonitor?.enable ? s.name'),
+])
