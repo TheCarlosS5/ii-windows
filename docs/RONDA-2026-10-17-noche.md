@@ -166,8 +166,7 @@ anterior `4cb587e`, detenida como estaba.
   crecen. No parece una fuga, sí un pico alto. Una ventana a pantalla completa vacía ya cuesta ~44 MB (Qt crea un
   dispositivo Direct3D y su cadena de imágenes por ventana). Opciones experimentales en el fork, **apagadas**:
   `QS_RELEASE_HIDDEN=1` (−50 MB, primer cuadro más lento al abrir) y `QS_SHARED_RHI=1` (un solo dispositivo,
-  −30 MB, pero si la GPU se reinicia las ventanas quedarían en blanco). Idea pendiente: cargar la tabla periódica
-  solo al abrir su pestaña.
+  −30 MB, pero si la GPU se reinicia las ventanas quedarían en blanco). Hecho después: la tabla periódica se crea solo al abrir su pestaña (−26 MB cada vez que se abren los atajos).
 - 950 textos (`StyledText`) creados al arrancar: los widgets de escritorio y la barra.
 - Avisos leídos cada segundo mientras se usa el PC (~2 % de un núcleo aquí): Windows no da evento a apps sin paquete.
 - Ideas de otras shells en `docs/IDEAS-OTRAS-SHELLS.md` (No molestar con presets, letras de canciones, etc.).
