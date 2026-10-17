@@ -116,9 +116,10 @@ bool accentBorders();  // appearance.windowEffects.accentBorders (default false)
 
 namespace splash {
 void show();               // cover windows (plain colour) over Explorer's desktop while the shell loads
-void loadImages();         // then ii's wallpaper on them (decoded after the shell is launched)
+void loadImages();         // (no-op: show() prepares the picture on a worker thread)
+void refreshCache();       // re-cache the small blurred wallpaper for the next logon (own thread)
 void setShellPid(DWORD pid);
-void watch();              // fades out once the shell's wallpaper is up (polled by its own timer)
+void watch();              // fades out once the shell says its desktop is complete (own timer)
 void close();
 } // namespace splash
 

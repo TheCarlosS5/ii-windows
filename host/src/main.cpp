@@ -22,10 +22,13 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <tlhelp32.h>
+#include <dxgi1_6.h>
 #include <wtsapi32.h>
 
 using namespace ii;
 
+
+int gpuPolicy(bool quiet); // below wWinMain's helpers
 namespace {
 
 constexpr UINT_PTR TIMER_REAPPLY = 1;
@@ -743,6 +746,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (!shuttingDown && !startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
 		} else if (wParam == TIMER_HEALTH) {
 			{ SlowStep s(L"evaluateBanners"); evaluateBanners(); }
+			// The next logon's welcome cover uses a small blurred copy of the wallpaper (own thread).
+			if (shellReady && options.splash) splash::refreshCache();
 			if (options.windowfx && uiHidden) { SlowStep s(L"windowfx::tick"); windowfx::tick(); }
 			if (options.hook) { SlowStep s(L"keyboard::refreshContext"); keyboard::refreshContext(); } // reconcile what the hook reads (shell, foreground, shortcuts.ini)
 		} else if (wParam == TIMER_WATCHDOG) {
@@ -832,6 +837,10 @@ int runHost() {
 		return 1;
 	}
 
+	// The welcome cover first of all (at logon every millisecond the desktop shows unfinished counts);
+	// it is only windows, and it goes as soon as anything below fails (exposeExplorer, restoreAndStop).
+	if (options.splash) splash::show();
+
 	auto className = L"IiHostWindow" + tag;
 	WNDCLASSW wc {};
 	wc.lpfnWndProc = wndProc;
@@ -855,6 +864,7 @@ int runHost() {
 	setPhase(Phase::Preparing, options.shell.empty() ? L"no shell requested" : L"shell requested");
 	instance::recordHost();
 	bench(L"host-ready-to-launch");
+	gpuPolicy(false); // the GPUs in the log: the first thing to look at in a report of stalls
 	guardReady = spawnGuard();
 
 	if (!RegisterHotKey(hostWindow, HOTKEY_PANIC, MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT, 'R')) {
@@ -869,14 +879,9 @@ int runHost() {
 		log(L"boot: high priority, fast taskbar checks, splash");
 	}
 
-	// A cover until the shell's own wallpaper is up: the windows first (plain colour), the shell
-	// right after, and only then the wallpaper image is decoded, so the shell is not kept waiting
-	// for it.
-	if (options.splash) splash::show();
 	applyAll();
 	if (options.shell.empty()) setPhase(Phase::Active, L"no shell to wait for");
 	else if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
-	if (options.splash) splash::loadImages();
 	// Everything below (gamma ramps through GDI, the hook thread) can take a moment and the
 	// shell's load doesn't depend on it.
 	if (options.nightlight) nightlight::start(guardReady);
@@ -944,6 +949,36 @@ int runRescue(bool restartExplorer) {
 
 } // namespace
 
+// Which GPU ii should draw on (asked by the installer, logged at every start). Windows' "power saving"
+// preference is only right when the power-saving GPU is the one driving the screen (laptops: the
+// integrated GPU has the panel). On a desktop with a graphics card and the integrated GPU switched on,
+// it made ii draw on a GPU with no screen and Windows copied every frame across: animations and the
+// wallpaper stalled, colours changed late. Exit 10 = power saving is right, 11 = leave it to Windows.
+int gpuPolicy(bool quiet) {
+	IDXGIFactory6* factory = nullptr;
+	if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) return 11;
+	int adapters = 0;
+	bool lowPowerHasScreen = false;
+	for (UINT i = 0;; ++i) {
+		IDXGIAdapter1* adapter = nullptr;
+		if (factory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_MINIMUM_POWER, IID_PPV_ARGS(&adapter)) != S_OK) break;
+		DXGI_ADAPTER_DESC1 desc {};
+		adapter->GetDesc1(&desc);
+		if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
+			IDXGIOutput* output = nullptr;
+			bool screen = adapter->EnumOutputs(0, &output) == S_OK;
+			if (output) output->Release();
+			if (adapters == 0) lowPowerHasScreen = screen;
+			++adapters;
+			if (!quiet) log(L"gpu: %s (%s%s, %llu MB)", desc.Description, adapters == 1 ? L"power saving" : L"other", screen ? L", drives a screen" : L"",
+			                static_cast<unsigned long long>(desc.DedicatedVideoMemory / (1024 * 1024)));
+		}
+		adapter->Release();
+	}
+	factory->Release();
+	return adapters >= 2 && lowPowerHasScreen ? 10 : 11;
+}
+
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 	int argc = 0;
 	auto** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -969,6 +1004,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		else if (a == L"--rescue" || a == L"--restore") rescue = true;
 		else if (a == L"--restart-explorer") restartExplorer = true;
 		else if (a == L"--guard") guardPid = static_cast<DWORD>(_wtoi(next().c_str()));
+		else if (a == L"--gpu-policy") return gpuPolicy(true);
 	}
 	LocalFree(argv);
 

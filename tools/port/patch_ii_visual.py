@@ -316,4 +316,36 @@ add_translations('es_MX', {
     "Windows does not blur what is behind a translucent window: ii draws the wallpaper blurred behind its panels so their text stays easy to read.":
         "Windows no desenfoca lo que hay detrás de una ventana translúcida: ii dibuja el fondo de pantalla desenfocado detrás de sus paneles para que el texto se lea bien.",
 })
+# --- Start-up: tell ii-host when the desktop is complete -----------------------------------------------
+# ii-host's welcome cover ("Bienvenido", host/src/splash.cpp) stays until this file exists: the
+# wallpaper, bar and dock (phase 1), then the desktop widgets and icons (phase 2), and a moment for
+# them to paint. Then the whole desktop appears at once instead of piece by piece.
+edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
+    ('''import QtQuick
+import Quickshell
+''', '''import QtQuick
+import Quickshell
+import Quickshell.Io
+'''),
+    # The stages were spaced 2.5 s apart so the first paint came fast; behind the cover nobody sees the
+    # stages, only the total: the desktop widgets come 0.8 s after the bar, the hidden panels later.
+    ('''        running: Config.ready
+        interval: 2500
+        repeat: true''',
+     '''        running: Config.ready
+        interval: 800
+        repeat: true'''),
+    ('''    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }''',
+     '''    Timer {
+        running: Config.ready && GlobalStates.startupPhase >= 2
+        interval: 1000
+        onTriggered: shellReadyFile.setText(`${Date.now()}`)
+    }
+    FileView {
+        id: shellReadyFile
+        preload: false
+        path: `${(Quickshell.env("II_DATA_DIR") || (Quickshell.env("LOCALAPPDATA") + "/ii-windows")).replace(/\\\\/g, "/")}/shell-visual-ready`
+    }
+    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }'''),
+])
 print('patch_ii_visual: ok')

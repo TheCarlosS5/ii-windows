@@ -545,6 +545,7 @@ int thumbnail(const std::vector<std::wstring>& args);
 int extwall(const std::vector<std::wstring>& args); // extwall.cpp
 int magick(const std::vector<std::wstring>& args);
 int vdesk(const std::vector<std::wstring>& args);
+int lockscreenImage(const std::vector<std::wstring>& args); // lockimage.cpp
 // configtool.cpp
 namespace configtool { int command(const std::vector<std::wstring>& args); }
 // fileops.cpp
@@ -577,6 +578,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"crop") return crop(args);
 	if (command == L"switchwall") return switchwall(args);
 	if (command == L"extwall") return extwall(args);
+	if (command == L"lockscreen-image") return lockscreenImage(args);
 	if (command == L"randomwall") return randomwall(args);
 	if (command == L"fetch") return fetch(args);
 	if (command == L"ai-request") return aiRequest(args);

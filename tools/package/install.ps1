@@ -197,11 +197,27 @@ $gpuSubKey = 'Software\Microsoft\DirectX\UserGpuPreferences'
 $shellExe = Join-Path $versionDir 'quickshell\quickshell.exe'
 # A value that already exists is the user's choice and is left alone; one that is ii's own from an
 # earlier install keeps its true original (absent) and is not mistaken for the user's.
-$gpuResult = Set-IiOwnedRegValue $manifest "gpu:$shellExe" $gpuSubKey $shellExe 'GpuPreference=1;' 'String'
-if ($gpuResult -in 'applied', 'kept-ours', 'updated-ours') {
-    $manifest.registry += "HKCU\$gpuSubKey\$shellExe (GPU de ahorro de energia)"
-} elseif ($gpuResult -eq 'foreign-existing') {
-    Say 'La preferencia de GPU de este programa ya existe (es tuya): se respeta.'
+# Only where the power-saving GPU is the one with the screen (ii-host --gpu-policy asks DirectX: exit
+# 10). On a desktop whose monitor is on the graphics card it made ii draw on the integrated GPU and
+# Windows copied every frame across: the wallpaper stalled and colours changed late. There nothing
+# is forced, and a value an earlier ii wrote is taken back.
+$gpuPolicy = 11
+try {
+    $probe = Start-Process -FilePath (Join-Path $versionDir 'ii-host.exe') -ArgumentList '--gpu-policy' -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop
+    $gpuPolicy = $probe.ExitCode
+} catch { }
+if ($gpuPolicy -eq 10) {
+    $gpuResult = Set-IiOwnedRegValue $manifest "gpu:$shellExe" $gpuSubKey $shellExe 'GpuPreference=1;' 'String'
+    if ($gpuResult -in 'applied', 'kept-ours', 'updated-ours') {
+        $manifest.registry += "HKCU\$gpuSubKey\$shellExe (GPU de ahorro de energia)"
+    } elseif ($gpuResult -eq 'foreign-existing') {
+        Say 'La preferencia de GPU de este programa ya existe (es tuya): se respeta.'
+    }
+} else {
+    foreach ($change in @(@($manifest.changes) | Where-Object { $_ -and $_.id -like 'gpu:*' })) {
+        [void](Restore-IiOwnedRegValue $manifest $change.id)
+    }
+    Say 'GPU: Windows elige la tarjeta de ii (la pantalla no esta en la grafica de ahorro).'
 }
 
 # --- 4. cursor ---------------------------------------------------------------------------------
