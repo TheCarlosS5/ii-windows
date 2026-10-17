@@ -219,6 +219,17 @@ if ($gpuPolicy -eq 10) {
     }
     Say 'GPU: Windows elige la tarjeta de ii (la pantalla no esta en la grafica de ahorro).'
 }
+# GPU values for versions of ii that are gone (their folder under versions\ was removed): nobody else
+# writes values for files inside ii's own folder, and Windows keeps them for ever otherwise.
+$gpuKeyItem = Get-Item "HKCU:\$gpuSubKey" -ErrorAction SilentlyContinue
+if ($gpuKeyItem) {
+    foreach ($exe in @($gpuKeyItem.GetValueNames())) {
+        if ($exe -like "$installDir\versions\*" -and -not (Test-Path -LiteralPath $exe)) {
+            Remove-ItemProperty -Path "HKCU:\$gpuSubKey" -Name $exe -ErrorAction SilentlyContinue
+            $manifest.changes = @(@($manifest.changes) | Where-Object { $_ -and $_.id -ne "gpu:$exe" })
+        }
+    }
+}
 
 # --- 4. cursor ---------------------------------------------------------------------------------
 $cursorKey = 'HKCU:\Control Panel\Cursors'
