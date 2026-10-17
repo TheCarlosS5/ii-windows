@@ -151,4 +151,16 @@ add_translations('es_MX', {
     "Windows services": "Servicios de Windows",
     "Click: Task Manager": "Clic: Administrador de tareas",
 })
+
+
+# --- The music spectrum (cava: audio capture + a redraw ~60 times a second) is a decorative animation: "Reduce
+# animations" (and so the light mode) stops it, on the desktop widget and in the media panel.
+edit(path('modules', 'ii', 'background', 'widgets', 'media', 'MediaWidget.qml'), [
+    ('&& !root.desktopCovered && !GlobalStates.mediaControlsOpen\n',
+     '&& !root.desktopCovered && !GlobalStates.mediaControlsOpen\n            && !Config.options.appearance.reduceMotion // ii-windows\n'),
+])
+edit(path('modules', 'ii', 'mediaControls', 'MediaControls.qml'), [
+    ('        running: mediaControlsLoader.active\n',
+     '        running: mediaControlsLoader.active && !Config.options.appearance.reduceMotion // ii-windows: decorative\n'),
+])
 print('patch_ii_night: ok')
