@@ -63,6 +63,9 @@ Bibata Modern Classic (cursores) ................ GPL-3.0   https://github.com/f
 fastfetch 2.69.0 (app\fastfetch) ................ MIT       https://github.com/fastfetch-cli/fastfetch
 Google Sans Flex, Readex Pro, Space Grotesk, Rubik, JetBrains Mono Nerd Font ... SIL OFL 1.1
 Material Symbols ................................ Apache-2.0
+  Modificadas: en Google Sans Flex y Material Symbols Rounded se quitaron instancias con nombre (pesos que ii
+  no usa; todos los ejes variables siguen); de JetBrains Mono Nerd Font van solo Regular, Medium y Bold.
+  Ver tools/dev/trim_fonts.py en el codigo de ii-windows.
 Breeze / Breeze Plus (iconos) ................... LGPL-3.0 / LGPL-2.1
 
 Los textos de cada licencia estan en esta carpeta.

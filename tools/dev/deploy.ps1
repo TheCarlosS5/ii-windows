@@ -51,6 +51,9 @@ if (Test-Path "$root\third_party\fonts") {
     robocopy "$root\third_party\fonts" "$dist\fonts" /MIR /XF 'MaterialSymbolsOutlined*' 'Rubik*' /NFL /NDL /NJH /NJS /NP | Out-Null
     # /MIR keeps excluded files that are already there.
     Get-ChildItem "$dist\fonts" -File | Where-Object { $_.Name -like 'MaterialSymbolsOutlined*' -or $_.Name -like 'Rubik*' } | Remove-Item -Force
+    # Variable fonts down to the named instances the QML uses (Qt keeps a face per instance: ~120 MB of RAM).
+    & python -I "$PSScriptRoot\trim_fonts.py" "$dist\fonts" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'trim_fonts.py failed (pip install fonttools)' }
 }
 if (Test-Path "$root\third_party\icons") {
     # One compressed resource instead of ~40k files (Quickshell registers icons.rcc at startup).
