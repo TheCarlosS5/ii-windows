@@ -208,4 +208,64 @@ edit(path('modules', 'ii', 'bar', 'ActiveWindow.qml'), [
         if (AppSearch.appsVersion < 0) return ""; // ii-windows: dependency only, reruns once the app list is loaded
         if (!id || id.length === 0) return "";'''),
 ])
+
+# --- Do not disturb for a while: the notifications tile's body goes Show -> silent 1 hour -> silent until tomorrow
+# 8:00 -> Show; its icon still silences until turned back on. The silence ends by itself at that time.
+edit(path('services', 'Notifications.qml'), [
+    ('''    property bool silent: false
+''', '''    property bool silent: false
+    // ii-windows: when a timed silence ends (ms since epoch, 0 = until turned off) and which one it is
+    property real silentUntil: 0
+    property string silentPreset: ""
+    onSilentChanged: if (!silent) { silentUntil = 0; silentPreset = ""; }
+    function silenceFor(preset) {
+        const now = new Date();
+        if (preset === "hour") {
+            silentUntil = now.getTime() + 3600000;
+        } else if (preset === "tomorrow") {
+            const morning = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (now.getHours() < 8 ? 0 : 1), 8, 0, 0);
+            silentUntil = morning.getTime();
+        }
+        silentPreset = preset;
+        silent = true;
+    }
+    property Timer silenceEnd: Timer {
+        running: root.silentUntil > 0
+        interval: 20000
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: if (Date.now() >= root.silentUntil) root.silent = false
+    }
+'''),
+])
+edit(path('modules', 'common', 'models', 'quickToggles', 'NotificationToggle.qml'), [
+    ('''    statusText: toggled ? Translation.tr("Show") : Translation.tr("Silent")''',
+     '''    statusText: toggled ? Translation.tr("Show")
+        : Notifications.silentUntil > 0 ? Translation.tr("Silent until %1").arg(Qt.locale().toString(new Date(Notifications.silentUntil), "HH:mm"))
+        : Translation.tr("Silent")'''),
+    ('''    mainAction: () => {
+        Notifications.silent = !Notifications.silent;
+    }
+
+    tooltipText: Translation.tr("Show notifications")''',
+     '''    mainAction: () => {
+        Notifications.silent = !Notifications.silent;
+    }
+    // ii-windows: the tile's body silences for a while: 1 hour, until tomorrow 8:00, then shows again
+    altAction: () => {
+        if (!Notifications.silent || Notifications.silentPreset === "")
+            Notifications.silenceFor("hour");
+        else if (Notifications.silentPreset === "hour")
+            Notifications.silenceFor("tomorrow");
+        else
+            Notifications.silent = false;
+    }
+
+    tooltipText: Translation.tr("Icon: silence notifications. Rest of the button: 1 hour, until tomorrow 8:00, back on")'''),
+])
+add_translations('es_MX', {
+    "Silent until %1": "Hasta las %1",
+    "Icon: silence notifications. Rest of the button: 1 hour, until tomorrow 8:00, back on":
+        "Icono: silenciar avisos. Resto del botón: 1 hora, hasta mañana a las 8:00, volver a mostrar",
+})
 print('patch_ii_night: ok')
