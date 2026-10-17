@@ -418,6 +418,74 @@ int thumbnail(const Args& args) {
 	return writeFitted(windowsPath(args[0]), static_cast<UINT>(_wtoi(args[1].c_str())), target) ? 1 : 2;
 }
 
+// ii-shim blurwall <source> <target.png> [width]: the wallpaper small and strongly blurred, for the frosted
+// glass behind ii's panels (modules/common/widgets/WallpaperBlur.qml). Made once per wallpaper on the CPU,
+// so the panels only draw a picture: no blur shader per panel, the same on every GPU (and on none).
+// 0 = written, 1 = failed.
+int blurwall(const Args& args) {
+	if (args.size() < 2) return 1;
+	CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+	auto factory = wic();
+	ComPtr<IWICBitmapDecoder> decoder;
+	ComPtr<IWICBitmapFrameDecode> frame;
+	ComPtr<IWICBitmapScaler> scaler;
+	ComPtr<IWICFormatConverter> converter;
+	if (!factory || FAILED(factory->CreateDecoderFromFilename(windowsPath(args[0]).c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder))
+	    || FAILED(decoder->GetFrame(0, &frame)))
+	{
+		return 1;
+	}
+	UINT iw = 0;
+	UINT ih = 0;
+	frame->GetSize(&iw, &ih);
+	if (iw == 0 || ih == 0) return 1;
+	UINT w = args.size() > 2 ? static_cast<UINT>(std::clamp(_wtoi(args[2].c_str()), 64, 2048)) : 480;
+	w = std::min(w, iw);
+	UINT h = std::max(1u, static_cast<UINT>(static_cast<double>(ih) * w / iw + 0.5));
+	if (FAILED(factory->CreateBitmapScaler(&scaler)) || FAILED(scaler->Initialize(frame.Get(), w, h, WICBitmapInterpolationModeFant))
+	    || FAILED(factory->CreateFormatConverter(&converter))
+	    || FAILED(converter->Initialize(scaler.Get(), GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom)))
+	{
+		return 1;
+	}
+	std::vector<BYTE> px(static_cast<size_t>(w) * h * 4);
+	if (FAILED(converter->CopyPixels(nullptr, w * 4, static_cast<UINT>(px.size()), px.data()))) return 1;
+	// Three box passes each way (close to a Gaussian); the radius follows the width, so the look is the same
+	// whatever size is asked for: about 2.5 % of the picture's width, Hyprland's blur behind ii's panels.
+	int radius = std::max(2, static_cast<int>(w / 64));
+	std::vector<BYTE> tmp(px.size());
+	auto pass = [&](const BYTE* src, BYTE* dst, bool horizontal) {
+		int outer = horizontal ? static_cast<int>(h) : static_cast<int>(w);
+		int inner = horizontal ? static_cast<int>(w) : static_cast<int>(h);
+		for (int o = 0; o < outer; ++o) {
+			int sum[4] {};
+			auto at = [&](int i) { i = std::clamp(i, 0, inner - 1); return static_cast<size_t>(horizontal ? (o * static_cast<int>(w) + i) : (i * static_cast<int>(w) + o)) * 4; };
+			for (int k = -radius; k <= radius; ++k) for (int c = 0; c < 4; ++c) sum[c] += src[at(k) + c];
+			int n = radius * 2 + 1;
+			for (int i = 0; i < inner; ++i) {
+				auto d = at(i);
+				for (int c = 0; c < 4; ++c) dst[d + c] = static_cast<BYTE>(sum[c] / n);
+				auto add = at(i + radius + 1);
+				auto sub = at(i - radius);
+				for (int c = 0; c < 4; ++c) sum[c] += src[add + c] - src[sub + c];
+			}
+		}
+	};
+	for (int r = 0; r < 3; ++r) {
+		pass(px.data(), tmp.data(), true);
+		pass(tmp.data(), px.data(), false);
+	}
+	for (size_t i = 3; i < px.size(); i += 4) px[i] = 255;
+	ComPtr<IWICBitmap> blurred;
+	if (FAILED(factory->CreateBitmapFromMemory(w, h, GUID_WICPixelFormat32bppBGRA, w * 4, static_cast<UINT>(px.size()), px.data(), &blurred))) return 1;
+	auto target = windowsPath(args[1]);
+	auto folder = target.substr(0, target.find_last_of(L"\\/"));
+	if (!folder.empty()) SHCreateDirectoryExW(nullptr, folder.c_str(), nullptr); // the cache folder, the first time
+	auto temp = target + L".part";
+	if (!savePng(factory.Get(), blurred.Get(), temp)) return 1;
+	return MoveFileExW(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING) ? 0 : 1;
+}
+
 // magick identify -format "%w %h" <file>   |   magick <source> -resize <N>x<N> <target>
 int magick(const Args& args) {
 	CoInitializeEx(nullptr, COINIT_MULTITHREADED);

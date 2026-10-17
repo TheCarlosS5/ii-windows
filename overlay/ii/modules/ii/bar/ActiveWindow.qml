@@ -30,6 +30,7 @@ Item {
 
     function friendlyName(id) {
         if (!id || id.length === 0) return "";
+        if (/(^|[\\/])quickshell(\.exe)?$/i.test(id)) return "ii"; // ii's own windows (welcome, settings, store)
         const entry = DesktopEntries.heuristicLookup(id);
         if (entry?.name) return entry.name;
         // AUMID / exe fallback: "Publisher.App_hash!Entry" -> "App", "C:\...\foo.exe" -> "foo"

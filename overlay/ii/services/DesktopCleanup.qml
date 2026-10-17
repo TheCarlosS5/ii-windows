@@ -36,10 +36,21 @@ Singleton {
     }
 
     // The cleanup used to be on without being asked for. It is opt-in now: tell people once.
+    // A few seconds after start: the translations are loaded by then (the notice came out in English),
+    // and a fresh install (nothing changed for that person) gets no notice at all.
     function announceOnce() {
+        if (!(Config.options.bar.workspaces.removeEmptyDesktopsNoticeShown ?? false)) announceTimer.restart();
+    }
+    Timer {
+        id: announceTimer
+        interval: 5000
+        onTriggered: root.announceNow()
+    }
+    function announceNow() {
         const ws = Config.options.bar.workspaces;
         if (ws.removeEmptyDesktopsNoticeShown ?? false) return;
         ws.removeEmptyDesktopsNoticeShown = true;
+        if (FirstRunExperience.freshInstall) return;
         Quickshell.execDetached(["notify-send", "-a", "Shell",
             Translation.tr("Empty desktops are no longer closed automatically"),
             Translation.tr("You can turn it back on in Settings > Bar > Workspaces.")]);

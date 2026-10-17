@@ -316,6 +316,88 @@ add_translations('es_MX', {
     "Windows does not blur what is behind a translucent window: ii draws the wallpaper blurred behind its panels so their text stays easy to read.":
         "Windows no desenfoca lo que hay detrás de una ventana translúcida: ii dibuja el fondo de pantalla desenfocado detrás de sus paneles para que el texto se lea bien.",
 })
+# --- First start: one guide at a time ----------------------------------------------------------------
+# On a fresh install the tour popped up over the "Hello! First things first" window (its own process).
+# The welcome window now runs as a Process the shell watches; the tour waits until it is closed.
+edit(path('services', 'FirstRunExperience.qml'), [
+    ('''        Quickshell.execDetached(["qs", "-p", root.welcomeQmlPath]) // ii-windows''',
+     '''        welcomeProc.running = true // ii-windows: watched, so the tour waits for it'''),
+    ('''            if (error == FileViewError.FileNotFound) {
+                firstRunFileView.setText(root.firstRunFileContent)''',
+     '''            if (error == FileViewError.FileNotFound) {
+                root.freshInstall = true // ii-windows: notices meant for people updating stay quiet
+                firstRunFileView.setText(root.firstRunFileContent)'''),
+    ('''    FileView {
+        id: firstRunFileView''',
+     '''    property bool freshInstall: false
+    property bool welcomeOpen: welcomeProc.running
+    Process {
+        id: welcomeProc
+        command: ["qs", "-p", root.welcomeQmlPath]
+    }
+
+    FileView {
+        id: firstRunFileView'''),
+])
+edit(path('modules', 'ii', 'tour', 'Tour.qml'), [
+    ('''        interval: 7000
+        running: true
+        onTriggered: {
+            if (Persistent.ready && !Persistent.states.tour.done && (Config.options.tour?.showOnFirstStart ?? true))
+                root.start();
+        }''',
+     '''        interval: 7000
+        running: true
+        onTriggered: {
+            if (FirstRunExperience.welcomeOpen) {
+                // The welcome window first; the tour 1.5 s after it closes.
+                interval = 1500;
+                restart();
+                return;
+            }
+            if (Persistent.ready && !Persistent.states.tour.done && (Config.options.tour?.showOnFirstStart ?? true))
+                root.start();
+        }'''),
+])
+
+# --- Wallpaper selector on a new PC: Pictures\Wallpapers did not exist, and the selector then listed the
+# folder ii runs from (tls, qml, platforms...). The folder is made at start, with ii's default
+# wallpaper in it the first time, and the selector looks again once it exists.
+edit(path('services', 'Wallpapers.qml'), [
+    ('''    // Folder model
+    FolderListModelWithHistory {''',
+     '''    // ii-windows: the default folder exists before the selector looks at it.
+    Process {
+        id: ensureFolderProc
+        running: true
+        command: ["ii-shim", "mkdir", FileUtils.trimFileProtocol(root.defaultFolder).replace(/^\/(?=[A-Za-z]:)/, "")]
+        onExited: (code, status) => {
+            if (FileUtils.trimFileProtocol(String(root.directory)) === FileUtils.trimFileProtocol(String(root.defaultFolder))) {
+                folderModel.folder = "";
+                folderModel.folder = Qt.resolvedUrl(root.defaultFolder);
+            }
+        }
+    }
+
+    // Folder model
+    FolderListModelWithHistory {'''),
+])
+edit(path('services', 'FirstRunExperience.qml'), [
+    ('''    function handleFirstRun() {''',
+     r'''    function handleFirstRun() {
+        // ii-windows: the wallpaper selector's folder starts with ii's own wallpaper in it
+        const wallDir = FileUtils.trimFileProtocol(`${Directories.pictures}/Wallpapers`).replace(/^\/(?=[A-Za-z]:)/, "").replace(/\//g, "\\");
+        const wallSrc = root.defaultWallpaperPath.replace(/^\/(?=[A-Za-z]:)/, "").replace(/\//g, "\\");
+        Quickshell.execDetached(["cmd", "/c", `if not exist "${wallDir}" mkdir "${wallDir}" & if not exist "${wallDir}\\ii-default.png" copy /y "${wallSrc}" "${wallDir}\\ii-default.png" >nul`]);'''),
+])
+
+# --- Desktop folder widget: the folder's name in the user's language ("Downloads" -> "Descargas") -----
+add_translations('es_MX', {"Desktop": "Escritorio", "Music": "Música"})
+edit(path('modules', 'ii', 'background', 'widgets', 'desktop', 'FolderWidget.qml'), [
+    ('''                    text: root.folderName''',
+     '''                    text: Translation.tr(root.folderName) // ii-windows: Downloads, Pictures... read as Explorer names them'''),
+])
+
 # --- Start-up: tell ii-host when the desktop is complete -----------------------------------------------
 # ii-host's welcome cover ("Bienvenido", host/src/splash.cpp) stays until this file exists: the
 # wallpaper, bar and dock (phase 1), then the desktop widgets and icons (phase 2), and a moment for

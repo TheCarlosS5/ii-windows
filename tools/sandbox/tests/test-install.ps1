@@ -49,12 +49,19 @@ $t = Measure-Command { & powershell -NoProfile -ExecutionPolicy Bypass -File "$p
 "install exit $LASTEXITCODE in $([int]$t.TotalSeconds) s"
 Start-Sleep 20
 $dir = "$env:LOCALAPPDATA\Programs\ii-windows"
-Check 'files installed' (Test-Path "$dir\quickshell\quickshell.exe")
+# Versions live side by side (versions\<id>), current.txt says which one runs.
+$active = ((Get-Content "$dir\current.txt" -ErrorAction SilentlyContinue | Where-Object { $_ -like 'active=*' }) -replace '^active=', '')
+$activeDir = "$dir\versions\$active"
+Check 'files installed' ($active -and (Test-Path "$activeDir\quickshell\quickshell.exe")) "($active)"
 Check 'ii-host running from the install folder' ([bool](Get-Process ii-host -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dir*" }))
 Check 'quickshell running' ([bool](Get-Process quickshell -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$dir*" }))
 Check 'taskbar hidden while running' (-not (TaskbarVisible))
-$task = Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue
-Check 'autostart: logon task with --boot' ($task -and $task.Actions[0].Arguments -like '--boot --shell "*quickshell.exe" --config "*\ii"' -and $task.Principal.RunLevel -eq 'Limited') "($($task.Actions[0].Arguments))"
+$hostLog = Get-Content "$env:LOCALAPPDATA\ii-windows\host.log" -ErrorAction SilentlyContinue
+Check 'welcome cover left once the desktop was complete' ([bool]($hostLog | Select-String "splash: screen 0 ready .*desktop is complete")) "($(($hostLog | Select-String 'splash: screen 0 ready' | Select-Object -Last 1).Line))"
+Check 'GPUs logged at start' ([bool]($hostLog | Select-String '^.* gpu: ')) ''
+& 'C:\ii\tools\dev\screenshot.ps1' -Out "$out\installed.png" | Out-Null
+$task = Get-ScheduledTask -TaskPath '\ii-windows\' -ErrorAction SilentlyContinue | Select-Object -First 1
+Check 'autostart: logon task with --boot' ($task -and $task.Actions[0].Arguments -like '--boot*' -and $task.Principal.RunLevel -eq 'Limited') "($($task.Actions[0].Arguments))"
 Check 'autostart: no Run entry when the task exists' (-not (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue).'ii-windows')
 Check 'Bibata cursor applied' ((Get-ItemProperty 'HKCU:\Control Panel\Cursors').Arrow -like "*Bibata*")
 Check 'Apps & features entry' (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows')
@@ -76,8 +83,10 @@ foreach ($font in $fonts) {
 $fragmentDir = "$env:LOCALAPPDATA\Microsoft\Windows Terminal\Fragments\ii-windows"
 # The fragment is written by switchwall at the first wallpaper change (the welcome screen sets one).
 "Terminal fragment present: $(Test-Path "$fragmentDir\ii-windows.json")"
-$gpuPref = (Get-ItemProperty 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -ErrorAction SilentlyContinue)."$env:LOCALAPPDATA\Programs\ii-windows\quickshell\quickshell.exe"
-Check 'power-saving GPU for the shell' ($gpuPref -eq 'GpuPreference=1;') "($gpuPref)"
+# Power saving is forced only where that GPU drives the screen (ii-host --gpu-policy: 10).
+$gpuPref = (Get-ItemProperty 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -ErrorAction SilentlyContinue)."$activeDir\quickshell\quickshell.exe"
+$policy = (Start-Process "$activeDir\ii-host.exe" -ArgumentList '--gpu-policy' -Wait -PassThru).ExitCode
+Check 'GPU preference follows the screen' ((($policy -eq 10) -and $gpuPref -eq 'GpuPreference=1;') -or (($policy -ne 10) -and -not $gpuPref)) "(policy $policy, value '$gpuPref')"
 $userPath = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment').GetValue('Path', '', 'DoNotExpandEnvironmentNames')
 Check 'fastfetch folder appended to the user PATH' ($userPath.Split(';')[-1] -eq "$dir\bin") "($userPath)"
 $ff = & cmd.exe /c "`"$dir\bin\fastfetch.cmd`" --pipe true" 2>&1 | Out-String
@@ -95,7 +104,7 @@ if ($rep) { Move-Item $rep.FullName "$out\report-sample.txt" -Force }
 Start-Sleep 20
 Check 'processes stopped' (-not (Get-Process ii-host, quickshell -ErrorAction SilentlyContinue))
 Check 'install folder removed' (-not (Test-Path $dir))
-Check 'logon task removed' (-not (Get-ScheduledTask -TaskName 'ii-windows' -ErrorAction SilentlyContinue))
+Check 'logon task removed' (-not (Get-ScheduledTask -TaskPath '\ii-windows\' -ErrorAction SilentlyContinue))
 Check 'shortcuts removed' (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\ii-windows"))
 Check 'Apps & features entry removed' (-not (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ii-windows'))
 foreach ($font in $fonts) {

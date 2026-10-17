@@ -544,6 +544,7 @@ int switchwall(const std::vector<std::wstring>& args);
 int thumbnail(const std::vector<std::wstring>& args);
 int extwall(const std::vector<std::wstring>& args); // extwall.cpp
 int magick(const std::vector<std::wstring>& args);
+int blurwall(const std::vector<std::wstring>& args); // capture.cpp
 int vdesk(const std::vector<std::wstring>& args);
 int lockscreenImage(const std::vector<std::wstring>& args); // lockimage.cpp
 // configtool.cpp
@@ -579,6 +580,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"switchwall") return switchwall(args);
 	if (command == L"extwall") return extwall(args);
 	if (command == L"lockscreen-image") return lockscreenImage(args);
+	if (command == L"blurwall") return blurwall(args);
 	if (command == L"randomwall") return randomwall(args);
 	if (command == L"fetch") return fetch(args);
 	if (command == L"ai-request") return aiRequest(args);

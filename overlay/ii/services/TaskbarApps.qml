@@ -63,7 +63,13 @@ Singleton {
         const info = new Map();
 
         // Pinned apps first, in the order of the config
+        // A pinned Store app (AppUserModelID, "...!App") that is not installed on this PC (Windows Terminal
+        // on Windows 10 or an LTSC) showed as an empty icon: left out until it is there. classIndex is
+        // read first so this runs again once the Start menu entries are loaded.
+        const loaded = Object.keys(root.classIndex).length > 0;
         for (const appId of Config.options?.dock.pinnedApps ?? []) {
+            if (loaded && appId.includes("!") && !DesktopEntries.byId(appId) && !root.classIndex[appId.toLowerCase()])
+                continue;
             const key = root.canonicalId(appId);
             if (key !== "" && !info.has(key))
                 info.set(key, {

@@ -1,14 +1,15 @@
 import QtQuick
-import QtQuick.Effects
 import Qt5Compat.GraphicalEffects
 import Quickshell
+import qs.services
 import qs.modules.common
 
 // ii-windows: the frosted glass Hyprland draws behind ii's panels. Windows blurs nothing behind a
 // translucent window, so with transparency on the wallpaper's details (and the desktop widgets) showed
-// through the panels and made them hard to read. This draws the wallpaper, blurred, exactly where the
-// panel sits on the screen (like Windows 11's Mica: the wallpaper, not the windows behind), with the
-// panel's own translucent colour over it.
+// through the panels and made them hard to read. This draws the wallpaper, already blurred
+// (services/BlurredWallpaper.qml, made once per wallpaper), exactly where the panel sits on the screen
+// (like Windows 11's Mica: the wallpaper, not the windows behind), with the panel's own translucent
+// colour over it. No shader blurs anything here: the same picture on every GPU.
 //
 // Put it as the first child of a panel's background Rectangle:
 //     WallpaperBlur { anchors.fill: parent; radius: parent.radius; tint: parent.color; inset: parent.border.width }
@@ -25,13 +26,7 @@ Item {
     readonly property bool active: (Config.options.appearance.transparency.enable ?? false)
         && (Config.options.appearance.transparency.blurBehind ?? true)
         && Appearance.backgroundTransparency > 0.02
-        && wallpaperSource.length > 0
-    readonly property string wallpaperSource: {
-        const p = Config.options.background.wallpaperPath ?? "";
-        const video = /\.(mp4|webm|mkv|avi|mov|gif)$/i.test(p);
-        const s = video ? (Config.options.background.thumbnailPath ?? "") : p;
-        return s.length > 0 ? Qt.resolvedUrl(s) : "";
-    }
+        && BlurredWallpaper.source.length > 0
 
     readonly property var screenInfo: root.QsWindow.window?.screen ?? null
     readonly property real screenWidth: screenInfo?.width ?? 1920
@@ -39,10 +34,6 @@ Item {
     // Where this item's top-left corner is on its screen, at rest.
     property real screenX: 0
     property real screenY: 0
-
-    // The blur works on a small copy (1/4) scaled back up: cheap, and the blur is wide anyway.
-    readonly property real down: 4
-    readonly property real pad: 48 // the copy runs past the screen edges, so the blur does not fade there
 
     function place() {
         let x = root.inset, y = root.inset, item = root, top = root;
@@ -84,36 +75,19 @@ Item {
             }
         }
 
-        Item {
-            id: small
-            visible: root.active
-            x: -root.screenX - root.pad
-            y: -root.screenY - root.pad
-            width: (root.screenWidth + root.pad * 2) / root.down
-            height: (root.screenHeight + root.pad * 2) / root.down
-            scale: root.down
-            transformOrigin: Item.TopLeft
-
-            Image {
-                id: wall
-                anchors.fill: parent
-                visible: false
-                source: root.active ? root.wallpaperSource : ""
-                sourceSize: Qt.size(Math.round(parent.width), Math.round(parent.height))
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                cache: true
-                smooth: true
-            }
-            MultiEffect {
-                anchors.fill: parent
-                source: wall
-                autoPaddingEnabled: false
-                blurEnabled: true
-                blurMax: 64
-                blur: 1
-                saturation: 0.1
-            }
+        Image {
+            // The whole screen's wallpaper, blurred, placed so this panel shows its own part of it.
+            x: -root.screenX
+            y: -root.screenY
+            width: root.screenWidth
+            height: root.screenHeight
+            visible: root.active && status === Image.Ready
+            source: root.active ? BlurredWallpaper.source : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            cache: true
+            smooth: true
+            mipmap: false
         }
 
         Rectangle {
