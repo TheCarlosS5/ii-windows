@@ -69,6 +69,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\patch_ii_ux3.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ux3.py failed" }
 # Visual polish (2026-10-16): Spanish texts left in English, cut labels, cheatsheet keys, minimized windows.
 & python -I "$root\tools\port\patch_ii_visual.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_visual.py failed" }
+# Startup work on slow PCs (2026-10-17): app list built once, not once per app
+& python -I "$root\tools\port\patch_ii_perf.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_perf.py failed" }
 # Every folder/file the QML imports must be there and not empty (a submodule that was never
 # initialised leaves an empty folder, and the shell then dies on start): refuse to stage such a tree.
 $importCheck = & python -I "$root\tools\dev\check-qml-imports.py" $dest

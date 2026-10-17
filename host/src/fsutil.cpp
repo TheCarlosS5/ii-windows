@@ -5,7 +5,7 @@
 //
 //   mkdir [-p] <dir>...        create folders (and parents)
 //   rm [-f] [-r|-R|-rf] <path>...   delete files; with -r also folders
-//   reset-dir <dir>            make the folder exist and be empty (rm -rf + mkdir -p in one typed step)
+//   reset-dir <dir>...         make the folders exist and be empty (rm -rf + mkdir -p in one typed step)
 //   which <name>               print the full path of a program on PATH; exit 1 if there is none
 
 #include <algorithm>
@@ -148,20 +148,25 @@ int rmCommand(const Args& args) {
 }
 
 int resetDirCommand(const Args& args) {
-	if (args.size() != 1) return 1;
-	auto dir = normalize(args[0]);
-	if (!allowed(dir, 2)) {
-		fwprintf(stderr, L"reset-dir: refusing %s\n", dir.c_str());
-		return 1;
+	if (args.empty()) return 1;
+	int rc = 0;
+	for (const auto& arg: args) { // several folders in one start: every process start counts on a slow PC
+		auto dir = normalize(arg);
+		if (!allowed(dir, 2)) {
+			fwprintf(stderr, L"reset-dir: refusing %s\n", dir.c_str());
+			rc = 1;
+			continue;
+		}
+		std::error_code ec;
+		if (fs::exists(fs::symlink_status(dir, ec))) {
+			if (isLink(dir)) fs::remove(dir, ec);
+			else fs::remove_all(dir, ec);
+		}
+		ec.clear();
+		fs::create_directories(dir, ec);
+		if (ec && !fs::is_directory(dir)) rc = 1;
 	}
-	std::error_code ec;
-	if (fs::exists(fs::symlink_status(dir, ec))) {
-		if (isLink(dir)) fs::remove(dir, ec);
-		else fs::remove_all(dir, ec);
-	}
-	ec.clear();
-	fs::create_directories(dir, ec);
-	return (!ec || fs::is_directory(dir)) ? 0 : 1;
+	return rc;
 }
 
 int whichCommand(const Args& args) {
