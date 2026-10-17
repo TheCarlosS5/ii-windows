@@ -28,13 +28,21 @@ Herramientas nuevas:
 
 | | antes | ahora |
 |---|---|---|
-| Arranque normal (cubierta fuera) | 29 s | **17 s** |
-| Primer arranque tras instalar | 37 s | **19 s** (con precompilado en el instalador) |
-| CPU del shell hasta ver el escritorio | 7,3 s | 4,8 s |
+| Arranque normal (cubierta fuera) | 29 s | **14,7 s** |
+| Primer arranque tras instalar | 37 s | **18 s** (con precompilado en el instalador) |
+| CPU del shell hasta ver el escritorio | 7,3 s | **3,8 s** |
 | Procesos lanzados al arrancar | 34 | 25 |
 | Procesos en reposo | ~30 por minuto | ~3 por minuto |
 
-En este PC (Ryzen): la cubierta se va a los **4,5 s** (antes 6–10 s).
+En este PC (Ryzen): la cubierta se va a los **4,2–4,5 s** (antes 6–10 s).
+
+Fuera del arranque:
+
+| | antes | ahora |
+|---|---|---|
+| RAM del shell | 529 MB | **407 MB** (fuentes recortadas) |
+| CPU en reposo sin nadie en el PC | 2,3 % de un núcleo | **0,6 %** |
+| CPU en reposo usándolo | 2,3 % | ~2 % (avisos leídos cada segundo) |
 
 ## Qué se cambió
 
@@ -63,7 +71,31 @@ En este PC (Ryzen): la cubierta se va a los **4,5 s** (antes 6–10 s).
 **Instalador:** "Preparando la interfaz (solo esta vez)" = precompilado (~5 s aquí); al quitar versiones viejas
 borra también su copia del QML y sus compilados (~13 MB por versión; en este PC había 300 MB de restos).
 
-**ii-shim:** `reset-dir` acepta varias carpetas.
+**ii-shim:** `reset-dir` acepta varias carpetas; `system-info` dice hilos de CPU y memoria.
+
+**Segunda parte (02:00–02:35):**
+- **Fuentes: −122 MB de RAM.** Qt guarda una "cara" DirectWrite por cada *instancia con nombre* de una fuente
+  variable, y cada una ocupa casi lo que el archivo: Google Sans Flex (4 MB, 18 instancias) eran 73 MB y
+  Material Symbols (15 MB, 7) ~105 MB. `tools/dev/trim_fonts.py` (lo llama `deploy.ps1`) deja solo los pesos que
+  el QML usa; todos los ejes variables siguen (comparado con capturas: idéntico). Probado dejar una sola instancia:
+  las negritas salen sintéticas, así que no.
+- **Notificaciones en reposo:** el fork leía todas las de Windows cada segundo (llamada entre procesos + XML de
+  cada una). Sin nadie en teclado/ratón 1 minuto, cada 5 s (el informe de salud al host sigue cada segundo).
+- **Árbol QML y escáner:** lo que hay en la copia sale de un solo listado de carpeta (antes ~1.000 consultas
+  sueltas) y cada carpeta importada se mira una vez (stat 61 → 6 ms).
+- **Vigilancia de los ~600 archivos QML** (recarga en caliente) apagada por el host en uso normal
+  (`II_WATCH_QML=1` la deja para desarrollar): ~0,27 s menos al arrancar y menos hilos.
+- **Fondo** decodificado una vez (antes dos: su tamaño cambiaba cuando respondía `magick identify`).
+- **Host:** el aviso `TaskbarCreated` que manda la propia bandeja de ii al arrancar se tomaba por un reinicio del
+  Explorador y se volvía a aplicar todo un segundo después.
+- **Modo ligero** (`services/Performance.qml`): el selector Configuración → Apariencia → Rendimiento ahora aplica el
+  preset completo (sin animaciones, sin transparencias en ii **ni en las otras ventanas**, dock sin lupa) y el
+  recorrido de bienvenida lo **ofrece con un botón** en PCs con ≤4 hilos o <7 GB. "Light" salía "Claro" (como el
+  tema): ahora "Ligero".
+
+Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, atajos, sesión, multimedia, recorrido
+(paso nuevo + botón) y todas las páginas de Configuración (sin errores nuevos). Tu `config.json` quedó idéntico
+(se restauró la copia tras probar el botón del modo ligero).
 
 ## Bitácora
 
