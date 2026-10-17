@@ -5,6 +5,19 @@ responder **"¿por qué alguien lo instalaría si en PCs lentos no inicia rápid
 (sale de `ux/visual-polish`) en los dos repos (ii-windows y el fork `quickshell`, rama `windows`).
 Nada se sube a GitHub sin preguntar.
 
+## Resumen para la mañana
+
+- **Instalada en tu PC:** `0.3.0-20261017-86346bb` (verificada; vuelta atrás `5dd9f1c`). ii está **detenido** como
+  lo dejaste; arranca solo al iniciar sesión, o con menú Inicio > ii-windows > Iniciar ii.
+- **Arranque en un PC lento (emulado): 29 s → ~15 s**; primer arranque tras instalar 37 s → 18 s. En tu PC la
+  bienvenida se va a los ~4,5 s (antes 6–10 s).
+- **RAM 529 → ~406 MB**, **CPU en reposo 2,3 % → 0,6 %** sin nadie en el PC.
+- **Nuevo para el usuario:** modo ligero (y el recorrido lo ofrece en PCs modestos), "Lo que más gasta" al pasar
+  el ratón por CPU/RAM de la barra (clic = Administrador de tareas), "No molestar" 1 h / hasta mañana, letra
+  sincronizada de canciones (botón en el panel de música), pestaña "Uso" (tiempo de pantalla por programa).
+- Revisión de código independiente: sin fallos graves; todo lo señalado corregido.
+- Para publicar: fusionar `ux/noche-2026-10-17` (y el fork) y hacer la release cuando digas.
+
 ## Cómo se midió un "PC lento" sin tener uno
 
 `scratchpad/coldrun.ps1` + `slowjob.ps1` (copias en `tools/dev/` pendientes): copia la versión instalada
@@ -154,6 +167,10 @@ cubierta fuera a 4,5 s, `state=verified`, sin errores. Detenida otra vez como es
 `0.3.0-20261017-5dd9f1c`: tiempo de pantalla sin caché por id de proceso (un id reutilizado se atribuía al
 programa equivocado) y la línea de la letra solo se actualiza mientras suena. Verificada (4,5 s, sin errores),
 anterior `4cb587e`, detenida como estaba.
+
+## Reinstalación 08:18
+
+`0.3.0-20261017-86346bb` (tabla periódica diferida). Verificada, 4,5 s, sin errores; anterior `5dd9f1c`; detenida.
 
 ## Pendiente
 
