@@ -168,6 +168,13 @@ namespace volume {
 void handleKey(unsigned vk);
 } // namespace volume
 
+namespace screentime {
+// Once a second: one more second for the program in front (screentime.cpp). Written to disk once a minute.
+void tick(DWORD shellPid);
+void sessionChanged(WPARAM event); // WM_WTSSESSION_CHANGE: nothing is counted while the session is locked
+void write();                      // now (at exit)
+} // namespace screentime
+
 // The shell (quickshell + ii) side receives shortcuts through WM_COPYDATA on this window.
 constexpr const wchar_t* SHELL_SINK_CLASS = L"IiShellShortcutSink";
 constexpr ULONG_PTR COPYDATA_PRESSED = 0x49490001;

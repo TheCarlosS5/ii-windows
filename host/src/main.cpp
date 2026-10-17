@@ -402,6 +402,7 @@ void restoreAndStop(int code) {
 }
 
 void shutdown(int code) {
+	screentime::write(); // the minutes since the last write
 	restoreAndStop(code);
 	PostQuitMessage(code);
 }
@@ -774,6 +775,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (shellReady && options.splash) splash::refreshCache();
 			if (options.windowfx && uiHidden) { SlowStep s(L"windowfx::tick"); windowfx::tick(); }
 			if (options.hook) { SlowStep s(L"keyboard::refreshContext"); keyboard::refreshContext(); } // reconcile what the hook reads (shell, foreground, shortcuts.ini)
+			screentime::tick(shellPid); // the "Usage" tab of the right sidebar
 		} else if (wParam == TIMER_WATCHDOG) {
 			SlowStep s(L"watchShell");
 			watchShell();
@@ -806,6 +808,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_WTSSESSION_CHANGE:
 		// Lock, unlock, console/remote switch: a key-up may have been lost on the secure desktop.
 		log(L"session change %llu: key state reset", static_cast<unsigned long long>(wParam));
+		screentime::sessionChanged(wParam);
 		if (options.hook) {
 			keyboard::resetState();
 			keyboard::refreshContext();

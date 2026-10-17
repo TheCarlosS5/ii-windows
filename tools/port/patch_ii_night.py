@@ -349,4 +349,33 @@ add_translations('es_MX', {
     "Hide the lyrics": "Ocultar la letra",
     "Show synced lyrics (looks the song up on lrclib.net)": "Mostrar la letra sincronizada (busca la canción en lrclib.net)",
 })
+
+# --- Screen time: a "Usage" tab next to calendar, to-do and timer in the right sidebar (screenTime/ScreenTimeWidget.qml,
+# counted by ii-host's screentime.cpp).
+edit(path('modules', 'ii', 'sidebarRight', 'BottomWidgetGroup.qml'), [
+    ('''            "type": "timer",
+            "name": Translation.tr("Timer"),
+            "icon": "schedule",
+            "widget": "pomodoro/PomodoroWidget.qml"
+        },''', '''            "type": "timer",
+            "name": Translation.tr("Timer"),
+            "icon": "schedule",
+            "widget": "pomodoro/PomodoroWidget.qml"
+        },
+        {
+            "type": "usage", // ii-windows: screen time per program
+            "name": Translation.tr("Usage"),
+            "icon": "hourglass_bottom",
+            "widget": "screenTime/ScreenTimeWidget.qml"
+        },'''),
+])
+add_translations('es_MX', {
+    "Usage": "Uso",
+    "Today": "Hoy",
+    "%1 h %2 min": "%1 h %2 min",
+    "%1 min": "%1 min",
+    "< 1 min": "< 1 min",
+    "Nothing yet today. ii counts the time each program is in front while you use the PC; it stays on this PC.":
+        "Nada todavía hoy. ii cuenta el tiempo que cada programa está al frente mientras usas el PC; se queda en este PC.",
+})
 print('patch_ii_night: ok')
