@@ -159,6 +159,16 @@ Scope {
                 visible: active
                 sourceComponent: OverviewWidget {
                     screen: panelWindow.screen
+                    // ii-windows: never taller than the room above the buttons at the bottom (laptops at 125 %
+                    // and more: the windows' box ran under them). Same size maths as OverviewWidget's own.
+                    scale: {
+                        const wanted = Config.options.overview.scale;
+                        const m = panelWindow.monitor;
+                        const screenH = (m?.height ?? 1080) / (m?.scale ?? 1);
+                        const rows = Math.max(1, Config.options.overview.rows);
+                        const room = overviewScope.heightBelow(overviewLoader.y) - 2 * Appearance.sizes.elevationMargin - 40;
+                        return Math.max(0.15, Math.min(wanted, room / (rows * screenH)));
+                    }
                 }
             }
 

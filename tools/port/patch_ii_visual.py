@@ -90,7 +90,7 @@ ES = {
     "Display modes (Windows)": "Modos de pantalla (Windows)",
     "Switch windows": "Cambiar de ventana",
     "Maximize / snap": "Maximizar / acoplar",
-    "Panic: restore Windows' taskbar and desktop, stop ii": "Pánico: devuelve la barra de tareas y el escritorio de Windows y detiene ii",
+    "Panic: restore Windows' taskbar and desktop, stop ii": "Pánico: detiene ii y devuelve la barra de Windows",
     # Date formats (Qt format strings: the Spanish order is "viernes, 16 de octubre").
     "dddd, MMMM dd": "dddd, d 'de' MMMM",
 }
@@ -179,6 +179,12 @@ edit(path('modules', 'ii', 'overview', 'OverviewWindow.qml'), [
 ])
 
 # --- Cheatsheet: Spanish descriptions, readable keys for ranges, F-keys no longer hidden -------------------
+# As wide as its columns (up to 90 % of the screen) instead of a fixed 70 %: in Spanish at 125 % the last
+# column ran out of the panel, behind a scroll nobody finds.
+edit(path('modules', 'ii', 'cheatsheet', 'CheatsheetKeybinds.qml'), [
+    ('implicitWidth: QsWindow?.window?.screen.width * 0.7 ?? 0',
+     'implicitWidth: Math.min((QsWindow?.window?.screen.width ?? 0) * 0.9, Math.max((QsWindow?.window?.screen.width ?? 0) * 0.5, flow.implicitWidth + Appearance.rounding.small * 2 + 2))'),
+])
 CS = path('modules', 'ii', 'cheatsheet', 'CheatsheetKeybindsCategory.qml')
 edit(CS, [
     ('''        "Slash": "/",
