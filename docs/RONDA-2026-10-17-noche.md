@@ -104,9 +104,19 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
 - 01:10–01:45 medición, perfiles y cambios de arriba. Probados en el escritorio real (entorno de desarrollo):
   barras laterales, búsqueda, atajos, sesión, multimedia: bien.
 
+## También esta noche
+
+- **"Lo que más gasta"** en el panel de recursos de la barra (`ii-shim top`): los programas que más CPU y memoria
+  usan, sumando sus procesos y con su nombre amigable; un clic en el indicador abre el Administrador de tareas.
+- El espectro de música (cava) se detiene con "Reducir animaciones" / modo ligero.
+- El modo ligero se ofrece una vez por notificación a quien ya había hecho el recorrido (PC modesto).
+- README: sección "En un PC modesto".
+
 ## Pendiente
 
-- Copiar `coldrun.ps1`/`slowjob.ps1` a `tools/dev/` como herramienta de medición.
-- QmlScanner + árbol QML leen/comparan ~1000 archivos en cada arranque (~0,5 s aquí, más con disco lento).
+- Qt enumera **todas las fuentes del sistema** en el primer texto (~0,45 s aquí, ~1,5 s en un PC lento): no se
+  evita sin cambiar Qt.
+- RAM restante (406 MB): servicios ~180, fondo ~96 (imagen ~36, widgets ~28, ventana), barra ~35, dock ~21.
 - 950 textos (`StyledText`) creados al arrancar: los widgets de escritorio y la barra.
-- Recorrido de usuario: qué falta / qué molesta. Ideas de otras shells en `docs/IDEAS-OTRAS-SHELLS.md`.
+- Avisos leídos cada segundo mientras se usa el PC (~2 % de un núcleo aquí): Windows no da evento a apps sin paquete.
+- Ideas de otras shells en `docs/IDEAS-OTRAS-SHELLS.md` (No molestar con presets, letras de canciones, etc.).
