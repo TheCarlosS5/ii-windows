@@ -131,7 +131,12 @@ int systemInfoCommand(const std::vector<std::wstring>& args) {
     // ProductName on Windows 11 often still says Windows 10; build is read-only.
     if (build >= 22000 && name.rfind(L"Windows 10", 0) == 0) name.replace(0, 10, L"Windows 11");
     if (name.empty()) name = L"Windows";
-    std::printf("{\"name\":%s,\"edition\":%s,\"build\":%d}\n", json(name).c_str(), json(edition).c_str(), build);
+    // Logical processors and installed memory: the shell offers its light mode on modest PCs.
+    MEMORYSTATUSEX memory {};
+    memory.dwLength = sizeof(memory);
+    auto memoryMB = GlobalMemoryStatusEx(&memory) ? static_cast<unsigned long long>(memory.ullTotalPhys / (1024 * 1024)) : 0ULL;
+    std::printf("{\"name\":%s,\"edition\":%s,\"build\":%d,\"threads\":%lu,\"memoryMB\":%llu}\n", json(name).c_str(),
+                json(edition).c_str(), build, GetActiveProcessorCount(ALL_PROCESSOR_GROUPS), memoryMB);
     return 0;
 }
 int systemSoundCommand(const std::vector<std::wstring>& args) {

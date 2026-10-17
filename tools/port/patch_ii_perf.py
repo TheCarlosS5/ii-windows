@@ -1,5 +1,6 @@
 """Startup work on slow PCs (2026-10-17): what the QML profiler showed the shell doing at every start.
 Exact-match edits of the staged tree; every edit fails loudly if upstream moved the code."""
+import json
 import os
 import sys
 
@@ -11,6 +12,17 @@ ROOT = os.environ.get('II_STAGE_DIR') or os.path.join(os.path.dirname(__file__),
 
 def path(*parts):
     return os.path.join(ROOT, *parts)
+
+
+def add_translations(code, strings):
+    file = path('translations', code + '.json')
+    with open(file, encoding='utf-8') as f:
+        data = json.load(f)
+    for key, value in strings.items():
+        data.setdefault(key, value)
+    with open(file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write('\n')
 
 
 # --- App list: the de-duplication compared every app with every other one (findIndex inside filter) --------
@@ -298,3 +310,49 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
                 sourceSize: Qt.size(Math.ceil(bgRoot.screen.width * bgRoot.parallaxRation * (bgRoot.screen.devicePixelRatio ?? 1)),
                     Math.ceil(bgRoot.screen.height * bgRoot.parallaxRation * (bgRoot.screen.devicePixelRatio ?? 1))) // ii-windows'''),
 ])
+
+
+# --- Light mode for modest PCs (services/Performance.qml) --------------------------------------------------------------
+# SystemInfo learns the processor threads and memory (ii-shim system-info), the Performance selector in Settings sets
+# the whole preset (also the translucency of other windows), and the guided tour offers it on a modest PC.
+edit(path('services', 'SystemInfo.qml'), [
+    ('    property string distroName: "Windows"\n',
+     '    property string distroName: "Windows"\n'
+     '    property int threads: 0 // ii-windows: logical processors (0 = not known yet)\n'
+     '    property int memoryMB: 0 // ii-windows: installed memory\n'),
+    ('                try { root.distroName = JSON.parse(text).name; } catch (e) {}',
+     '''                try {
+                    const info = JSON.parse(text);
+                    root.distroName = info.name;
+                    root.threads = info.threads ?? 0;
+                    root.memoryMB = info.memoryMB ?? 0;
+                } catch (e) {}'''),
+])
+edit(path('modules', 'settings', 'AppearanceConfig.qml'), [
+    ('''                currentValue: (Config.options.appearance.reduceMotion && !Config.options.appearance.transparency.enable) ? "fast" : "normal"
+                onSelected: newValue => {
+                    const fast = newValue === "fast";
+                    Config.options.appearance.reduceMotion = fast;
+                    Config.options.appearance.transparency.enable = !fast;
+                    Config.options.dock.magnification = fast ? 1 : 1.7;
+                }''',
+     '''                currentValue: Performance.light ? "fast" : "normal"
+                onSelected: newValue => Performance.setLight(newValue === "fast") // ii-windows: the whole preset'''),
+    ('''            tooltip: Translation.tr("Fewer animations and no transparency: less CPU and memory, better on older laptops")''',
+     '''            tooltip: Translation.tr("Light: no animations, no transparency in ii or in your windows, a dock that does not grow. Less CPU and GPU work, better on older laptops")'''),
+    # "Light" was translated as the light theme ("Claro")
+    ('''{ displayName: Translation.tr("Light"), icon: "speed", value: "fast" }''',
+     '''{ displayName: Translation.tr("Lightweight"), icon: "speed", value: "fast" }'''),
+])
+add_translations('es_MX', {
+    "Light: no animations, no transparency in ii or in your windows, a dock that does not grow. Less CPU and GPU work, better on older laptops":
+        "Ligero: sin animaciones, sin transparencias en ii ni en tus ventanas y un dock que no se agranda. Menos trabajo para la CPU y la gráfica; mejor en portátiles viejos",
+    "%1 processor threads": "%1 hilos de procesador",
+    "%1 GB of memory": "%1 GB de memoria",
+    "A lighter ii for this PC?": "¿Un ii más ligero para este PC?",
+    "This PC has %1. The light mode turns off animations and transparencies so ii answers faster and leaves more for your programs. You can change it any time in Settings > Appearance > Performance.":
+        "Este PC tiene %1. El modo ligero apaga animaciones y transparencias para que ii responda más rápido y deje más recursos a tus programas. Lo puedes cambiar cuando quieras en Configuración > Apariencia > Rendimiento.",
+    "Use light mode": "Usar el modo ligero",
+    "Lightweight": "Ligero",
+    "Light mode on": "Modo ligero activado",
+})

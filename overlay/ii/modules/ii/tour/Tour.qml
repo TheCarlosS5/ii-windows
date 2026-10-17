@@ -16,9 +16,20 @@ Scope {
     id: root
     property bool open: false
     property int step: 0
+    property bool offerLight: false // decided when the tour starts, so the steps do not change under the user
 
     // spot: which part of the screen is lit: none | bar | barCenter | barRight | dock | right | left | desktop
-    readonly property var steps: [
+    // The light-mode step goes before the last one, only on a modest PC that does not use it yet.
+    readonly property var steps: offerLight ? baseSteps.slice(0, -1).concat([lightStep], baseSteps.slice(-1)) : baseSteps
+    readonly property var lightStep: ({
+            icon: "speed",
+            spot: "none",
+            title: Translation.tr("A lighter ii for this PC?"),
+            text: Translation.tr("This PC has %1. The light mode turns off animations and transparencies so ii answers faster and leaves more for your programs. You can change it any time in Settings > Appearance > Performance.").arg(Performance.hardwareText),
+            keys: [],
+            action: "light"
+        })
+    readonly property var baseSteps: [
         {
             icon: "waving_hand",
             spot: "none",
@@ -94,6 +105,7 @@ Scope {
 
     function start() {
         step = 0;
+        offerLight = Performance.suggested;
         open = true;
     }
     function finish() {
@@ -321,6 +333,22 @@ Scope {
                             }
                         }
                         Item { Layout.fillWidth: true }
+                        RippleButton {
+                            visible: root.current.action === "light"
+                            enabled: !Performance.light
+                            implicitHeight: 38
+                            implicitWidth: lightText.implicitWidth + 28
+                            buttonRadius: Appearance.rounding.full
+                            colBackground: Appearance.colors.colSecondaryContainer
+                            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                            onClicked: Performance.setLight(true)
+                            contentItem: StyledText {
+                                id: lightText
+                                anchors.centerIn: parent
+                                text: Performance.light ? Translation.tr("Light mode on") : Translation.tr("Use light mode")
+                                color: Appearance.colors.colOnSecondaryContainer
+                            }
+                        }
                         RippleButton {
                             visible: root.step < root.steps.length - 1
                             implicitHeight: 38
