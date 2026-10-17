@@ -149,6 +149,12 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
 `0.3.0-20261017-4cb587e` (con No molestar, letra y Uso), anterior `800f243` como vuelta atrás. Primer arranque:
 cubierta fuera a 4,5 s, `state=verified`, sin errores. Detenida otra vez como estaba; datos de prueba de "Uso" borrados.
 
+## Reinstalación 07:22
+
+`0.3.0-20261017-5dd9f1c`: tiempo de pantalla sin caché por id de proceso (un id reutilizado se atribuía al
+programa equivocado) y la línea de la letra solo se actualiza mientras suena. Verificada (4,5 s, sin errores),
+anterior `4cb587e`, detenida como estaba.
+
 ## Pendiente
 
 - Qt enumera **todas las fuentes del sistema** en el primer texto (~0,45 s aquí, ~1,5 s en un PC lento): no se
