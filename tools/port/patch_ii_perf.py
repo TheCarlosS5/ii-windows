@@ -134,16 +134,6 @@ edit(path('services', 'AppSearch.qml'), [
 ])
 
 
-# --- The Waffle family (Windows 11 look-alike panels, not used on Windows) was compiled at every start ---------------
-edit(path('shell.qml'), [
-    ('''        identifier: "waffle"
-        component: WaffleFamily {}''',
-     '''        identifier: "waffle"
-        // ii-windows: by file name, so it is only compiled when it is the chosen family
-        source: Config.options.panelFamily === "waffle" ? "panelFamilies/WaffleFamily.qml" : ""'''),
-])
-
-
 # --- Directories: nine processes at every start to create and empty cache folders, now three ------------------------
 # (each process start costs tens of ms, much more on a slow PC whose antivirus checks every start)
 edit(path('modules', 'common', 'Directories.qml'), [

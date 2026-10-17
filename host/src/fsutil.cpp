@@ -90,16 +90,18 @@ int mkdirCommand(const Args& args) {
 		dirs.push_back(normalize(a));
 	}
 	if (dirs.empty()) return 1;
-	for (const auto& dir: dirs) {
+	int rc = 0;
+	for (const auto& dir: dirs) { // one refused or failed folder does not skip the others
 		if (!allowed(dir, 1)) {
 			fwprintf(stderr, L"mkdir: refusing %s (not below one of your own folders)\n", dir.c_str());
-			return 1;
+			rc = 1;
+			continue;
 		}
 		std::error_code ec;
 		fs::create_directories(dir, ec);
-		if (ec && !fs::is_directory(dir)) return 1;
+		if (ec && !fs::is_directory(dir)) rc = 1;
 	}
-	return 0;
+	return rc;
 }
 
 int rmCommand(const Args& args) {

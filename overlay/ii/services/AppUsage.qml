@@ -47,6 +47,8 @@ Singleton {
 
     // Launches weighted by how recent they are, best first.
     readonly property var top: {
+        // Read so this runs again once the Start menu list is there (it is filled in the background at start).
+        const loaded = DesktopEntries.applications.values.length;
         const counts = Persistent.states?.launcher?.counts ?? {};
         const now = Date.now();
         const list = [];

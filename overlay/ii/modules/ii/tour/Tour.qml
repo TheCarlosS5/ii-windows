@@ -115,6 +115,8 @@ Scope {
         Persistent.states.tour.done = true;
     }
 
+    Component.onCompleted: Performance.armed = true // the light-mode notice only from the shell itself
+
     // The first time: a few seconds after the shell is up, when nothing else is opening.
     Timer {
         id: firstRun

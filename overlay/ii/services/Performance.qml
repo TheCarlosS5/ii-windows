@@ -30,8 +30,9 @@ Singleton {
 
     // Offered once: by the guided tour on new installs, or by a notification a minute after start to whoever did the
     // tour before the light mode existed.
+    property bool armed: false // set by the shell's tour panel: the settings window uses this service too
     Timer {
-        running: Persistent.ready && Config.ready
+        running: root.armed && Persistent.ready && Config.ready
         interval: 60000
         onTriggered: {
             if (!Persistent.states.tour.done || Persistent.states.performance.lightOffered || !root.suggested)

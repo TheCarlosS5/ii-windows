@@ -28,13 +28,17 @@ def trim(path, keep):
     fvar = font['fvar']
     names = font['name']
     before = len(fvar.instances)
-    fvar.instances = [i for i in fvar.instances if names.getDebugName(i.subfamilyNameID) in keep]
-    if len(fvar.instances) == before:
+    kept = [i for i in fvar.instances if names.getDebugName(i.subfamilyNameID) in keep]
+    if len(kept) == before:
         return f'{os.path.basename(path)}: already {before} instances'
+    if len(kept) != len(keep):
+        # A font update renamed its instances: never ship a font without the weights the QML asks for.
+        sys.exit(f'{os.path.basename(path)}: expected the instances {sorted(keep)}, found {len(kept)} of them')
+    fvar.instances = kept
     font.save(path + '.tmp')
     font.close()
     os.replace(path + '.tmp', path)
-    return f'{os.path.basename(path)}: {before} -> {len(keep)} named instances'
+    return f'{os.path.basename(path)}: {before} -> {len(kept)} named instances'
 
 
 def main(folder):

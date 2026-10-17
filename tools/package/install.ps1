@@ -165,21 +165,29 @@ New-Item -ItemType Directory -Force $installDir | Out-Null
 # compiled files (quickshell\cache\qmlcache\<sha1 of each copied file>.qmlc/.jsc): ~13 MB per version that
 # nobody would ever use again once that version is gone.
 function Remove-IiShellCache([string]$configDir) {
-    $cache = Join-Path $env:LOCALAPPDATA 'quickshell\cache'
-    if (-not (Test-Path (Join-Path $cache 'by-shell'))) { return }
-    $md5 = [Security.Cryptography.MD5]::Create()
-    $sha1 = [Security.Cryptography.SHA1]::Create()
-    $hex = { param($algorithm, $text) -join ($algorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)) | ForEach-Object { $_.ToString('x2') }) }
-    foreach ($entry in 'shell.qml', 'settings.qml', 'welcome.qml', 'killDialog.qml') {
-        $id = & $hex $md5 ((Join-Path $configDir $entry) -replace '\\', '/')
-        $dir = Join-Path $cache "by-shell\$id"
-        if (-not (Test-Path $dir)) { continue }
-        Get-ChildItem (Join-Path $dir 'qmltree') -Recurse -File -Include *.qml, *.js, *.mjs -ErrorAction SilentlyContinue | ForEach-Object {
-            $key = & $hex $sha1 ($_.FullName -replace '\\', '/')
-            Remove-Item (Join-Path $cache "qmlcache\$key.qmlc"), (Join-Path $cache "qmlcache\$key.jsc") -Force -ErrorAction SilentlyContinue
+    # Best effort: a cache that cannot be cleaned (FIPS policy without MD5, a file in use...) never stops the update.
+    try {
+        $cache = Join-Path $env:LOCALAPPDATA 'quickshell\cache'
+        if (-not (Test-Path -LiteralPath (Join-Path $cache 'by-shell'))) { return }
+        $md5 = [Security.Cryptography.MD5]::Create()
+        $sha1 = [Security.Cryptography.SHA1]::Create()
+        $hex = { param($algorithm, $text) -join ($algorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)) | ForEach-Object { $_.ToString('x2') }) }
+        foreach ($entry in 'shell.qml', 'settings.qml', 'welcome.qml', 'killDialog.qml') {
+            $id = & $hex $md5 ((Join-Path $configDir $entry) -replace '\\', '/')
+            $dir = Join-Path $cache "by-shell\$id"
+            if (-not (Test-Path -LiteralPath $dir)) { continue }
+            # Only real files are ever written there: anything that is a link is left alone (never followed).
+            if (Get-ChildItem -LiteralPath $dir -Recurse -Force -Attributes ReparsePoint -ErrorAction SilentlyContinue) { continue }
+            Get-ChildItem -LiteralPath (Join-Path $dir 'qmltree') -Recurse -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Extension -in '.qml', '.js', '.mjs' } | ForEach-Object {
+                    $key = & $hex $sha1 ($_.FullName -replace '\\', '/')
+                    foreach ($ext in '.qmlc', '.jsc', '.mjsc') {
+                        Remove-Item -LiteralPath (Join-Path $cache "qmlcache\$key$ext") -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
         }
-        Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
-    }
+    } catch { }
 }
 $before = Read-IiCurrent $installDir
 if ($before -and $before.state -eq 'verified') {

@@ -134,7 +134,10 @@ int systemInfoCommand(const std::vector<std::wstring>& args) {
     // Logical processors and installed memory: the shell offers its light mode on modest PCs.
     MEMORYSTATUSEX memory {};
     memory.dwLength = sizeof(memory);
-    auto memoryMB = GlobalMemoryStatusEx(&memory) ? static_cast<unsigned long long>(memory.ullTotalPhys / (1024 * 1024)) : 0ULL;
+    // Installed memory (an 8 GB PC whose graphics borrow some still says 8); usable memory if that is not known.
+    ULONGLONG installedKB = 0;
+    auto memoryMB = GetPhysicallyInstalledSystemMemory(&installedKB) ? installedKB / 1024
+        : GlobalMemoryStatusEx(&memory) ? static_cast<unsigned long long>(memory.ullTotalPhys / (1024 * 1024)) : 0ULL;
     std::printf("{\"name\":%s,\"edition\":%s,\"build\":%d,\"threads\":%lu,\"memoryMB\":%llu}\n", json(name).c_str(),
                 json(edition).c_str(), build, GetActiveProcessorCount(ALL_PROCESSOR_GROUPS), memoryMB);
     return 0;
