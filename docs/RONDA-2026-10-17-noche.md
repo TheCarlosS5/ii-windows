@@ -127,7 +127,7 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
   anterior, 9,7 s), `state=verified`, sin errores en el registro. `config.json` idéntico. Se dejó **detenida**,
   como estaba; la tarea de inicio de sesión la arranca la próxima vez.
 
-## Después de instalar (no incluido en la versión instalada)
+## Después de la primera instalación (incluido en la reinstalación de las 06:59)
 
 - **No molestar por un rato**: en el panel derecho, el icono del botón de notificaciones silencia como siempre;
   el resto del botón recorre "1 hora" → "hasta mañana a las 8:00" → mostrar, y dice "Hasta las HH:mm". El
@@ -143,6 +143,11 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
   ii. Un JSON por día en `%LOCALAPPDATA%\ii-windows\screentime\` (30 días; nada sale del PC) con nombre (descripción
   del .exe) y ruta (para el icono). Apps de la Tienda: cuenta la app, no ApplicationFrameHost. Probado con el Bloc de
   notas al frente ~1,5 min; se borraron los datos de prueba y la pestaña quedó en Calendario como estaba.
+
+## Reinstalación 06:59
+
+`0.3.0-20261017-4cb587e` (con No molestar, letra y Uso), anterior `800f243` como vuelta atrás. Primer arranque:
+cubierta fuera a 4,5 s, `state=verified`, sin errores. Detenida otra vez como estaba; datos de prueba de "Uso" borrados.
 
 ## Pendiente
 
