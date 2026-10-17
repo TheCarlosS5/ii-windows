@@ -53,6 +53,22 @@ para Windows debajo.
 Lo que **no** hace: no gestiona ventanas (sin tiling), no emula Hyprland ni sus workspaces.
 Windows sigue siendo Windows.
 
+## En un PC modesto
+
+ii está pensado para que también vaya bien en portátiles viejos o baratos:
+
+- **Arranque**: los paneles que solo se abren después (barras laterales, vista general, avisos…) se
+  cargan *después* de que ves tu escritorio, por trocitos, sin congelarlo. El instalador deja la
+  interfaz compilada, así que el primer inicio no es más lento que los demás. En un PC lento de
+  prueba (2 núcleos limitados) el escritorio completo pasó de ~29 s a ~15 s.
+- **Modo ligero** (Configuración > Apariencia > Rendimiento > *Ligero*, y el recorrido de bienvenida
+  lo ofrece solo si tu PC tiene 4 hilos o menos de 7 GB): sin animaciones, sin transparencias en ii ni
+  en tus ventanas, sin espectro de música y un dock que no se agranda.
+- **En reposo** casi no gasta: sin procesos repetidos cada pocos segundos, y si no tocas el PC un
+  minuto lee los avisos de Windows cada 5 s en vez de cada segundo.
+- **Qué está gastando tu PC**: pasa el ratón por el indicador de CPU/RAM de la barra y verás los
+  programas que más usan (sumando todos sus procesos); un clic abre el Administrador de tareas.
+
 ## Seguridad primero
 
 Todo es por usuario y reversible. No inyecta nada en Explorer, no cambia `Winlogon\Shell`, no
