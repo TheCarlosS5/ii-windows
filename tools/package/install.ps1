@@ -161,11 +161,32 @@ New-Item -ItemType Directory -Force $installDir | Out-Null
 # The new version is built NEXT TO the running one and switched on with one atomic step: an
 # interrupted or failed update leaves the version that works selected (see ii-runtime.ps1).
 # Versions that were already confirmed to work and are neither active nor the way back go first.
+# Qt keeps, per config, a copy of the QML (quickshell\cache\by-shell\<md5 of the entry file>\qmltree) and its
+# compiled files (quickshell\cache\qmlcache\<sha1 of each copied file>.qmlc/.jsc): ~13 MB per version that
+# nobody would ever use again once that version is gone.
+function Remove-IiShellCache([string]$configDir) {
+    $cache = Join-Path $env:LOCALAPPDATA 'quickshell\cache'
+    if (-not (Test-Path (Join-Path $cache 'by-shell'))) { return }
+    $md5 = [Security.Cryptography.MD5]::Create()
+    $sha1 = [Security.Cryptography.SHA1]::Create()
+    $hex = { param($algorithm, $text) -join ($algorithm.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)) | ForEach-Object { $_.ToString('x2') }) }
+    foreach ($entry in 'shell.qml', 'settings.qml', 'welcome.qml', 'killDialog.qml') {
+        $id = & $hex $md5 ((Join-Path $configDir $entry) -replace '\\', '/')
+        $dir = Join-Path $cache "by-shell\$id"
+        if (-not (Test-Path $dir)) { continue }
+        Get-ChildItem (Join-Path $dir 'qmltree') -Recurse -File -Include *.qml, *.js, *.mjs -ErrorAction SilentlyContinue | ForEach-Object {
+            $key = & $hex $sha1 ($_.FullName -replace '\\', '/')
+            Remove-Item (Join-Path $cache "qmlcache\$key.qmlc"), (Join-Path $cache "qmlcache\$key.jsc") -Force -ErrorAction SilentlyContinue
+        }
+        Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 $before = Read-IiCurrent $installDir
 if ($before -and $before.state -eq 'verified') {
     foreach ($old in (Remove-IiOldVersions $installDir)) {
         $oldExe = Join-Path $installDir "versions\$old\quickshell\quickshell.exe"
         [void](Restore-IiOwnedRegValue $manifest "gpu:$oldExe")
+        Remove-IiShellCache (Join-Path $installDir "versions\$old\ii")
         Say "Version antigua quitada: $old"
     }
 }
@@ -229,6 +250,31 @@ if ($gpuKeyItem) {
             $manifest.changes = @(@($manifest.changes) | Where-Object { $_ -and $_.id -ne "gpu:$exe" })
         }
     }
+}
+
+# --- 3c. compile the QML now, not at the first start -----------------------------------------------
+# The first start of a new version compiled ~600 QML files before showing anything (seconds here, half
+# a minute on a slow PC). quickshell compiles them into Qt's cache now (QS_PRECOMPILE=1: nothing is
+# shown or created) and the first start reads them from there. If this fails the first start compiles,
+# as before.
+Step 'Preparando la interfaz (solo esta vez)'
+try {
+    $pre = New-Object System.Diagnostics.ProcessStartInfo
+    $pre.FileName = $shellExe
+    $pre.Arguments = '-p "' + (Join-Path $versionDir 'ii') + '"'
+    $pre.UseShellExecute = $false
+    $pre.CreateNoWindow = $true
+    $pre.EnvironmentVariables['QS_PRECOMPILE'] = '1'
+    $preWatch = [Diagnostics.Stopwatch]::StartNew()
+    $preProcess = [System.Diagnostics.Process]::Start($pre)
+    if ($preProcess.WaitForExit(240000)) {
+        Say ("Interfaz preparada en {0:n0} s." -f $preWatch.Elapsed.TotalSeconds)
+    } else {
+        try { $preProcess.Kill() } catch { }
+        Say 'La preparacion tardo demasiado: se termina en el primer arranque.'
+    }
+} catch {
+    Say 'No se pudo preparar la interfaz ahora: se hace en el primer arranque.'
 }
 
 # --- 4. cursor ---------------------------------------------------------------------------------
