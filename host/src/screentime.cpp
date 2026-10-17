@@ -31,8 +31,6 @@ bool locked = false;
 std::wstring day;                  // YYYY-MM-DD of the counts below
 std::map<std::wstring, int> seconds; // exe (lower case) -> seconds today
 int sinceWrite = 0;
-std::map<DWORD, std::wstring> exeOfPid;
-std::map<DWORD, std::wstring> pathOfPid;
 struct Program {
 	std::wstring name; // the file's description ("Bloc de notas"), else empty
 	std::wstring path;
@@ -70,30 +68,25 @@ std::wstring today() {
 	return text;
 }
 
+// Asked every time (microseconds): a cache by process id would credit a new program that got an old id.
 std::wstring exeName(DWORD pid) {
-	auto it = exeOfPid.find(pid);
-	if (it != exeOfPid.end()) return it->second;
-	std::wstring name;
+	std::wstring name, full;
 	if (auto* process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
 		wchar_t path[MAX_PATH * 2];
 		DWORD size = static_cast<DWORD>(_countof(path));
 		if (QueryFullProcessImageNameW(process, 0, path, &size)) {
-			name.assign(path, size);
-			pathOfPid[pid] = name;
-			name = name.substr(name.find_last_of(L"\\/") + 1);
+			full.assign(path, size);
+			name = full.substr(full.find_last_of(L"\\/") + 1);
 			for (auto& c: name) c = static_cast<wchar_t>(towlower(c));
 		}
 		CloseHandle(process);
 	}
-	if (exeOfPid.size() > 512) {
-		exeOfPid.clear();
-		pathOfPid.clear();
-	}
-	exeOfPid[pid] = name;
-	if (!name.empty() && !programs.count(name)) {
+	if (!name.empty()) {
 		auto& program = programs[name];
-		program.path = pathOfPid[pid];
-		program.name = describe(program.path);
+		if (program.path.empty()) { // once per program: its description for the UI
+			program.path = full;
+			program.name = describe(full);
+		}
 	}
 	return name;
 }
