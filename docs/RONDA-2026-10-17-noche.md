@@ -132,6 +132,11 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
 - **No molestar por un rato**: en el panel derecho, el icono del botón de notificaciones silencia como siempre;
   el resto del botón recorre "1 hora" → "hasta mañana a las 8:00" → mostrar, y dice "Hasta las HH:mm". El
   silencio se acaba solo. Probado con clics en el panel.
+- **Letra sincronizada** (`services/Lyrics.qml`, LRCLIB): botón de letra junto a reproducir/pausa en el panel de
+  multimedia y en el widget de música. Apagada hasta que se pulsa (solo entonces se envían artista/título/duración a
+  lrclib.net); la línea actual ocupa el lugar del artista y sigue la canción. Probado con una sesión multimedia
+  **silenciosa** (WAV de silencio, en mudo) "Daft Punk – Get Lucky". Se dejó apagada. El motor JS de Qt no tiene
+  `String.matchAll` (fallaba en silencio): usar `RegExp.exec` en bucle.
 
 ## Pendiente
 
