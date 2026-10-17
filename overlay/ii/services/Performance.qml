@@ -28,6 +28,21 @@ Singleton {
         Config.options.dock.magnification = on ? 1 : 1.7;
     }
 
+    // Offered once: by the guided tour on new installs, or by a notification a minute after start to whoever did the
+    // tour before the light mode existed.
+    Timer {
+        running: Persistent.ready && Config.ready
+        interval: 60000
+        onTriggered: {
+            if (!Persistent.states.tour.done || Persistent.states.performance.lightOffered || !root.suggested)
+                return;
+            Persistent.states.performance.lightOffered = true;
+            Quickshell.execDetached(["notify-send", Translation.tr("A lighter ii for this PC"),
+                Translation.tr("Settings > Appearance > Performance > Lightweight: no animations or transparencies, more room for your programs."),
+                "-a", "ii"]);
+        }
+    }
+
     // "4 threads, 4 GB": for the texts that offer the light mode.
     readonly property string hardwareText: {
         const parts = [];

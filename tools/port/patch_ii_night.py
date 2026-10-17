@@ -163,4 +163,24 @@ edit(path('modules', 'ii', 'mediaControls', 'MediaControls.qml'), [
     ('        running: mediaControlsLoader.active\n',
      '        running: mediaControlsLoader.active && !Config.options.appearance.reduceMotion // ii-windows: decorative\n'),
 ])
+
+# --- Light mode offered once to people who already did the tour (installed before the light mode existed) ---------
+edit(path('modules', 'common', 'Persistent.qml'), [
+    ('''            property JsonObject tour: JsonObject {
+                property bool done: false // ii-windows: the guided tour was shown (or skipped)
+            }
+''', '''            property JsonObject tour: JsonObject {
+                property bool done: false // ii-windows: the guided tour was shown (or skipped)
+            }
+            property JsonObject performance: JsonObject {
+                property bool lightOffered: false // ii-windows: the light mode was offered on this modest PC
+            }
+'''),
+])
+add_translations('es_MX', {
+    "A lighter ii for this PC": "Un ii más ligero para este PC",
+    "Settings > Appearance > Performance > Lightweight: no animations or transparencies, more room for your programs.":
+        "Configuración > Apariencia > Rendimiento > Ligero: sin animaciones ni transparencias, más recursos para tus programas.",
+})
+
 print('patch_ii_night: ok')

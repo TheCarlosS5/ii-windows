@@ -106,6 +106,8 @@ Scope {
     function start() {
         step = 0;
         offerLight = Performance.suggested;
+        if (offerLight)
+            Persistent.states.performance.lightOffered = true;
         open = true;
     }
     function finish() {
