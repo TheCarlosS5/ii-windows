@@ -160,6 +160,14 @@ anterior `4cb587e`, detenida como estaba.
 - Qt enumera **todas las fuentes del sistema** en el primer texto (~0,45 s aquí, ~1,5 s en un PC lento): no se
   evita sin cambiar Qt.
 - RAM restante (406 MB): servicios ~180, fondo ~96 (imagen ~36, widgets ~28, ventana), barra ~35, dock ~21.
+- **Prueba de memoria de uso diario (07:45):** abrir/cerrar 5 paneles 350 veces: 362 → 589 MB en la primera ronda
+  (cada panel abierto por primera vez: barra derecha +47, izquierda +50, búsqueda +31, atajos +94 —tabla periódica
+  ~25—, selector de fondos +57) y luego +6…+19 MB por cada 50 aperturas, bajando algo en reposo; los handles no
+  crecen. No parece una fuga, sí un pico alto. Una ventana a pantalla completa vacía ya cuesta ~44 MB (Qt crea un
+  dispositivo Direct3D y su cadena de imágenes por ventana). Opciones experimentales en el fork, **apagadas**:
+  `QS_RELEASE_HIDDEN=1` (−50 MB, primer cuadro más lento al abrir) y `QS_SHARED_RHI=1` (un solo dispositivo,
+  −30 MB, pero si la GPU se reinicia las ventanas quedarían en blanco). Idea pendiente: cargar la tabla periódica
+  solo al abrir su pestaña.
 - 950 textos (`StyledText`) creados al arrancar: los widgets de escritorio y la barra.
 - Avisos leídos cada segundo mientras se usa el PC (~2 % de un núcleo aquí): Windows no da evento a apps sin paquete.
 - Ideas de otras shells en `docs/IDEAS-OTRAS-SHELLS.md` (No molestar con presets, letras de canciones, etc.).
