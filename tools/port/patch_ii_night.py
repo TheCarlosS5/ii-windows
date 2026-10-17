@@ -378,4 +378,16 @@ add_translations('es_MX', {
     "Nothing yet today. ii counts the time each program is in front while you use the PC; it stays on this PC.":
         "Nada todavía hoy. ii cuenta el tiempo que cada programa está al frente mientras usas el PC; se queda en este PC.",
 })
+
+# --- Cheatsheet: the periodic table page (~120 tiles, ~25 MB) is created when its tab is first opened, not with the
+# keyboard shortcuts every time the cheatsheet opens.
+edit(path('modules', 'ii', 'cheatsheet', 'Cheatsheet.qml'), [
+    ('''                        CheatsheetKeybinds {}
+                        CheatsheetPeriodicTable {}''',
+     '''                        CheatsheetKeybinds {}
+                        Loader { // ii-windows: only once its tab is shown
+                            active: swipeView.currentIndex === 1 || status === Loader.Ready
+                            sourceComponent: CheatsheetPeriodicTable {}
+                        }'''),
+])
 print('patch_ii_night: ok')
