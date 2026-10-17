@@ -274,6 +274,9 @@ bool startShell() {
 
 	guardConfig(); // a damaged config.json must not be what the shell starts from
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
+	// Nobody edits an installed config: Quickshell watching its ~600 QML files (and their folders) for a
+	// live reload only cost start-up time and watcher threads. II_WATCH_QML=1 keeps it, for development.
+	if (!GetEnvironmentVariableW(L"II_WATCH_QML", nullptr, 0)) SetEnvironmentVariableW(L"QS_DISABLE_FILE_WATCHER", L"1");
 	STARTUPINFOW si {};
 	si.cb = sizeof(si); // no STARTF_USESHOWWINDOW: it would hide the shell's first window
 	PROCESS_INFORMATION pi {};
