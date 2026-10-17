@@ -127,6 +127,12 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
   anterior, 9,7 s), `state=verified`, sin errores en el registro. `config.json` idéntico. Se dejó **detenida**,
   como estaba; la tarea de inicio de sesión la arranca la próxima vez.
 
+## Después de instalar (no incluido en la versión instalada)
+
+- **No molestar por un rato**: en el panel derecho, el icono del botón de notificaciones silencia como siempre;
+  el resto del botón recorre "1 hora" → "hasta mañana a las 8:00" → mostrar, y dice "Hasta las HH:mm". El
+  silencio se acaba solo. Probado con clics en el panel.
+
 ## Pendiente
 
 - Qt enumera **todas las fuentes del sistema** en el primer texto (~0,45 s aquí, ~1,5 s en un PC lento): no se
