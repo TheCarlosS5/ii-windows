@@ -366,7 +366,7 @@ edit(path('modules', 'ii', 'tour', 'Tour.qml'), [
 edit(path('services', 'Wallpapers.qml'), [
     ('''    // Folder model
     FolderListModelWithHistory {''',
-     '''    // ii-windows: the default folder exists before the selector looks at it.
+     r'''    // ii-windows: the default folder exists before the selector looks at it.
     Process {
         id: ensureFolderProc
         running: true
