@@ -137,6 +137,12 @@ Probado al final, con el entorno de desarrollo: barras laterales, búsqueda, ata
   lrclib.net); la línea actual ocupa el lugar del artista y sigue la canción. Probado con una sesión multimedia
   **silenciosa** (WAV de silencio, en mudo) "Daft Punk – Get Lucky". Se dejó apagada. El motor JS de Qt no tiene
   `String.matchAll` (fallaba en silencio): usar `RegExp.exec` en bucle.
+- **Tiempo de pantalla** (pestaña "Uso" del panel derecho, junto a Calendario/Tareas/Temporizador): el host
+  (`host/src/screentime.cpp`) suma un segundo al programa que está al frente, solo con actividad en los últimos 2 min
+  o con algo a pantalla completa (películas, juegos), nunca con la sesión bloqueada ni para el escritorio, la barra o
+  ii. Un JSON por día en `%LOCALAPPDATA%\ii-windows\screentime\` (30 días; nada sale del PC) con nombre (descripción
+  del .exe) y ruta (para el icono). Apps de la Tienda: cuenta la app, no ApplicationFrameHost. Probado con el Bloc de
+  notas al frente ~1,5 min; se borraron los datos de prueba y la pestaña quedó en Calendario como estaba.
 
 ## Pendiente
 
