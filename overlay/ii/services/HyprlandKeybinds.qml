@@ -49,7 +49,7 @@ Singleton {
         bind(superKey | ctrl | alt, "T", "Shell: Random wallpaper"),
         bind(superKey | ctrl | shift, "D", "Shell: Toggle light/dark"),
         bind(superKey, "I", "Shell: ii settings"),
-        bind(superKey, "R", "Shell: Run: programs and links (opens ii's search)"),
+        bind(superKey, "R", "Shell: Run (Windows): programs, commands, folders and links"),
         bind(superKey, "X", "Shell: Session menu (power, sign out, lock)"),
         bind(superKey | shift, "S", "Screenshot: Region screenshot"),
         bind(0, "Print", "Screenshot: Region screenshot (Print Screen)"),

@@ -33,7 +33,8 @@ Scope {
 
         WlrLayershell.namespace: "quickshell:overview"
         WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: GlobalStates.overviewOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        // (While the tour shows it, the tour keeps the keyboard: its arrows and Enter move the steps.)
+        WlrLayershell.keyboardFocus: GlobalStates.overviewOpen && !GlobalStates.tourOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         color: "transparent"
 
         // ii-windows: the dimmed backdrop takes the clicks (a click outside closes the overview).

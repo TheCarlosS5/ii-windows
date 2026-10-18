@@ -166,6 +166,10 @@ Item {
             cellHeight: root.cell
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            // Every tile made ahead of time: views make the tiles of their cache buffer in the background, a few per
+            // frame, while a tile made on demand (and its icon read from disk) froze a quick wheel spin for ~100 ms
+            // each new row. About twenty rows cover the Start menu of most PCs.
+            cacheBuffer: root.cell * 20
             model: root.apps
             delegate: AppTile {
                 required property var modelData
@@ -173,6 +177,10 @@ Item {
                 entry: modelData
                 tileIndex: root.frequentCount + index
             }
+        }
+        SmoothWheelArea {
+            anchors.fill: grid
+            flickable: grid
         }
     }
 

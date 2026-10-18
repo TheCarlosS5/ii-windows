@@ -480,6 +480,9 @@
   "background.widgets.media.idleMotion": {
    "kind": "bool"
   },
+  "background.widgets.media.lyrics": {
+   "kind": "bool"
+  },
   "background.widgets.media.placementStrategy": {
    "kind": "string"
   },

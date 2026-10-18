@@ -18,7 +18,8 @@ Scope {
     property int step: 0
     property bool offerLight: false // decided when the tour starts, so the steps do not change under the user
 
-    // spot: which part of the screen is lit: none | bar | barCenter | barRight | dock | right | left | desktop
+    // spot: which part of the screen is lit: none | bar | barCenter | barRight | dock | right | left | desktop | overview
+    // open: the part of ii the step talks about, opened while the step is shown: overview | dock | sidebarRight | sidebarLeft
     // The light-mode step goes before the last one, only on a modest PC that does not use it yet.
     readonly property var steps: offerLight ? baseSteps.slice(0, -1).concat([lightStep], baseSteps.slice(-1)) : baseSteps
     readonly property var lightStep: ({
@@ -53,7 +54,8 @@ Scope {
         },
         {
             icon: "search",
-            spot: "desktop",
+            spot: "overview",
+            open: "overview",
             title: Translation.tr("Search and open apps"),
             text: Translation.tr("Press the Windows key: type to find apps, files or do maths, then Enter. Press Win+Tab for the windows of this desktop, and the button at the bottom for all the apps."),
             keys: [["Win"], ["Win", "Tab"]]
@@ -61,6 +63,7 @@ Scope {
         {
             icon: "call_to_action",
             spot: "dock",
+            open: "dock",
             title: Translation.tr("The dock"),
             text: Translation.tr("Your pinned and running apps. The icons grow under the cursor. Click opens, right click offers more, drag to reorder, and the pin keeps it always visible. It can sit at the bottom, left or right (Settings > Dock)."),
             keys: []
@@ -68,6 +71,7 @@ Scope {
         {
             icon: "tune",
             spot: "right",
+            open: "sidebarRight",
             title: Translation.tr("Quick settings and notifications"),
             text: Translation.tr("Wi-Fi, Bluetooth, volume, night light, notifications and the calendar. The switches act right there; open it from the top-right corner."),
             keys: [["Win", "N"]]
@@ -75,6 +79,7 @@ Scope {
         {
             icon: "smart_toy",
             spot: "left",
+            open: "sidebarLeft",
             title: Translation.tr("AI assistant and tools"),
             text: Translation.tr("Chat with an AI model (add your free Gemini key with /key), translate text and more. Open it from the top-left button."),
             keys: [["Win", "A"]]
@@ -102,6 +107,48 @@ Scope {
         }
     ]
     readonly property var current: steps[Math.max(0, Math.min(step, steps.length - 1))]
+
+    // The part of ii the current step talks about is really opened (and closed again on the next step), so the
+    // tour shows the thing instead of an empty frame where it would be.
+    property string openedPanel: ""
+    Binding {
+        target: GlobalStates
+        property: "tourOpen"
+        value: root.open
+    }
+    readonly property string wantedPanel: open ? (current.open ?? "") : ""
+    onWantedPanelChanged: showPanel(wantedPanel)
+    function setPanel(name, on) {
+        switch (name) {
+        case "overview":
+            if (on)
+                GlobalStates.overviewMode = "apps";
+            GlobalStates.overviewOpen = on;
+            break;
+        case "dock":
+            GlobalStates.dockForceReveal = on;
+            break;
+        case "sidebarRight":
+            GlobalStates.sidebarRightOpen = on;
+            break;
+        case "sidebarLeft":
+            GlobalStates.sidebarLeftOpen = on;
+            break;
+        }
+    }
+    function showPanel(name) {
+        if (openedPanel === name)
+            return;
+        setPanel(openedPanel, false);
+        openedPanel = name;
+        // A moment after the card moved, so the panel slides in where the light already is.
+        panelDelay.restart();
+    }
+    Timer {
+        id: panelDelay
+        interval: 180
+        onTriggered: root.setPanel(root.openedPanel, true)
+    }
 
     function start() {
         step = 0;
@@ -169,6 +216,7 @@ Scope {
                 case "right": return Qt.rect(w - Appearance.sizes.sidebarWidth - 8, barH + 8, Appearance.sizes.sidebarWidth, h - barH - dockInset - 24);
                 case "left": return Qt.rect(8, barH + 8, Appearance.sizes.sidebarWidth, h - barH - dockInset - 24);
                 case "desktop": return Qt.rect(w * 0.18, h * 0.22, w * 0.64, h * 0.5);
+                case "overview": return Qt.rect(w / 2 - Math.min(w * 0.36, 620), barH + 4, Math.min(w * 0.72, 1240), h * 0.62 - barH);
                 default: return Qt.rect(w / 2, h / 2, 0, 0);
                 }
             }
@@ -237,6 +285,7 @@ Scope {
                     if (s === "dock") return tourWindow.height - tourWindow.dockInset - 110 - height - 30;
                     if (s === "right" || s === "left") return tourWindow.barH + 40;
                     if (s === "desktop") return tourWindow.height * 0.76 - 20 > 0 ? Math.min(tourWindow.height - height - tourWindow.dockInset - 24, tourWindow.height * 0.74) : 80;
+                    if (s === "overview") return Math.min(tourWindow.height - height - tourWindow.dockInset - 24, tourWindow.spotRect.y + tourWindow.spotRect.height + 24);
                     return (tourWindow.height - height) / 2;
                 }
                 Behavior on x { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }

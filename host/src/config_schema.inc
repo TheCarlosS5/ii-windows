@@ -222,6 +222,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"background.widgets.japaneseClock.y", K_REAL, false, 0, 0, {}},
 	{"background.widgets.media.enable", K_BOOL, false, 0, 0, {}},
 	{"background.widgets.media.idleMotion", K_BOOL, false, 0, 0, {}},
+	{"background.widgets.media.lyrics", K_BOOL, false, 0, 0, {}},
 	{"background.widgets.media.placementStrategy", K_STRING, false, 0, 0, {}},
 	{"background.widgets.media.spectrum", K_BOOL, false, 0, 0, {}},
 	{"background.widgets.media.widgetScale", K_REAL, false, 0, 0, {}},

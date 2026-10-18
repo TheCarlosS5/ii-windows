@@ -24,7 +24,6 @@ Shortcut {true, true, false, false, 'T', L"wallpaperSelectorToggle"}, // wallpap
 Shortcut {true, true, true, false, 'T', L"wallpaperSelectorRandom"}, // wallpaper-random
 Shortcut {true, true, false, true, 'D', L"toggleLightDark"}, // light-dark
 Shortcut {true, false, false, false, 'I', L"settingsOpen"}, // settings
-Shortcut {true, false, false, false, 'R', L"searchToggle"}, // run
 Shortcut {true, false, false, false, 'X', L"sessionToggle"}, // tools-menu
 Shortcut {true, false, false, true, 'S', L"regionScreenshot"}, // screenshot
 Shortcut {false, false, false, false, VK_SNAPSHOT, L"regionScreenshot"}, // screenshot-print

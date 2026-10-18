@@ -271,6 +271,10 @@ Item {
                 }
             }
         }
+        SmoothWheelArea {
+            anchors.fill: flick
+            flickable: flick
+        }
     }
 
     // ---- delegates --------------------------------------------------------------------------------------

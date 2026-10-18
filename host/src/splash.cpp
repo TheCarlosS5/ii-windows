@@ -57,7 +57,7 @@ constexpr ULONGLONG NO_SIGNAL_MS = 15000;
 // Once one screen is ready, the others get this long (the shell is not going to draw there).
 constexpr ULONGLONG PARTIAL_MS = 10000;
 // After the shell's "ready": a moment for its first frames to reach the screen, then the fade.
-constexpr ULONGLONG SETTLE_MS = 350;
+constexpr ULONGLONG SETTLE_MS = 500;
 constexpr ULONGLONG FADE_MS = 450;
 
 // The small blurred copy of the wallpaper (wallpaper aspect, this wide).
@@ -69,7 +69,8 @@ struct Cover {
 	HWND hwnd = nullptr;
 	HBITMAP bitmap = nullptr;
 	RECT rect {};
-	RECT content {}; // where the picture, name and dots are drawn: the only part that repaints
+	RECT content {}; // the picture, ring and text in the middle: the part that repaints every frame
+	RECT clock {};   // time and date in the corner
 	ULONGLONG readySince = 0;
 	ULONGLONG fadeStart = 0;
 	bool fading = false;
@@ -97,6 +98,44 @@ std::wstring displayName;
 AvatarImage* avatar = nullptr;
 std::atomic<int> generation {0};
 
+// How far ii has got: the shell process runs, its first window is up (QML loaded), its wallpaper
+// covers the screen (bar and dock follow), its desktop is complete.
+enum class Stage { Starting, Interface, Desktop, Ready };
+Stage stage = Stage::Starting;
+double progressShown = 0;
+ULONGLONG expectedMs = 9000; // the last start took this long (startup-ms), for a progress that keeps moving
+ULONGLONG lastFrame = 0;
+ULONGLONG contentAt = 0;
+std::wstring labelNow;
+std::wstring labelBefore;
+ULONGLONG labelAt = 0;
+std::wstring lastClock;
+bool reduceMotion = false;
+double paintCost = 0;   // ms per content paint, smoothed
+bool slowFrames = false;
+// ii's palette (dark scheme defaults until colors.json is read).
+uint32_t colPrimary = 0xFFA6C8FF;
+uint32_t colPrimaryContainer = 0xFF234776;
+uint32_t colOnPrimaryContainer = 0xFFD5E3FF;
+Gdiplus::PrivateFontCollection* privateFonts = nullptr;
+Gdiplus::FontFamily* brandFamily = nullptr;
+Gdiplus::FontFamily* textFamily = nullptr; // brandFamily, or a copy of Windows' own face
+// The faces at one screen's scale (each screen can have its own).
+struct Fonts {
+	UINT dpi = 96;
+	Gdiplus::Font* greeting = nullptr;
+	Gdiplus::Font* status = nullptr;
+	Gdiplus::Font* note = nullptr;
+	Gdiplus::Font* clock = nullptr;
+	Gdiplus::Font* date = nullptr;
+	Gdiplus::Font* initial = nullptr;
+};
+std::vector<Fonts> fontSets;
+Gdiplus::Bitmap* avatarBitmap = nullptr;
+Gdiplus::TextureBrush* avatarBrush = nullptr;
+
+void frame();
+
 std::wstring widen(const std::string& text) {
 	if (text.empty()) return {};
 	auto n = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
@@ -107,6 +146,7 @@ std::wstring widen(const std::string& text) {
 
 std::wstring readyFile() { return dataDir() + L"\\shell-visual-ready"; }
 std::wstring cacheFile() { return dataDir() + L"\\cover-cache.bin"; }
+std::wstring timingFile() { return dataDir() + L"\\startup-ms"; }
 
 // A string value of ii's config.json (a plain scan: ii-host has no JSON parser here).
 std::string configString(const std::string& text, const char* key) {
@@ -353,15 +393,14 @@ HBITMAP coverBitmap(IWICImagingFactory* factory, const Small& s, int width, int 
 				DeleteObject(result);
 				result = nullptr;
 			} else {
-				// Dim: a dark veil, a little stronger at the bottom.
+				// Dim: a dark veil, a little stronger at the bottom, with a touch of ii's colour.
 				auto* p = static_cast<BYTE*>(bits);
+				int tint[3] {static_cast<int>(colPrimaryContainer & 0xFF), static_cast<int>((colPrimaryContainer >> 8) & 0xFF), static_cast<int>((colPrimaryContainer >> 16) & 0xFF)};
 				for (int y = 0; y < height; ++y) {
-					double k = 0.58 - 0.10 * y / height;
+					double k = 0.52 - 0.12 * y / height;
 					auto mul = static_cast<int>(k * 256);
 					for (int x = 0; x < width; ++x, p += 4) {
-						p[0] = static_cast<BYTE>((p[0] * mul) >> 8);
-						p[1] = static_cast<BYTE>((p[1] * mul) >> 8);
-						p[2] = static_cast<BYTE>((p[2] * mul) >> 8);
+						for (int c = 0; c < 3; ++c) p[c] = static_cast<BYTE>((((p[c] * mul) >> 8) * 228 + tint[c] * 28) >> 8);
 						p[3] = 255;
 					}
 				}
@@ -408,7 +447,20 @@ std::wstring accountPicturePath() {
 		    && GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES)
 			return path;
 	}
-	return {};
+	// No picture in Windows: the one Linux shells (and ii there) read, if there is one.
+	wchar_t* home = nullptr;
+	std::wstring found;
+	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Profile, 0, nullptr, &home))) {
+		for (const wchar_t* name: {L"\\.face", L"\\.face.icon"}) {
+			auto path = std::wstring(home) + name;
+			if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
+				found = path;
+				break;
+			}
+		}
+	}
+	CoTaskMemFree(home);
+	return found;
 }
 
 AvatarImage* decodeAvatar(IWICImagingFactory* factory, const std::wstring& path) {
@@ -455,8 +507,9 @@ DWORD WINAPI worker(LPVOID param) {
 		bool cached = readCache(reduced, {}, &image);
 		bool ok = cached;
 		if (!ok) {
-			// No copy yet (the first logon after installing): Windows' sign-in picture, else ii's wallpaper.
-			for (auto candidate: {lockScreenPath(), wallpaperPath()}) {
+			// No copy yet (the first logon after installing): ii's wallpaper (the cover then fades into the
+			// same picture), else Windows' sign-in picture.
+			for (auto candidate: {wallpaperPath(), lockScreenPath()}) {
 				if (candidate.empty() || !decodeSmall(factory, candidate, reduced)) continue;
 				image = candidate;
 				blur(reduced, 2);
@@ -486,6 +539,10 @@ DWORD WINAPI worker(LPVOID param) {
 }
 
 // ---- drawing ------------------------------------------------------------------------------------
+// Material 3 Expressive, the way Pixels greet you: the account picture in a circle on a slowly turning
+// "cookie" shape in the wallpaper's colour, a wavy progress ring round it that fills as ii really loads
+// (and flattens out when it is done), a greeting with the first name, what is loading right now, and
+// the time and date in the corner like the lock screen's.
 
 std::wstring userDisplayName() {
 	wchar_t name[256] {};
@@ -496,104 +553,369 @@ std::wstring userDisplayName() {
 	return {};
 }
 
-// Windows' sign-in screen: the picture in a circle, the name, then the turning dots and "Bienvenido".
-// Drawn into a DC holding only the dirty rectangle that starts at (originX, originY) of the window.
-void paintContent(HDC dc, const RECT& client, int originX, int originY, RECT* drawn) {
-	if (!gdiplusToken || !contentOn) return;
-	using namespace Gdiplus;
-	Graphics g(dc);
-	g.TranslateTransform(static_cast<REAL>(-originX), static_cast<REAL>(-originY));
-	g.SetSmoothingMode(SmoothingModeAntiAlias);
-	g.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
-	g.SetInterpolationMode(InterpolationModeHighQualityBicubic);
-	auto s = static_cast<REAL>(GetDeviceCaps(dc, LOGPIXELSY)) / 96.0F;
-	auto now = GetTickCount64();
-	auto cw = static_cast<REAL>(client.right);
-	auto ch = static_cast<REAL>(client.bottom);
+// "Carlos Gutiérrez" -> "Carlos" (an e-mail-like name keeps what is before the @).
+std::wstring firstName(const std::wstring& full) {
+	auto end = full.find_first_of(L" @");
+	return end == std::wstring::npos ? full : full.substr(0, end);
+}
 
-	// Windows 11's own faces when they are there (they are on 11), Segoe UI otherwise.
-	FontFamily display(L"Segoe UI Variable Display");
-	FontFamily body(L"Segoe UI Variable Text");
-	FontFamily plain(L"Segoe UI");
-	auto* nameFamily = display.GetLastStatus() == Ok ? &display : &plain;
-	auto* textFamily = body.GetLastStatus() == Ok ? &body : &plain;
-	Font nameFont(nameFamily, 30.0F * s, FontStyleBold, UnitPixel);
-	Font welcomeFont(textFamily, 20.0F * s, FontStyleRegular, UnitPixel);
-	Font smallFont(textFamily, 14.0F * s, FontStyleRegular, UnitPixel);
+// A colour of ii's palette (State\user\generated\colors.json, written by switchwall): "#rrggbb" -> ARGB.
+bool paletteColour(const std::string& text, const char* key, uint32_t& out) {
+	auto at = text.find(std::string("\"") + key + "\"");
+	if (at == std::string::npos) return false;
+	auto hash = text.find('#', at);
+	if (hash == std::string::npos || hash + 7 > text.size()) return false;
+	char* end = nullptr;
+	auto value = std::strtoul(text.substr(hash + 1, 6).c_str(), &end, 16);
+	if (!end || *end) return false;
+	out = 0xFF000000u | static_cast<uint32_t>(value);
+	return true;
+}
+
+void loadPalette() {
+	wchar_t* base = nullptr;
+	if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base))) return;
+	std::wstring path = std::wstring(base) + L"\\quickshell\\State\\user\\generated\\colors.json";
+	CoTaskMemFree(base);
+	std::ifstream file(path, std::ios::binary);
+	if (!file) return;
+	std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+	uint32_t c = 0;
+	if (paletteColour(text, "primary", c)) colPrimary = c;
+	if (paletteColour(text, "primary_container", c)) colPrimaryContainer = c;
+	if (paletteColour(text, "on_primary_container", c)) colOnPrimaryContainer = c;
+}
+
+// Google Sans Flex, the face ii's own text uses (shipped in quickshell\fonts next to ii-host), else
+// Windows 11's Segoe UI Variable.
+void loadFonts() {
+	using namespace Gdiplus;
+	wchar_t self[MAX_PATH] {};
+	GetModuleFileNameW(nullptr, self, MAX_PATH);
+	std::wstring dir(self);
+	dir = dir.substr(0, dir.find_last_of(L"\\/"));
+	for (const auto& folder: {dir + L"\\quickshell\\fonts", dir + L"\\..\\..\\..\\quickshell\\fonts"}) {
+		WIN32_FIND_DATAW found {};
+		auto* find = FindFirstFileW((folder + L"\\GoogleSansFlex*.ttf").c_str(), &found);
+		if (find == INVALID_HANDLE_VALUE) continue;
+		FindClose(find);
+		privateFonts = new PrivateFontCollection;
+		if (privateFonts->AddFontFile((folder + L"\\" + found.cFileName).c_str()) == Ok && privateFonts->GetFamilyCount() > 0) {
+			int count = 0;
+			brandFamily = new FontFamily;
+			privateFonts->GetFamilies(1, brandFamily, &count);
+			if (count == 1 && brandFamily->GetLastStatus() == Ok) break;
+			delete brandFamily;
+			brandFamily = nullptr;
+		}
+		delete privateFonts;
+		privateFonts = nullptr;
+	}
+	if (brandFamily) {
+		textFamily = brandFamily->Clone();
+	} else {
+		FontFamily display(L"Segoe UI Variable Display");
+		textFamily = display.GetLastStatus() == Ok ? display.Clone() : FontFamily(L"Segoe UI").Clone();
+	}
+}
+
+const Fonts& fontsFor(UINT dpi) {
+	using namespace Gdiplus;
+	for (const auto& f: fontSets) if (f.dpi == dpi) return f;
+	auto s = static_cast<REAL>(dpi) / 96.0F;
+	Fonts f;
+	f.dpi = dpi;
+	f.greeting = new Font(textFamily, 34.0F * s, FontStyleRegular, UnitPixel);
+	f.status = new Font(textFamily, 17.0F * s, FontStyleRegular, UnitPixel);
+	f.note = new Font(textFamily, 14.0F * s, FontStyleRegular, UnitPixel);
+	f.clock = new Font(textFamily, 76.0F * s, FontStyleRegular, UnitPixel);
+	f.date = new Font(textFamily, 20.0F * s, FontStyleRegular, UnitPixel);
+	f.initial = new Font(textFamily, 72.0F * s, FontStyleRegular, UnitPixel);
+	fontSets.push_back(f);
+	return fontSets.back();
+}
+
+void freeDrawing() {
+	for (auto& f: fontSets) {
+		for (auto* font: {f.greeting, f.status, f.note, f.clock, f.date, f.initial}) delete font;
+	}
+	fontSets.clear();
+	delete textFamily;
+	textFamily = nullptr;
+	delete avatarBrush;
+	avatarBrush = nullptr;
+	delete avatarBitmap;
+	avatarBitmap = nullptr;
+	delete brandFamily;
+	brandFamily = nullptr;
+	delete privateFonts;
+	privateFonts = nullptr;
+}
+
+const wchar_t* stageLabel(Stage s) {
+	switch (s) {
+	case Stage::Starting: return firstRun ? (spanish ? L"Preparando ii por primera vez…" : L"Getting ii ready for the first time…")
+	                                      : (spanish ? L"Iniciando ii…" : L"Starting ii…");
+	case Stage::Interface: return spanish ? L"Cargando la interfaz…" : L"Loading the interface…";
+	case Stage::Desktop: return spanish ? L"Preparando tu escritorio…" : L"Setting up your desktop…";
+	case Stage::Ready: return spanish ? L"Todo listo" : L"All set";
+	}
+	return L"";
+}
+
+void setStage(Stage s, ULONGLONG now) {
+	if (s <= stage) return;
+	stage = s;
+	labelBefore = labelNow;
+	labelNow = stageLabel(s);
+	labelAt = now;
+}
+
+// Where the progress should be: real stages set a floor and a ceiling, the time of the last start
+// (startup-ms) moves it between them so it never sits still, and never runs ahead of what is done.
+double targetProgress(ULONGLONG now) {
+	static constexpr double floors[] = {0.03, 0.45, 0.74, 1.0};
+	static constexpr double ceilings[] = {0.42, 0.70, 0.95, 1.0};
+	auto f = static_cast<double>(now - shownAt) / static_cast<double>(expectedMs);
+	auto byTime = 0.92 * (1.0 - std::exp(-2.2 * f));
+	auto i = static_cast<int>(stage);
+	return std::clamp(byTime, floors[i], ceilings[i]);
+}
+
+double easeOutCubic(double t) {
+	t = std::clamp(t, 0.0, 1.0);
+	return 1 - (1 - t) * (1 - t) * (1 - t);
+}
+
+// A spring with a little overshoot (M3 Expressive's "spatial" motion).
+double easeOutBack(double t) {
+	t = std::clamp(t, 0.0, 1.0);
+	constexpr double c1 = 1.5;
+	constexpr double c3 = c1 + 1;
+	return 1 + c3 * std::pow(t - 1, 3) + c1 * std::pow(t - 1, 2);
+}
+
+Gdiplus::Color withAlpha(uint32_t argb, double alpha) {
+	auto a = static_cast<BYTE>(std::clamp(alpha, 0.0, 1.0) * ((argb >> 24) & 0xFF));
+	return Gdiplus::Color(a, static_cast<BYTE>(argb >> 16), static_cast<BYTE>(argb >> 8), static_cast<BYTE>(argb));
+}
+
+// A round shape with soft scallops: M3 Expressive's "cookie" / "sunny".
+void addCookie(Gdiplus::GraphicsPath& path, float cx, float cy, float r, int lobes, float depth, double rotation) {
+	constexpr int n = 160;
+	Gdiplus::PointF points[n];
+	for (int i = 0; i < n; ++i) {
+		auto a = 2 * 3.14159265358979 * i / n;
+		auto rr = r * (1.0F - depth * static_cast<float>(0.5 - 0.5 * std::cos(lobes * (a - rotation))));
+		points[i] = Gdiplus::PointF(cx + rr * static_cast<float>(std::cos(a)), cy + rr * static_cast<float>(std::sin(a)));
+	}
+	path.AddPolygon(points, n);
+}
+
+struct Layout {
+	UINT dpi = 96;
+	float s = 1, cx = 0, cy = 0, face = 0, ring = 0;
+	RECT centre {}; // the picture, ring, greeting and status: repainted every frame
+	RECT clock {};  // time and date: repainted when the minute changes
+};
+
+Layout layoutFor(HWND hwnd, const RECT& client) {
+	Layout l;
+	l.dpi = GetDpiForWindow(hwnd);
+	if (l.dpi == 0) l.dpi = 96;
+	l.s = static_cast<float>(l.dpi) / 96.0F;
+	auto s = l.s;
+	l.cx = static_cast<float>(client.right) / 2;
+	l.cy = static_cast<float>(client.bottom) * 0.43F;
+	l.face = 184.0F * s;
+	l.ring = l.face / 2 + 30.0F * s;
+	auto top = l.cy - l.ring - 14 * s;
+	auto bottom = l.cy + l.ring + 150 * s;
+	l.centre = {static_cast<LONG>(l.cx - 380 * s), static_cast<LONG>(top), static_cast<LONG>(l.cx + 380 * s), static_cast<LONG>(bottom)};
+	l.clock = {static_cast<LONG>(40 * s), static_cast<LONG>(28 * s), static_cast<LONG>(720 * s), static_cast<LONG>(190 * s)};
+	return l;
+}
+
+std::wstring clockText() {
+	wchar_t text[64] {};
+	GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, nullptr, nullptr, text, 64);
+	return text;
+}
+
+std::wstring dateText() {
+	wchar_t text[128] {};
+	GetDateFormatEx(LOCALE_NAME_USER_DEFAULT, 0, nullptr, spanish ? L"dddd, d 'de' MMMM" : L"dddd, MMMM d", text, 128, nullptr);
+	std::wstring out = text;
+	if (!out.empty()) out[0] = static_cast<wchar_t>(towupper(out[0]));
+	return out;
+}
+
+void drawCentre(Gdiplus::Graphics& g, const Layout& l, ULONGLONG now) {
+	using namespace Gdiplus;
+	auto s = l.s;
+	const auto& fonts = fontsFor(l.dpi);
+	auto t = static_cast<double>(now - contentAt);
+	auto still = reduceMotion ? 0.0 : 1.0;
+
+	// Entrance: the picture springs in, the ring follows, the text rises into place.
+	auto pop = reduceMotion ? 1.0 : easeOutBack(t / 650.0);
+	auto faceAlpha = std::clamp(t / 260.0, 0.0, 1.0);
+	auto ringAlpha = std::clamp((t - 150) / 350.0, 0.0, 1.0);
+	auto textIn = easeOutCubic((t - 220) / 480.0);
+
+	// The cookie behind the picture, turning slowly.
+	auto rotation = still * static_cast<double>(now % 36000) / 36000.0 * 2 * 3.14159265358979;
+	auto faceR = static_cast<float>(l.face / 2 * (0.72 + 0.28 * pop));
+	{
+		GraphicsPath cookie;
+		addCookie(cookie, l.cx, l.cy, faceR + 15.0F * s, 12, 0.085F, rotation);
+		SolidBrush fill(withAlpha(colPrimaryContainer, 0.95 * faceAlpha));
+		g.FillPath(&fill, &cookie);
+		GraphicsPath inner;
+		addCookie(inner, l.cx, l.cy, faceR + 6.0F * s, 9, 0.07F, -rotation * 1.6);
+		SolidBrush fill2(withAlpha(colPrimary, 0.55 * faceAlpha));
+		g.FillPath(&fill2, &inner);
+	}
+
+	// The picture (or the first letter of the name, like a Google account without one).
+	RectF face(l.cx - faceR, l.cy - faceR, faceR * 2, faceR * 2);
+	if (avatarBrush && avatarBitmap) {
+		auto side = static_cast<REAL>(std::min(avatarBitmap->GetWidth(), avatarBitmap->GetHeight()));
+		auto k = face.Width / side;
+		Matrix m;
+		m.Translate(face.X - (static_cast<REAL>(avatarBitmap->GetWidth()) - side) / 2 * k, face.Y - (static_cast<REAL>(avatarBitmap->GetHeight()) - side) / 2 * k);
+		m.Scale(k, k);
+		avatarBrush->SetTransform(&m);
+		GraphicsPath circle;
+		circle.AddEllipse(face);
+		if (faceAlpha >= 1.0) {
+			g.FillPath(avatarBrush, &circle);
+		} else {
+			// Fading in: the picture over the plate, through a translucent layer of its own.
+			SolidBrush plate(withAlpha(colPrimaryContainer, faceAlpha));
+			g.FillPath(&plate, &circle);
+			ColorMatrix fade = {{{1, 0, 0, 0, 0}, {0, 1, 0, 0, 0}, {0, 0, 1, 0, 0}, {0, 0, 0, static_cast<REAL>(faceAlpha), 0}, {0, 0, 0, 0, 1}}};
+			ImageAttributes attributes;
+			attributes.SetColorMatrix(&fade);
+			g.SetClip(&circle);
+			auto w = static_cast<REAL>(avatarBitmap->GetWidth());
+			auto h = static_cast<REAL>(avatarBitmap->GetHeight());
+			g.DrawImage(avatarBitmap, face, (w - side) / 2, (h - side) / 2, side, side, UnitPixel, &attributes);
+			g.ResetClip();
+		}
+	} else {
+		GraphicsPath circle;
+		circle.AddEllipse(face);
+		SolidBrush plate(withAlpha(colPrimary, faceAlpha));
+		g.FillPath(&plate, &circle);
+		auto initial = displayName.empty() ? std::wstring(L"ii") : std::wstring(1, static_cast<wchar_t>(towupper(displayName[0])));
+		StringFormat centred;
+		centred.SetAlignment(StringAlignmentCenter);
+		centred.SetLineAlignment(StringAlignmentCenter);
+		SolidBrush letter(withAlpha(colPrimaryContainer, faceAlpha));
+		g.DrawString(initial.c_str(), -1, fonts.initial, face, &centred, &letter);
+	}
+
+	// The wavy progress ring: the filled part waves and travels, the rest is a quiet track; the wave
+	// flattens as it reaches the end.
+	auto p = std::clamp(progressShown, 0.0, 1.0);
+	auto gapDeg = static_cast<REAL>(9.0F * s / l.ring * 180.0F / 3.14159265358979F);
+	auto activeDeg = static_cast<REAL>(p * 360.0);
+	auto pw = 5.5F * s;
+	Pen track(withAlpha(0xFFFFFFFF, 0.22 * ringAlpha), pw);
+	track.SetStartCap(LineCapRound);
+	track.SetEndCap(LineCapRound);
+	RectF ringBox(l.cx - l.ring, l.cy - l.ring, l.ring * 2, l.ring * 2);
+	if (p < 0.999) {
+		auto from = -90.0F + activeDeg + (p > 0.002 ? gapDeg : 0);
+		auto sweep = 360.0F - activeDeg - (p > 0.002 ? 2 * gapDeg : gapDeg);
+		if (sweep > 0.5F) g.DrawArc(&track, ringBox, from, sweep);
+	}
+	if (p > 0.002) {
+		Pen active(withAlpha(colPrimary, ringAlpha), pw);
+		active.SetStartCap(LineCapRound);
+		active.SetEndCap(LineCapRound);
+		active.SetLineJoin(LineJoinRound);
+		auto amp = 3.0F * s * static_cast<float>(std::clamp((1.0 - p) * 12.0, 0.0, 1.0) * std::clamp(p * 25.0, 0.0, 1.0)) * static_cast<float>(still);
+		constexpr int waves = 15;
+		auto phase = still * static_cast<double>(now % 1300) / 1300.0 * 2 * 3.14159265358979;
+		auto sweepRad = activeDeg * 3.14159265358979 / 180.0;
+		auto n = std::clamp(static_cast<int>(sweepRad * l.ring / (2.0F * s)), 2, 720);
+		std::vector<PointF> points(static_cast<size_t>(n));
+		for (int i = 0; i < n; ++i) {
+			auto a = -3.14159265358979 / 2 + sweepRad * i / (n - 1);
+			auto r = l.ring + amp * static_cast<float>(std::sin(waves * a - phase));
+			points[static_cast<size_t>(i)] = PointF(l.cx + r * static_cast<float>(std::cos(a)), l.cy + r * static_cast<float>(std::sin(a)));
+		}
+		g.DrawLines(&active, points.data(), n);
+	}
+
+	// Greeting, then what is loading now (the old line slides up and out, the new one rises in).
 	StringFormat centre;
 	centre.SetAlignment(StringAlignmentCenter);
-
-	auto diameter = 192.0F * s;
-	auto cx = cw / 2;
-	auto top = ch * 0.5F - diameter * 0.5F - 70.0F * s;
-	RectF face(cx - diameter / 2, top, diameter, diameter);
-
-	if (drawn) {
-		RECT r {static_cast<LONG>(cx - 260 * s), static_cast<LONG>(top - 8 * s), static_cast<LONG>(cx + 260 * s), static_cast<LONG>(top + diameter + 200 * s)};
-		if (drawn->right <= drawn->left) *drawn = r;
-		else UnionRect(drawn, drawn, &r);
+	centre.SetFormatFlags(StringFormatFlagsNoWrap);
+	centre.SetTrimming(StringTrimmingEllipsisCharacter);
+	auto rise = static_cast<REAL>((1 - textIn) * 14.0 * s);
+	auto y = l.cy + l.ring + 34.0F * s + rise;
+	{
+		SYSTEMTIME local {};
+		GetLocalTime(&local);
+		const wchar_t* hello = local.wHour >= 5 && local.wHour < 12 ? (spanish ? L"Buenos días" : L"Good morning")
+		                     : local.wHour >= 12 && local.wHour < 19 ? (spanish ? L"Buenas tardes" : L"Good afternoon")
+		                                                             : (spanish ? L"Buenas noches" : L"Good evening");
+		std::wstring greeting = hello;
+		auto first = firstName(displayName);
+		if (!first.empty()) greeting += L", " + first;
+		SolidBrush ink(withAlpha(0xFFFFFFFF, textIn));
+		g.DrawString(greeting.c_str(), -1, fonts.greeting, RectF(l.cx - 370 * s, y, 740 * s, 50 * s), &centre, &ink);
 	}
-
-	// The picture, or Windows' generic person.
-	GraphicsPath circle;
-	circle.AddEllipse(face);
-	if (avatar) {
-		Bitmap picture(static_cast<INT>(avatar->width), static_cast<INT>(avatar->height), static_cast<INT>(avatar->width * 4),
-		               PixelFormat32bppPARGB, avatar->pixels.data());
-		g.SetClip(&circle);
-		auto side = std::min(avatar->width, avatar->height);
-		g.DrawImage(&picture, face, static_cast<REAL>((avatar->width - side) / 2), static_cast<REAL>((avatar->height - side) / 2),
-		            static_cast<REAL>(side), static_cast<REAL>(side), UnitPixel);
-		g.ResetClip();
-	} else {
-		SolidBrush plate(Color(255, 0xcf, 0xcf, 0xd4));
-		g.FillPath(&plate, &circle);
-		SolidBrush person(Color(255, 0x8a, 0x8a, 0x92));
-		g.SetClip(&circle);
-		auto head = diameter * 0.36F;
-		g.FillEllipse(&person, cx - head / 2, top + diameter * 0.2F, head, head);
-		auto body = diameter * 0.74F;
-		g.FillEllipse(&person, cx - body / 2, top + diameter * 0.62F, body, diameter * 0.7F);
-		g.ResetClip();
+	y += 56.0F * s;
+	auto swap = reduceMotion ? 1.0 : easeOutCubic(static_cast<double>(now - labelAt) / 320.0);
+	if (!labelBefore.empty() && swap < 1.0) {
+		SolidBrush old(withAlpha(0xFFFFFFFF, 0.78 * (1 - swap) * textIn));
+		g.DrawString(labelBefore.c_str(), -1, fonts.status, RectF(l.cx - 370 * s, y - static_cast<REAL>(swap * 12 * s), 740 * s, 28 * s), &centre, &old);
 	}
+	SolidBrush status(withAlpha(0xFFFFFFFF, 0.78 * swap * textIn));
+	g.DrawString(labelNow.c_str(), -1, fonts.status, RectF(l.cx - 370 * s, y + static_cast<REAL>((1 - swap) * 12 * s), 740 * s, 28 * s), &centre, &status);
 
-	SolidBrush ink(Color(255, 0xff, 0xff, 0xff));
-	SolidBrush soft(Color(200, 0xff, 0xff, 0xff));
-	auto y = top + diameter + 22.0F * s;
-	if (!displayName.empty()) {
-		g.DrawString(displayName.c_str(), -1, &nameFont, RectF(cx - 400 * s, y, 800 * s, 46 * s), &centre, &ink);
-		y += 46.0F * s;
+	if (now - shownAt > SLOW_MS && stage != Stage::Ready) {
+		const wchar_t* note = spanish ? L"Esto está tardando un poco más de lo normal…" : L"This is taking a little longer than usual…";
+		SolidBrush soft(withAlpha(0xFFFFFFFF, 0.55 * textIn));
+		g.DrawString(note, -1, fonts.note, RectF(l.cx - 370 * s, y + 34 * s, 740 * s, 24 * s), &centre, &soft);
 	}
-	y += 22.0F * s;
+}
 
-	const wchar_t* welcome = spanish ? L"Bienvenido" : L"Welcome";
-	RectF measured;
-	g.MeasureString(welcome, -1, &welcomeFont, PointF(0, 0), &measured);
-	auto ring = 22.0F * s;
-	auto gap = 14.0F * s;
-	auto rowWidth = ring + gap + measured.Width;
-	auto rx = cx - rowWidth / 2;
-	auto ringCx = rx + ring / 2;
-	auto ringCy = y + measured.Height / 2;
+void drawClock(Gdiplus::Graphics& g, const Layout& l, ULONGLONG now) {
+	using namespace Gdiplus;
+	auto s = l.s;
+	const auto& fonts = fontsFor(l.dpi);
+	auto in = reduceMotion ? 1.0 : easeOutCubic(static_cast<double>(now - contentAt - 80) / 520.0);
+	auto x = static_cast<REAL>(l.clock.left) + static_cast<REAL>((1 - in) * -10 * s);
+	auto y = static_cast<REAL>(l.clock.top);
+	SolidBrush ink(withAlpha(0xFFFFFFFF, 0.96 * in));
+	SolidBrush soft(withAlpha(colOnPrimaryContainer, 0.92 * in));
+	auto time = clockText();
+	g.DrawString(time.c_str(), -1, fonts.clock, PointF(x, y), &ink);
+	auto date = dateText();
+	g.DrawString(date.c_str(), -1, fonts.date, PointF(x + 6 * s, y + 104 * s), &soft);
+}
 
-	// Five dots running round a ring, bunching up and spreading out (Windows' progress ring).
-	constexpr double cycle = 2600.0;
-	for (int i = 0; i < 5; ++i) {
-		double t = std::fmod((static_cast<double>(now) - i * 110.0) / cycle, 1.0);
-		if (t < 0) t += 1.0;
-		double eased = t - std::sin(2 * 3.14159265358979 * t) / (2 * 3.14159265358979) * 0.85;
-		double angle = -3.14159265358979 / 2 + eased * 2 * 3.14159265358979 * 2; // two laps per cycle
-		auto dot = 2.6F * s;
-		auto px = ringCx + static_cast<REAL>(std::cos(angle)) * (ring / 2);
-		auto py = ringCy + static_cast<REAL>(std::sin(angle)) * (ring / 2);
-		g.FillEllipse(&ink, px - dot, py - dot, dot * 2, dot * 2);
-	}
-	g.DrawString(welcome, -1, &welcomeFont, PointF(rx + ring + gap, y), &ink);
-
-	const wchar_t* note = nullptr;
-	if (now - shownAt > SLOW_MS) note = spanish ? L"Esto está tardando un poco más de lo normal…" : L"This is taking a little longer than usual…";
-	else if (firstRun) note = spanish ? L"Preparando ii por primera vez…" : L"Getting ii ready for the first time…";
-	if (note) g.DrawString(note, -1, &smallFont, RectF(cx - 400 * s, y + measured.Height + 16 * s, 800 * s, 30 * s), &centre, &soft);
+void paintContent(HDC dc, Cover& c, const RECT& client, const RECT& dirty) {
+	if (!gdiplusToken || !contentOn || !textFamily) return;
+	using namespace Gdiplus;
+	auto l = layoutFor(c.hwnd, client);
+	c.content = l.centre;
+	c.clock = l.clock;
+	Graphics g(dc);
+	g.TranslateTransform(static_cast<REAL>(-dirty.left), static_cast<REAL>(-dirty.top));
+	g.SetSmoothingMode(SmoothingModeAntiAlias);
+	g.SetPixelOffsetMode(PixelOffsetModeHalf);
+	g.SetTextRenderingHint(TextRenderingHintAntiAlias);
+	g.SetInterpolationMode(InterpolationModeHighQualityBilinear);
+	auto now = GetTickCount64();
+	RECT overlap {};
+	if (IntersectRect(&overlap, &dirty, &l.centre)) drawCentre(g, l, now);
+	if (IntersectRect(&overlap, &dirty, &l.clock)) drawClock(g, l, now);
 }
 
 LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -624,7 +946,21 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				FillRect(frame, &all, brush);
 				DeleteObject(brush);
 			}
-			paintContent(frame, client, x0, y0, it != covers.end() ? &it->content : nullptr);
+			if (it != covers.end()) {
+				LARGE_INTEGER t0 {}, t1 {}, hz {};
+				QueryPerformanceCounter(&t0);
+				paintContent(frame, *it, client, ps.rcPaint);
+				QueryPerformanceCounter(&t1);
+				QueryPerformanceFrequency(&hz);
+				// A PC that needs long for a frame gets half the frames: the shell loading behind needs the CPU more.
+				auto ms = static_cast<double>(t1.QuadPart - t0.QuadPart) * 1000.0 / static_cast<double>(hz.QuadPart);
+				paintCost = paintCost * 0.9 + ms * 0.1;
+				if (!slowFrames && paintCost > 5.0 && controller && contentOn && GetTickCount64() - contentAt > 1000) {
+					slowFrames = true;
+					SetTimer(controller, TIMER_SPIN, 33, nullptr);
+					log(L"splash: %.1f ms per frame, 30 frames a second", paintCost);
+				}
+			}
 			BitBlt(dc, x0, y0, w, h, frame, 0, 0, SRCCOPY);
 			SelectObject(frame, frameOld);
 			DeleteObject(frameBitmap);
@@ -651,23 +987,19 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 	case WM_SPLASH_AVATAR: {
 		auto* face = reinterpret_cast<AvatarImage*>(lParam); // NOLINT
-		if (covers.empty()) { delete face; return 0; }
+		if (covers.empty() || !gdiplusToken) { delete face; return 0; }
 		delete avatar;
 		avatar = face;
-		for (auto& c: covers) if (c.hwnd) InvalidateRect(c.hwnd, c.content.right > c.content.left ? &c.content : nullptr, FALSE);
+		delete avatarBrush;
+		delete avatarBitmap;
+		avatarBitmap = new Gdiplus::Bitmap(static_cast<INT>(avatar->width), static_cast<INT>(avatar->height), static_cast<INT>(avatar->width * 4),
+		                                   PixelFormat32bppPARGB, avatar->pixels.data());
+		avatarBrush = new Gdiplus::TextureBrush(avatarBitmap, Gdiplus::WrapModeClamp);
 		return 0;
 	}
 	case WM_TIMER:
 		if (wParam == TIMER_WATCH) watch();
-		else if (wParam == TIMER_SPIN) {
-			bool first = !contentOn;
-			contentOn = true;
-			for (auto& c: covers) {
-				if (!c.hwnd || c.fading) continue;
-				// Before the first paint of the content its place is unknown: repaint everything once.
-				InvalidateRect(c.hwnd, (!first && c.content.right > c.content.left) ? &c.content : nullptr, FALSE);
-			}
-		}
+		else if (wParam == TIMER_SPIN) frame();
 		else if (wParam == TIMER_FADE) {
 			bool any = false;
 			auto now = GetTickCount64();
@@ -694,6 +1026,37 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 }
 
+// One animation frame: the progress eases toward where it should be, the parts that move repaint.
+void frame() {
+	auto now = GetTickCount64();
+	bool first = !contentOn;
+	if (first) {
+		contentOn = true;
+		contentAt = now;
+		labelNow = stageLabel(stage);
+		labelAt = now - 1000;
+	}
+	auto dt = lastFrame ? static_cast<double>(now - lastFrame) : 16.0;
+	lastFrame = now;
+	auto target = targetProgress(now);
+	auto tau = stage == Stage::Ready ? 110.0 : 320.0;
+	if (target > progressShown) progressShown += (target - progressShown) * (1 - std::exp(-dt / tau));
+	auto minute = clockText();
+	bool clockChanged = minute != lastClock;
+	lastClock = minute;
+	bool entering = now - contentAt < 900;
+	for (auto& c: covers) {
+		if (!c.hwnd || c.fading) continue;
+		// Before the first paint of the content its place is unknown: repaint everything once.
+		if (first || c.content.right <= c.content.left) {
+			InvalidateRect(c.hwnd, nullptr, FALSE);
+			continue;
+		}
+		InvalidateRect(c.hwnd, &c.content, FALSE);
+		if (entering || clockChanged) InvalidateRect(c.hwnd, &c.clock, FALSE);
+	}
+}
+
 BOOL CALLBACK addMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM) {
 	MONITORINFO info {};
 	info.cbSize = sizeof(info);
@@ -707,10 +1070,15 @@ BOOL CALLBACK addMonitor(HMONITOR monitor, HDC, LPRECT, LPARAM) {
 
 // The shell's wallpaper is a visible window of its process covering a whole screen: mark each
 // cover whose screen has one.
+bool shellWindowSeen = false;
+
 BOOL CALLBACK markCoveredScreens(HWND hwnd, LPARAM data) {
 	DWORD pid = 0;
 	GetWindowThreadProcessId(hwnd, &pid);
 	if (pid != shellPid || !IsWindowVisible(hwnd)) return TRUE;
+	wchar_t cls[16] {};
+	if (GetClassNameW(hwnd, cls, 16) && wcscmp(cls, L"IiSplash") == 0) return TRUE; // the cover itself (the preview runs it in the "shell")
+	shellWindowSeen = true;
 	RECT r;
 	GetWindowRect(hwnd, &r);
 	auto* covered = reinterpret_cast<std::vector<bool>*>(data); // NOLINT
@@ -763,6 +1131,9 @@ void show() {
 			}
 		}
 	}
+	// The covers are made per-monitor DPI aware (ii-host as a whole is not): real pixels, sharp text at
+	// 125 % or 150 %, instead of a 96 DPI picture Windows stretches.
+	auto previousDpi = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 	EnumDisplayMonitors(nullptr, nullptr, addMonitor, 0);
 
 	WNDCLASSW wc {};
@@ -780,19 +1151,38 @@ void show() {
 		ShowWindow(c.hwnd, SW_SHOWNOACTIVATE);
 		UpdateWindow(c.hwnd); // the plain colour right now, not at the next message-loop turn
 	}
+	if (previousDpi) SetThreadDpiAwarenessContext(previousDpi);
 	firstReadyAt = 0;
 	shellSeenAt = 0;
 	contentOn = false;
 	topmost = true;
+	stage = Stage::Starting;
+	progressShown = 0;
+	paintCost = 0;
+	slowFrames = false;
+	lastFrame = 0;
+	labelBefore.clear();
+	lastClock.clear();
 	if (covers.empty()) return;
+	keyboard::setCoverUp(true);
 	controller = CreateWindowExW(0, wc.lpszClassName, L"", 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, wc.hInstance, nullptr);
 	SetTimer(controller, TIMER_WATCH, 150, nullptr);
-	SetTimer(controller, TIMER_SPIN, 33, nullptr);
+	SetTimer(controller, TIMER_SPIN, 16, nullptr);
 	log(L"splash: shown on %d screen(s)", static_cast<int>(covers.size()));
 
-	// After the first frame: GDI+ (fonts) and the user's name, then the picture on its own thread.
+	// After the first frame: GDI+ (fonts), the palette and the user's name, then the picture on its own thread.
+	{
+		BOOL animations = TRUE;
+		SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &animations, 0);
+		reduceMotion = !animations;
+		std::ifstream f(timingFile());
+		unsigned long long ms = 0;
+		expectedMs = (f >> ms) && ms >= 1500 && ms <= 120000 ? ms : (firstRun ? 20000 : 9000);
+	}
+	loadPalette();
 	Gdiplus::GdiplusStartupInput gdiplusInput;
 	if (Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusInput, nullptr) != Gdiplus::Ok) gdiplusToken = 0;
+	if (gdiplusToken) loadFonts();
 	displayName = userDisplayName();
 	auto* args = new WorkerArgs;
 	args->generation = ++generation;
@@ -811,9 +1201,12 @@ void watch() {
 	if (covers.empty()) return;
 	auto now = GetTickCount64();
 	std::vector<bool> covered(covers.size(), false);
+	shellWindowSeen = false;
 	if (shellPid) EnumWindows(markCoveredScreens, reinterpret_cast<LPARAM>(&covered)); // NOLINT
 	bool anyCovered = std::find(covered.begin(), covered.end(), true) != covered.end();
 	if (anyCovered && shellSeenAt == 0) shellSeenAt = now;
+	if (shellWindowSeen) setStage(Stage::Interface, now);
+	if (anyCovered) setStage(Stage::Desktop, now);
 	// The shell writes this once its desktop is complete (bar, dock, widgets, icons).
 	bool signalled = GetFileAttributesW(readyFile().c_str()) != INVALID_FILE_ATTRIBUTES;
 	bool noSignal = shellSeenAt != 0 && now - shellSeenAt > NO_SIGNAL_MS;
@@ -823,6 +1216,7 @@ void watch() {
 	if (topmost && now - shownAt > topmostFor) {
 		topmost = false;
 		log(L"splash: still loading after %llu ms, the cover no longer stays above other windows", now - shownAt);
+		keyboard::setCoverUp(false);
 		for (auto& c: covers) if (c.hwnd) SetWindowPos(c.hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 	}
 	if (topmost) {
@@ -839,6 +1233,11 @@ void watch() {
 		if (covered[i] && (signalled || noSignal) && c.readySince == 0) {
 			c.readySince = now;
 			log(L"splash: screen %zu ready after %llu ms (%s)", i, now - shownAt, signalled ? L"the shell's desktop is complete" : L"no signal from the shell");
+			if (stage != Stage::Ready && signalled) {
+				std::ofstream f(timingFile(), std::ios::trunc);
+				f << (now - shownAt);
+			}
+			setStage(Stage::Ready, now);
 		}
 		if (c.readySince) ++ready;
 		if (c.readySince && now - c.readySince > SETTLE_MS) {
@@ -863,6 +1262,7 @@ void watch() {
 	if (!waiting) {
 		KillTimer(controller, TIMER_WATCH);
 		KillTimer(controller, TIMER_SPIN);
+		keyboard::setCoverUp(false);
 	}
 }
 
@@ -882,6 +1282,8 @@ void close() {
 	}
 	covers.clear();
 	firstReadyAt = 0;
+	keyboard::setCoverUp(false);
+	freeDrawing();
 	delete avatar;
 	avatar = nullptr;
 	if (gdiplusToken) Gdiplus::GdiplusShutdown(gdiplusToken);
@@ -891,11 +1293,11 @@ void close() {
 namespace {
 std::atomic<bool> refreshing {false};
 
-// Keeps the cached copy on the picture Windows' sign-in screen shows now (Spotlight changes it), so
-// the next logon's cover has it at once.
+// Keeps the cached copy on ii's wallpaper (or Windows' sign-in picture when ii has none), so the next
+// logon's cover has it at once.
 DWORD WINAPI refreshCacheThread(LPVOID) {
-	auto image = lockScreenPath();
-	if (image.empty()) image = wallpaperPath();
+	auto image = wallpaperPath();
+	if (image.empty() || GetFileAttributesW(image.c_str()) == INVALID_FILE_ATTRIBUTES) image = lockScreenPath();
 	Small s;
 	if (image.empty() || readCache(s, image)) { refreshing = false; return 0; }
 	auto initialized = SUCCEEDED(CoInitializeEx(nullptr, COINIT_MULTITHREADED));

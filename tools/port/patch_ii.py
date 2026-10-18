@@ -187,7 +187,7 @@ edit(path('modules', 'common', 'Config.qml'), [
                         property int iconSize: 48
                     }
                     property JsonObject folder: JsonObject {
-                        property bool enable: true
+                        property bool enable: false // ii-windows: off on a new install ("Recent" in Edit desktop turns it on)
                         property string path: "" // empty: Downloads
                         property int maxItems: 7
                         property string placementStrategy: "free"

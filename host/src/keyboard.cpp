@@ -43,6 +43,7 @@ std::atomic<bool> cachedDesktop {false};
 std::atomic<bool> cachedVolumeKeys {true}; // shortcuts.ini [audio] volumekeys = windows turns it off
 std::atomic<HWND> cachedSink {nullptr};
 std::atomic<bool> resetRequested {false};
+std::atomic<bool> coverUp {false};
 std::atomic<ULONGLONG> lastSinkLookup {0};
 
 bool heldNow(int vk, void*) { return (GetAsyncKeyState(vk) & 0x8000) != 0; }
@@ -141,6 +142,11 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 
 	if (resetRequested.exchange(false)) router.reset();
 
+	if (coverUp.load()) {
+		auto vk = key->vkCode;
+		if (vk == VK_LWIN || vk == VK_RWIN || (vk == VK_ESCAPE && (GetAsyncKeyState(VK_CONTROL) & 0x8000))) return 1;
+	}
+
 	auto down = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;
 	Context context;
 	context.shellPresent = shellSinkPresent();
@@ -235,6 +241,10 @@ void refreshContext() {
 }
 
 void resetState() { resetRequested = true; }
+
+void setCoverUp(bool up) {
+	if (coverUp.exchange(up) != up) log(L"keyboard: Windows key %s", up ? L"held back while the welcome cover is up" : L"back to normal");
+}
 
 bool install(HWND notifyWindow) {
 	notify = notifyWindow;

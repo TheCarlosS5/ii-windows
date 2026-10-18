@@ -20,6 +20,10 @@ Singleton {
     property var results: []          // the last search: [{ name, id, version, source }]
     property bool searching: false
     property bool listing: false
+    // `winget list` has answered at least once: before that nobody knows what is installed, and the store shows a
+    // placeholder instead of an "Install" button on apps that are already there.
+    property bool listedOnce: false
+    property string lastQuery: ""
     property string searchError: ""
     property var progress: ({})       // lower-case id -> { op, state: queued|running|done|error, percent, message }
     property var queue: []            // [{ op, id, name }]
@@ -76,18 +80,36 @@ Singleton {
     // --- parsing winget's tables ---------------------------------------------------------------------------
     // "Name   Id   Version  Available  Source" then a line of dashes, then one row per package. The columns
     // are fixed-width, so each cell is cut at the position where its header starts.
-    function parseTable(text) {
-        const lines = text.replace(/\r/g, "").split("\n");
-        const h = lines.findIndex(l => /^Name\s+Id\s+Version/.test(l));
-        if (h < 0 || h + 2 > lines.length) return [];
-        const header = lines[h];
-        const names = ["Name", "Id", "Version", "Available", "Match", "Source"].filter(n => header.indexOf(n) >= 0);
-        const starts = names.map(n => header.indexOf(n));
+    // The header is the line just above the line of dashes, in whatever language winget speaks: in English the
+    // columns are known by name; otherwise by their order (name, id, version, then available / source).
+    function parseTable(text, kind) {
+        // A lone \r is the spinner winget redraws before the table: it starts a line of its own.
+        const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        const dashes = lines.findIndex(l => /^-{10,}\s*$/.test(l));
+        if (dashes < 1) return [];
+        let h = dashes - 1;
+        while (h > 0 && lines[h].trim() === "") h--;
+        const header = lines[h].replace(/^[\s\-\\|/]+(?=\S)/, m => " ".repeat(m.length)); // spinner left on the line
+        const starts = [];
+        for (let i = 0; i < header.length; i++)
+            if (header[i] !== " " && (i === 0 || header[i - 1] === " ")) starts.push(i);
+        let names;
+        if (/^\s*Name\s+Id\s+Version/.test(header)) {
+            names = ["Name", "Id", "Version", "Available", "Match", "Source"].filter(n => header.indexOf(n) >= 0);
+            starts.length = 0;
+            for (const n of names) starts.push(header.indexOf(n));
+        } else {
+            names = ["Name", "Id", "Version"];
+            const rest = starts.length - 3;
+            if (kind === "upgrade" || kind === "list") names = names.concat(rest >= 2 ? ["Available", "Source"] : rest === 1 ? ["Source"] : []);
+            else names = names.concat(rest >= 2 ? ["Match", "Source"] : rest === 1 ? ["Source"] : []);
+            starts.length = names.length;
+        }
         const rows = [];
-        for (let i = h + 2; i < lines.length; i++) {
+        for (let i = dashes + 1; i < lines.length; i++) {
             const line = lines[i];
             if (!line.trim()) continue;
-            if (/^(<additional|\d+ (package|upgrade|paquete)|The following|No installed|No applicable|No se encontr)/i.test(line)) break;
+            if (/^(<additional|\d+ (package|upgrade|paquete|actualizaci)|The following|No installed|No applicable|No se encontr|Los siguientes)/i.test(line)) break;
             const row = {};
             for (let c = 0; c < names.length; c++)
                 row[names[c].toLowerCase()] = line.substring(starts[c], c + 1 < names.length ? starts[c + 1] : undefined).trim();
@@ -130,22 +152,28 @@ Singleton {
         command: ["winget", "list", "--accept-source-agreements", "--disable-interactivity"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const rows = root.parseTable(text);
+                const rows = root.parseTable(text, "list");
                 const map = {};
                 for (const r of rows) map[r.id.toLowerCase()] = r;
                 root.installed = map;
                 root.installedList = rows;
+                root.listedOnce = true;
                 upgradeProc.running = true;
             }
         }
-        onExited: (code, status) => { if (code !== 0 && !upgradeProc.running) root.listing = false; }
+        onExited: (code, status) => {
+            if (code !== 0 && !upgradeProc.running) {
+                root.listing = false;
+                root.listedOnce = true;
+            }
+        }
     }
     Process {
         id: upgradeProc
         command: ["winget", "upgrade", "--accept-source-agreements", "--disable-interactivity"]
         stdout: StdioCollector {
             onStreamFinished: {
-                root.upgrades = root.parseTable(text).filter(r => r.available);
+                root.upgrades = root.parseTable(text, "upgrade").filter(r => r.available);
                 root.listing = false;
             }
         }
@@ -161,22 +189,41 @@ Singleton {
             searching = false;
             return;
         }
-        searchProc.command = ["winget", "search", q, "--source", "winget", "--count", "40", "--accept-source-agreements", "--disable-interactivity"];
+        if (q === lastQuery && (searching || results.length > 0)) return;
+        lastQuery = q;
         searching = true;
         searchError = "";
-        searchProc.running = false;
+        // One search at a time: a newer query waits for the running one to end (its answer is then dropped).
+        if (searchProc.running) {
+            searchProc.pending = true;
+            return;
+        }
+        searchProc.query = q;
+        searchProc.command = ["winget", "search", q, "--source", "winget", "--count", "40", "--accept-source-agreements", "--disable-interactivity"];
         searchProc.running = true;
     }
     Process {
         id: searchProc
+        property string query: ""
+        property bool pending: false
         stdout: StdioCollector {
             onStreamFinished: {
-                root.results = root.parseTable(text);
+                if (searchProc.query !== root.lastQuery) return; // typed on meanwhile
+                root.results = root.parseTable(text, "search");
                 root.searching = false;
                 if (root.results.length === 0) root.searchError = text.trim().split("\n").pop();
             }
         }
-        onExited: (code, status) => { if (code !== 0) root.searching = false; }
+        onExited: (code, status) => {
+            if (searchProc.pending) {
+                searchProc.pending = false;
+                const q = root.lastQuery;
+                root.lastQuery = "";
+                Qt.callLater(() => root.search(q));
+                return;
+            }
+            if (code !== 0 && searchProc.query === root.lastQuery) root.searching = false;
+        }
     }
 
     // --- install / update / uninstall, one at a time ----------------------------------------------------------------------

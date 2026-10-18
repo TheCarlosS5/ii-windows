@@ -119,7 +119,10 @@ int main() {
 		k.press(VK_LWIN);
 		check(postedName(k.press('I'), L"settingsOpen"), "Win+I -> ii settings");
 		k.release('I');
-		check(postedName(k.press('R'), L"searchToggle"), "Win+R -> ii search");
+		{
+			auto run = k.press('R');
+			check(!run.swallow && run.postCount == 0, "Win+R reaches Windows (its Run box)");
+		}
 		k.release('R');
 		check(postedName(k.press('T'), L"overviewWorkspacesToggle"), "Win+T -> window overview (no longer swallowed for nothing)");
 		k.release('T');

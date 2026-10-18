@@ -728,6 +728,9 @@ int switchwall(const Args& args) {
 	std::wstring paletteFrom;
 	std::wstring desktopStillImage;
 	bool desktopStillGiven = false, desktopStillRestoreGiven = false;
+	// --first-run <ii's own picture>: a new install. The wallpaper the user already has in Windows becomes ii's;
+	// ii's own picture only when Windows has none to give (a plain colour), and then Windows keeps its colour.
+	std::wstring firstRunDefault;
 	for (size_t i = 0; i < args.size(); ++i) {
 		const auto& a = args[i];
 		auto next = [&]() { return i + 1 < args.size() ? args[++i] : std::wstring(); };
@@ -739,6 +742,7 @@ int switchwall(const Args& args) {
 		else if (a == L"--image") image = next();
 		else if (a == L"--noswitch") noswitch = true;
 		else if (a == L"--adopt-windows") adoptWindows = true;
+		else if (a == L"--first-run") firstRunDefault = next();
 		else if (a == L"--force") forceAdopt = true;
 		else if (a == L"--restore-windows") restoreWindows = true;
 		else if (a == L"--color") {
@@ -760,7 +764,11 @@ int switchwall(const Args& args) {
 	auto syncWindows = !(background.HasKey(L"syncWindowsWallpaper") && background.GetNamedValue(L"syncWindowsWallpaper").ValueType() == json::JsonValueType::Boolean
 	                     && !background.GetNamedBoolean(L"syncWindowsWallpaper"));
 	auto adopted = false;
-	if (adoptWindows) {
+	if (!firstRunDefault.empty()) {
+		image = syncWindows ? adoptedWindowsWallpaper(L"", true) : std::wstring();
+		if (image.empty()) image = firstRunDefault;
+		adopted = true; // nothing is pushed to Windows either way
+	} else if (adoptWindows) {
 		if (!syncWindows) return 0;
 		image = adoptedWindowsWallpaper(getString(background, L"wallpaperPath"), forceAdopt);
 		if (image.empty()) return 0; // nothing new in Windows

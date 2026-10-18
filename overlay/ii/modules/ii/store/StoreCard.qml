@@ -5,32 +5,31 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-// ii-windows: one app of the store: icon, name, a line about it and what can be done with it right now.
+// ii-windows: one app of the store as a row of a list (search results, installed apps, updates): icon, name, a line
+// about it and what can be done with it right now.
 Rectangle {
     id: root
     property string appId: ""
     property string name: ""
     property string description: ""
     property string site: ""
-    property string version: ""
     property var aka: [] // other names it has once installed (the store lists "Zoom", the PC says "Zoom Workplace")
 
-    readonly property var opState: Winget.stateOf(appId)
-    // Installed by id, or by its name (an app installed by hand has another id in `winget list`).
-    readonly property var installedRow: Winget.installedRow(appId, name, aka)
-    readonly property bool isInstalled: installedRow !== null
-    readonly property var upgradeInfo: Winget.upgradeFor(appId)
-    readonly property bool running: opState && (opState.state === "queued" || opState.state === "running")
-    readonly property bool failed: opState && opState.state === "error"
-
-    implicitHeight: 92
+    implicitHeight: 84
     radius: Appearance.rounding.large
-    color: Appearance.colors.colLayer1
+    color: hover.hovered ? Appearance.colors.colLayer2 : Appearance.colors.colLayer1
+    Behavior on color {
+        ColorAnimation { duration: 160 }
+    }
+    HoverHandler {
+        id: hover
+    }
 
     RowLayout {
         anchors {
             fill: parent
-            margins: 14
+            leftMargin: 14
+            rightMargin: 10
         }
         spacing: 14
 
@@ -38,7 +37,7 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             site: root.site
             label: root.name
-            size: 56
+            size: 52
         }
 
         ColumnLayout {
@@ -49,7 +48,7 @@ Rectangle {
                 Layout.fillWidth: true
                 text: root.name
                 elide: Text.ElideRight
-                font.pixelSize: Appearance.font.pixelSize.larger
+                font.pixelSize: Appearance.font.pixelSize.large
                 font.weight: Font.Medium
                 color: Appearance.colors.colOnLayer1
             }
@@ -62,83 +61,13 @@ Rectangle {
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 color: Appearance.colors.colSubtext
             }
-            StyledProgressBar {
-                Layout.fillWidth: true
-                visible: root.opState && root.opState.state === "running" && root.opState.percent >= 0
-                Layout.topMargin: 2
-                valueBarHeight: 4
-                value: root.opState ? Math.max(0, root.opState.percent) / 100 : 0
-            }
-            StyledIndeterminateProgressBar {
-                Layout.fillWidth: true
-                visible: root.opState && root.opState.state === "running" && root.opState.percent < 0
-                Layout.topMargin: 2
-            }
         }
 
-        // What can be done.
-        RippleButton {
-            id: action
+        StoreAction {
             Layout.alignment: Qt.AlignVCenter
-            implicitHeight: 38
-            implicitWidth: label.implicitWidth + 32
-            buttonRadius: Appearance.rounding.full
-            readonly property bool primary: !root.isInstalled || root.upgradeInfo !== null || root.failed
-            colBackground: root.failed ? Appearance.m3colors.m3errorContainer : primary ? Appearance.colors.colPrimary : Appearance.colors.colSecondaryContainer
-            colBackgroundHover: root.failed ? Appearance.m3colors.m3errorContainer : primary ? Appearance.colors.colPrimaryHover : Appearance.colors.colSecondaryContainerHover
-            onClicked: {
-                if (root.running) return;
-                if (root.failed) { const op = root.opState.op; Winget.dismiss(root.appId); Winget.enqueue(op, root.appId, root.name); }
-                else if (root.upgradeInfo) Winget.upgrade(root.appId, root.name);
-                else if (!root.isInstalled) Winget.install(root.appId, root.name);
-                else root.openApp();
-            }
-            contentItem: StyledText {
-                id: label
-                anchors.centerIn: parent
-                font.weight: Font.Medium
-                color: root.failed ? Appearance.m3colors.m3onErrorContainer : action.primary ? Appearance.colors.colOnPrimary : Appearance.colors.colOnSecondaryContainer
-                text: {
-                    if (root.running) {
-                        const op = root.opState.op;
-                        const w = op === "install" ? Translation.tr("Installing") : op === "upgrade" ? Translation.tr("Updating") : Translation.tr("Uninstalling");
-                        return root.opState.state === "queued" ? Translation.tr("Queued") : (root.opState.percent >= 0 ? `${w} ${root.opState.percent}%` : w + "…");
-                    }
-                    if (root.failed) return Translation.tr("Try again");
-                    if (root.upgradeInfo) return Translation.tr("Update");
-                    if (root.isInstalled) return Translation.tr("Open");
-                    return Translation.tr("Install");
-                }
-            }
+            appId: root.appId
+            name: root.name
+            aka: root.aka
         }
-        RippleButton {
-            // Winget can only remove what its list shows (not an app that is just in the Start menu).
-            // Hidden, it keeps its room: the main buttons of all the cards line up.
-            readonly property bool usable: root.isInstalled && !root.running && (root.installedRow?.id ?? "") !== ""
-            opacity: usable ? 1 : 0
-            enabled: usable
-            Layout.alignment: Qt.AlignVCenter
-            implicitWidth: 38
-            implicitHeight: 38
-            buttonRadius: Appearance.rounding.full
-            onClicked: Winget.uninstall(root.appId, root.name, root.installedRow.id)
-            contentItem: MaterialSymbol {
-                anchors.centerIn: parent
-                horizontalAlignment: Text.AlignHCenter
-                text: "delete"
-                iconSize: 20
-                color: Appearance.colors.colOnLayer1
-            }
-            StyledToolTip {
-                text: Translation.tr("Uninstall")
-            }
-        }
-    }
-
-    // "Open": the Start menu has the app under its name.
-    function openApp() {
-        const entry = AppSearch.list.find(a => a.name.toLowerCase() === root.name.toLowerCase())
-            ?? AppSearch.list.find(a => a.name.toLowerCase().includes(root.name.toLowerCase().split(" ")[0]));
-        if (entry) entry.execute();
     }
 }

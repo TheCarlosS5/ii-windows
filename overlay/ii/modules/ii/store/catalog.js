@@ -85,3 +85,26 @@ function byId(id) {
             if (categories[c].apps[a].id.toLowerCase() === lower) return categories[c].apps[a];
     return null;
 }
+
+// The front page carousel: a few apps with a line that sells them.
+var heroPicks = [
+    { id: "Microsoft.VisualStudioCode", tagline: "Code with superpowers: extensions for every language." },
+    { id: "Spotify.Spotify", tagline: "Your music and podcasts, and the lyrics on ii's desktop." },
+    { id: "Valve.Steam", tagline: "Thousands of games, sales every week." },
+    { id: "OBSProject.OBSStudio", tagline: "Record and stream your screen like a pro." },
+    { id: "Obsidian.Obsidian", tagline: "A second brain in plain Markdown files." },
+    { id: "Discord.Discord", tagline: "Where your friends and communities hang out." }
+];
+
+function heroes() {
+    var list = [];
+    for (var i = 0; i < heroPicks.length; i++) {
+        var app = byId(heroPicks[i].id);
+        if (!app) continue;
+        var copy = {};
+        for (var k in app) copy[k] = app[k];
+        copy.tagline = heroPicks[i].tagline;
+        list.push(copy);
+    }
+    return list;
+}

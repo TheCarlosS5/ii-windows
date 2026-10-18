@@ -44,7 +44,7 @@ Scope {
             visible: !GlobalStates.screenLocked && (Config.options?.dock.enable ?? true)
 
             readonly property bool vertical: root.edge !== "bottom"
-            property bool reveal: root.pinned || dockApps.requestDockShow || (!ToplevelManager.activeToplevel?.activated)
+            property bool reveal: root.pinned || dockApps.requestDockShow || GlobalStates.dockForceReveal || (!ToplevelManager.activeToplevel?.activated)
                 || (Config.options?.dock.hoverToReveal && dockApps.hovering)
 
             anchors {

@@ -12,6 +12,10 @@ Singleton {
     id: root
 
     readonly property bool enabled: Persistent.ready && (Persistent.states.media?.lyrics ?? false)
+    // The desktop music widget shows them too when its own option is on (background.widgets.media.lyrics).
+    readonly property bool desktopWanted: Config.ready && (Config.options.background.widgets.media.lyrics ?? false)
+        && (Config.options.background.widgets.media.enable ?? false)
+    readonly property bool active: enabled || desktopWanted
     function toggle() {
         Persistent.states.media.lyrics = !root.enabled;
     }
@@ -22,6 +26,17 @@ Singleton {
     property var cache: ({})
 
     // The line for a position in seconds ("" before the first one or without synced lyrics).
+    // The index of that line (-1 before the first one).
+    function indexAt(position) {
+        let index = -1;
+        for (let i = 0; i < root.lines.length; i++) {
+            if (root.lines[i].t > position + 0.3)
+                break;
+            index = i;
+        }
+        return index;
+    }
+
     function lineAt(position) {
         let text = "";
         for (const line of root.lines) {
@@ -53,7 +68,7 @@ Singleton {
 
     // Asks for the lyrics of a track (does nothing when off, or for the track already shown).
     function request(artist, title, lengthSeconds) {
-        if (!root.enabled || !title)
+        if (!root.active || !title)
             return;
         const key = `${artist}\n${title}`;
         if (key === root.trackKey)

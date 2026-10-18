@@ -85,3 +85,8 @@ target_compile_options(ii-vdesk-test PRIVATE /EHsc)
 add_executable(ii-config-test src/config_test.cpp src/configtool.cpp src/jsonlite.cpp)
 target_compile_options(ii-config-test PRIVATE /EHsc)
 target_link_libraries(ii-config-test PRIVATE user32)
+
+# Development only: the welcome cover on its own (tools\dev\splash-preview.ps1). Not packaged.
+add_executable(ii-splash-preview WIN32 src/splash_preview.cpp src/splash.cpp src/common.cpp)
+target_compile_definitions(ii-splash-preview PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(ii-splash-preview PRIVATE user32 shell32 ole32 advapi32 gdi32 windowscodecs gdiplus)

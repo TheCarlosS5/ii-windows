@@ -160,6 +160,9 @@ const wchar_t* shortcutName(LPARAM index);
 // held-key state after a lock or session switch. Cheap enough for a window event; also run once a second.
 void refreshContext();
 void resetState();
+// While ii's welcome cover is up the Windows key goes nowhere: Start (or StartAllBack's menu) would
+// open above the cover of a desktop that is still loading. Ctrl+Esc too.
+void setCoverUp(bool up);
 } // namespace keyboard
 
 namespace volume {

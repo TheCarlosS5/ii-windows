@@ -79,6 +79,13 @@ MouseArea {
                 onClicked: root.widget.resizeBy(0.1)
             }
             EditButton {
+                // The music widget: its synced lyrics on or off.
+                visible: root.widget.configEntryName === "media"
+                symbol: "lyrics"
+                tip: (root.widget.configEntry.lyrics ?? false) ? Translation.tr("Hide the lyrics") : Translation.tr("Show the lyrics")
+                onClicked: root.widget.configEntry.lyrics = !(root.widget.configEntry.lyrics ?? false)
+            }
+            EditButton {
                 symbol: "visibility_off"
                 tip: Translation.tr("Hide")
                 onClicked: root.widget.configEntry.enable = false

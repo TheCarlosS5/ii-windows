@@ -6,8 +6,6 @@ Estados: **available** = ii does it.; **partial** = ii does part of it, or somet
 
 Los atajos de ii se resuelven dentro de ii también con una aplicación maximizada. Ceden el paso (y Windows recupera la tecla) solo cuando una aplicación está en pantalla completa exclusiva o a modo de juego; la regla se puede cambiar en `%LOCALAPPDATA%\ii-windows\shortcuts.ini` (ver `docs/DECISIONS.md`). Ctrl+Alt+Mayús+R (pánico) es una tecla de sistema de `ii-host` y funciona incluso con los atajos cedidos.
 
-Las **teclas de volumen** (subir, bajar, silenciar) también las toma ii-host mientras ii está activo: cambia él mismo el volumen (pasos de 2 %) y solo sale el indicador de ii, no el de Windows. Con un juego en pantalla completa, o sin ii, las recupera Windows. Para que las maneje siempre Windows: en `shortcuts.ini` añade `[audio]` y `volumekeys = windows`.
-
 | Atajo | Acción | Estado | Destino | Nota |
 | --- | --- | --- | --- | --- |
 | Win+SUPER_L | Search apps, files and math (tap the key) | available | `searchToggleRelease` |  |
@@ -40,7 +38,7 @@ Las **teclas de volumen** (subir, bajar, silenciar) también las toma ii-host mi
 | Ctrl+Alt+Win+T | Random wallpaper | available | `wallpaperSelectorRandom` |  |
 | Ctrl+Shift+Win+D | Toggle light/dark | available | `toggleLightDark` |  |
 | Win+I | ii settings | available | `settingsOpen` |  |
-| Win+R | Run: programs and links (opens ii's search) | partial | `searchToggle` | Typed shell commands are not run (C05 gives commands an explicit interpreter); programs, links and apps open. |
+| Win+R (lo atiende Windows) | Run (Windows): programs, commands, folders and links | external | `windows` | Windows' own Run box opens: it runs everything Windows can (cmd, regedit, %appdata%, paths); ii's search is the Win key. |
 | Win+X | Session menu (power, sign out, lock) | partial | `sessionToggle` | Win+X opens ii's session menu; the system tools menu of Windows (Task Manager, Device Manager...) has no ii counterpart yet. |
 | Shift+Win+S | Region screenshot | available | `regionScreenshot` |  |
 | Print | Region screenshot (Print Screen) | available | `regionScreenshot` |  |

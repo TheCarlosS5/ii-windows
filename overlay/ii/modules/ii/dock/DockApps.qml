@@ -292,8 +292,20 @@ Item {
             implicitHeight: labelText.implicitHeight + 10
             width: implicitWidth
             height: implicitHeight
-            readonly property real iconTop: i >= 0 ? root.iconSize * root.layout.scales[i] : 0
-            readonly property real centerMain: i >= 0 ? root.layout.pos[i] + root.layout.sizes[i] / 2 : 0
+            // Where the icon under the pointer is. Kept when the pointer leaves: the bubble fades out
+            // where it was (with no icon it used to jump to the screen's left edge while fading).
+            property real iconTop: 0
+            property real centerMain: 0
+            Binding on iconTop {
+                when: labelBubble.i >= 0
+                value: root.iconSize * root.layout.scales[labelBubble.i]
+                restoreMode: Binding.RestoreNone
+            }
+            Binding on centerMain {
+                when: labelBubble.i >= 0
+                value: root.layout.pos[labelBubble.i] + root.layout.sizes[labelBubble.i] / 2
+                restoreMode: Binding.RestoreNone
+            }
             x: root.edge === "bottom" ? centerMain - width / 2
                 : root.edge === "left" ? root.edgeGap + root.dotZone + iconTop + 12
                 : root.width - root.edgeGap - root.dotZone - iconTop - 12 - width
