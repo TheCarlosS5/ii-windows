@@ -691,7 +691,21 @@ std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool
 	auto slash = windows.find_last_of(L"\\/");
 	auto ext = (dot != std::wstring::npos && (slash == std::wstring::npos || dot > slash)) ? windows.substr(dot) : std::wstring(L".jpg");
 	auto target = folder + L"\\windows-wallpaper" + ext;
-	if (!CopyFileW(windows.c_str(), target.c_str(), FALSE)) return {};
+	if (!CopyFileW(windows.c_str(), target.c_str(), FALSE)) {
+		// The start-up adoption and a new install's first run come at the same moment and write this very copy:
+		// wait for the other one instead of giving up (a new install then fell back to ii's own picture).
+		auto sizeOf = [](const std::wstring& path) -> uint64_t {
+			WIN32_FILE_ATTRIBUTE_DATA data {};
+			if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) return 0;
+			return (static_cast<uint64_t>(data.nFileSizeHigh) << 32) | data.nFileSizeLow;
+		};
+		auto copied = false;
+		for (int i = 0; i < 15 && !copied; ++i) {
+			Sleep(200);
+			copied = CopyFileW(windows.c_str(), target.c_str(), FALSE) || (sizeOf(target) != 0 && sizeOf(target) == sizeOf(windows));
+		}
+		if (!copied) return {};
+	}
 	writeSyncState(windows, original.empty() ? windows : original, syncStateValue("originalStyle"));
 	return target;
 }
