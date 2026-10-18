@@ -728,6 +728,18 @@ bool restoreWindowsWallpaper() {
 int switchwall(const Args& args) {
 	winrt::init_apartment(winrt::apartment_type::single_threaded); // dialogs need an STA
 
+	// One switchwall at a time: several start together (the start-up adoption, a new install's first run, the
+	// light/dark switch...) and each reads config.json, copies files and writes it back. Run side by side, one
+	// lost its copy or its write and a new install was left on ii's own picture.
+	struct Turn {
+		HANDLE mutex = CreateMutexW(nullptr, FALSE, L"Local\\ii-windows-switchwall");
+		bool owned = mutex && WaitForSingleObject(mutex, 20000) != WAIT_TIMEOUT;
+		~Turn() {
+			if (owned) ReleaseMutex(mutex);
+			if (mutex) CloseHandle(mutex);
+		}
+	} turn;
+
 	std::wstring mode;
 	std::wstring type;
 	std::wstring image;
