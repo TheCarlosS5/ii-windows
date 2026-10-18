@@ -73,6 +73,29 @@ std::wstring localAppData() {
 	return result;
 }
 
+// A line in %LOCALAPPDATA%\ii-windows\switchwall.log: why the wallpaper was (or was not) taken from Windows.
+void note(const wchar_t* fmt, ...) {
+	wchar_t text[1024];
+	va_list args;
+	va_start(args, fmt);
+	_vsnwprintf_s(text, _countof(text), _TRUNCATE, fmt, args);
+	va_end(args);
+	SYSTEMTIME t {};
+	GetLocalTime(&t);
+	wchar_t line[1200];
+	swprintf_s(line, L"%04u-%02u-%02u %02u:%02u:%02u.%03u [%lu] %s\r\n", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, t.wMilliseconds,
+	           GetCurrentProcessId(), text);
+	auto path = localAppData() + L"\\ii-windows\\switchwall.log";
+	auto* file = CreateFileW(path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, 0, nullptr);
+	if (file == INVALID_HANDLE_VALUE) return;
+	auto size = WideCharToMultiByte(CP_UTF8, 0, line, -1, nullptr, 0, nullptr, nullptr);
+	std::string utf8(static_cast<size_t>(size > 0 ? size - 1 : 0), '\0');
+	WideCharToMultiByte(CP_UTF8, 0, line, -1, utf8.data(), size, nullptr, nullptr);
+	DWORD written = 0;
+	WriteFile(file, utf8.data(), static_cast<DWORD>(utf8.size()), &written, nullptr);
+	CloseHandle(file);
+}
+
 std::wstring configPath() { return localAppData() + L"\\quickshell\\illogical-impulse\\config.json"; }
 std::wstring colorsPath() { return localAppData() + L"\\quickshell\\State\\user\\generated\\colors.json"; }
 // The palette's source color, like switchwall.sh's cache; ii-host themes Windows' accent from it.
@@ -648,7 +671,10 @@ int desktopStillRestore() {
 std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool force) {
 	auto windows = windowsWallpaper();
 	// The still of a live wallpaper (above) is ours, not a picture the user chose in Windows.
-	if (normalizedPath(windows) == normalizedPath(stillPath())) return {};
+	if (normalizedPath(windows) == normalizedPath(stillPath())) {
+		note(L"adopt: Windows shows ii's live-wallpaper still, nothing to take");
+		return {};
+	}
 	auto windowsUsable = !windows.empty() && GetFileAttributesW(windows.c_str()) != INVALID_FILE_ATTRIBUTES;
 	auto known = syncStateValue("applied");
 	if (known.empty() && !force) {
@@ -666,7 +692,10 @@ std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool
 			return {};
 		}
 	}
-	if (!windowsUsable) return {};
+	if (!windowsUsable) {
+		note(L"adopt: Windows' wallpaper is not a usable file (\"%s\")", windows.c_str());
+		return {};
+	}
 	auto sameAsIi = normalizedPath(windows) == normalizedPath(currentConfigPath);
 	if (!force && !known.empty() && normalizedPath(known) == normalizedPath(windows)) return {}; // nothing changed in Windows
 	auto original = syncStateValue("original");
@@ -704,8 +733,12 @@ std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool
 			Sleep(200);
 			copied = CopyFileW(windows.c_str(), target.c_str(), FALSE) || (sizeOf(target) != 0 && sizeOf(target) == sizeOf(windows));
 		}
-		if (!copied) return {};
+		if (!copied) {
+			note(L"adopt: could not copy %s to %s (%lu)", windows.c_str(), target.c_str(), GetLastError());
+			return {};
+		}
 	}
+	note(L"adopt: took Windows' wallpaper %s as %s", windows.c_str(), target.c_str());
 	writeSyncState(windows, original.empty() ? windows : original, syncStateValue("originalStyle"));
 	return target;
 }
@@ -792,6 +825,7 @@ int switchwall(const Args& args) {
 	auto adopted = false;
 	if (!firstRunDefault.empty()) {
 		image = syncWindows ? adoptedWindowsWallpaper(L"", true) : std::wstring();
+		note(L"first run: %s", image.empty() ? (syncWindows ? L"nothing to take from Windows, ii's own picture" : L"sync with Windows is off, ii's own picture") : image.c_str());
 		if (image.empty()) image = firstRunDefault;
 		adopted = true; // nothing is pushed to Windows either way
 	} else if (adoptWindows) {
