@@ -7,11 +7,12 @@ import Quickshell.Widgets
 import Quickshell.Wayland
 
 // ii-windows (plan 2.2): minimizing a window sends a card with its app's icon from where the window was down into the
-// dock (towards the side the dock is on); restoring flies a live thumbnail of the window back out of the dock. Windows'
-// own animation is off meanwhile (ii-host, minanim.cpp, in memory only). ii cannot animate other programs' windows
-// without injecting into them, which is ruled out: the real window is minimized or restored at once and what moves is
-// ii's own. (The minimize uses a card, not the window's picture: DWM shows nothing for a window that is already
-// minimized, and asking it stalled the shell.)
+// dock (towards the side the dock is on). Windows' own animation is off meanwhile (ii-host, minanim.cpp, in memory
+// only). ii cannot animate other programs' windows without injecting into them, which is ruled out: the real window is
+// minimized at once and what moves is ii's own. (A card, not the window's picture: DWM shows nothing for a window that
+// is already minimized, and asking it stalled the shell.)
+// Restoring has no animation of ii's: the real window is back in full at once, and anything flying out of the dock
+// on top of it showed the window twice (review). Windows' restore animation is the same setting, so it is off too.
 // Settings > Interface > Window animations: on/off, duration, curve. Nothing in the lightweight mode (reduceMotion).
 Scope {
     id: root
@@ -21,7 +22,7 @@ Scope {
     readonly property bool expressive: (Config.options.windowAnimations?.curve ?? "expressive") !== "linear"
 
     // One flight at a time per screen is plenty; a new one replaces the old.
-    signal fly(var toplevel, rect from, bool minimizing)
+    signal fly(var toplevel, rect from)
 
     // Where each window was before it was minimized (the tracker reports the minimized state before the
     // off-screen geometry, so the last on-screen rectangle is known when the minimize arrives).
@@ -43,10 +44,8 @@ Scope {
                     tracked.remember();
                 }
                 function onMinimizedChanged() {
-                    if (!root.enabled || tracked.last.width <= 0)
-                        return;
-                    // Restored: the window is back at its own place (geometry follows in the same refresh).
-                    root.fly(tracked.modelData, tracked.last, tracked.modelData.minimized);
+                    if (root.enabled && tracked.modelData.minimized && tracked.last.width > 0)
+                        root.fly(tracked.modelData, tracked.last);
                 }
             }
         }
@@ -104,25 +103,22 @@ Scope {
 
             Connections {
                 target: root
-                function onFly(toplevel, from, minimizing) {
+                function onFly(toplevel, from) {
                     const local = overlay.toLocal(from);
                     const cx = local.x + local.width / 2, cy = local.y + local.height / 2;
                     // Only the screen the window was on.
                     if (cx < 0 || cy < 0 || cx > overlay.screenW || cy > overlay.screenH)
                         return;
                     flight.finish();
-                    // Minimizing: the card. Restoring: the window itself (it is on screen again).
-                    flight.item = minimizing ? card : thumb;
                     card.icon = Quickshell.iconPath(AppSearch.iconForWindow(toplevel.appId ?? "", toplevel.executable ?? ""), "application-x-executable");
-                    thumb.captureSource = minimizing ? null : toplevel;
-                    flight.item.baseWidth = local.width;
-                    flight.item.baseHeight = local.height;
+                    card.baseWidth = local.width;
+                    card.baseHeight = local.height;
                     const target = overlay.dockPoint();
                     const end = Math.min(1, 48 / Math.max(1, local.width));
                     const startX = local.x, startY = local.y;
                     const endX = target.x - local.width * end / 2, endY = target.y - local.height * end / 2;
-                    flight.from = minimizing ? [startX, startY, 1, 1] : [endX, endY, end, 0.4];
-                    flight.to = minimizing ? [endX, endY, end, 0.25] : [startX, startY, 1, 1];
+                    flight.from = [startX, startY, 1, 1];
+                    flight.to = [endX, endY, end, 0.25];
                     flight.begin();
                 }
             }
@@ -134,7 +130,7 @@ Scope {
                 property real baseHeight: 0
                 property real s: 1
                 property string icon: ""
-                visible: flight.flying && flight.item === card
+                visible: flight.flying
                 width: baseWidth * s
                 height: baseHeight * s
                 radius: Math.min(Appearance.rounding.windowRounding, width / 4)
@@ -148,24 +144,13 @@ Scope {
                 }
             }
 
-            ScreencopyView {
-                id: thumb
-                property real baseWidth: 0
-                property real baseHeight: 0
-                property real s: 1
-                live: true
-                width: baseWidth * s // the same scale both ways: DWM only shows an undistorted thumbnail
-                height: baseHeight * s
-            }
-
-            // Driven by a timer, not a Qt Quick animation: this window has nothing of its own to draw (DWM draws the
-            // thumbnail), and an animation tied to its frames did not advance at all - the flight jumped from start to
-            // end. ScreencopyView moves the thumbnail as soon as its geometry changes.
+            // Driven by a timer, not a Qt Quick animation: an animation tied to this window's frames did not advance at
+            // all - the flight jumped from start to end.
             Timer {
                 id: flight
                 property var from: [0, 0, 1, 1] // x, y, scale, opacity
                 property var to: [0, 0, 1, 1]
-                property Item item: thumb
+                readonly property Item item: card
                 property real started: 0
                 property bool flying: false
                 readonly property var curve: root.expressive ? Appearance.animationCurves.expressiveDefaultSpatial : [0, 0, 1, 1]
@@ -180,7 +165,6 @@ Scope {
                 function finish() {
                     flight.stop();
                     flight.flying = false;
-                    thumb.captureSource = null;
                 }
                 // y of the cubic Bezier (0,0) (x1,y1) (x2,y2) (1,1) at x = p (Newton's method on x).
                 function ease(p) {

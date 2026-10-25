@@ -225,8 +225,8 @@ add_translations('es_MX', {"Beside the dock": "Junto al dock"})
 
 
 # --- 2.2 Minimize into the dock ---------------------------------------------------------------------------------------
-# overlay modules/ii/minimizeAnimation/MinimizeAnimation.qml flies a live thumbnail of a minimized window into the dock
-# (and back on restore); ii-host turns Windows' own minimize animation off in memory meanwhile (minanim.cpp).
+# overlay modules/ii/minimizeAnimation/MinimizeAnimation.qml flies a card of a minimized window into the dock (nothing
+# on restore: the real window is back at once); ii-host turns Windows' own animation off in memory meanwhile (minanim.cpp).
 edit(path('modules', 'common', 'Config.qml'), [
     ('''            property JsonObject dock: JsonObject {
 ''', '''            property JsonObject windowAnimations: JsonObject { // ii-windows
