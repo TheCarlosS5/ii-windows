@@ -263,7 +263,7 @@ edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
 
         ConfigSwitch {
             buttonIcon: "minimize"
-            text: Translation.tr("Minimize into the dock (instead of Windows' animation)")
+            text: Translation.tr("Minimize into the dock (turns off Windows' own minimize, maximize and restore animations)")
             checked: Config.options.windowAnimations.minimizeToDock
             onCheckedChanged: Config.options.windowAnimations.minimizeToDock = checked
         }
@@ -295,7 +295,7 @@ edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
 ])
 add_translations('es_MX', {
     "Window animations": "Animaciones de ventanas",
-    "Minimize into the dock (instead of Windows' animation)": "Minimizar hacia el dock (en vez de la animación de Windows)",
+    "Minimize into the dock (turns off Windows' own minimize, maximize and restore animations)": "Minimizar hacia el dock (apaga las animaciones de Windows al minimizar, maximizar y restaurar)",
     "Duration (ms)": "Duración (ms)",
     "Springy": "Con rebote",
     "Linear": "Lineal",

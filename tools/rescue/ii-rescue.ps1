@@ -286,7 +286,9 @@ if (Test-Path $themeFile) {
 }
 Write-State 'themeApplied' 0
 
-# 6b. Windows' own minimize animation: ii only turned it off in memory, so the user's saved setting is applied again
+# 6b. Windows' own minimize animation: ii only turned it off in memory; what Windows had before ii (minAnimateOriginal)
+# is applied again, not the registry's value, which is ii's 0 if Performance > Apply was pressed while ii ran (then the
+# registry gets the original back too).
 if ((Read-State 'minAnimateOverridden' 0) -eq 1) {
     Add-Type -Namespace IiRescue -Name Anim -MemberDefinition @'
 [StructLayout(LayoutKind.Sequential)] public struct ANIMATIONINFO { public uint cbSize; public int iMinAnimate; }
@@ -295,10 +297,14 @@ if ((Read-State 'minAnimateOverridden' 0) -eq 1) {
     $saved = (Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name MinAnimate -ErrorAction SilentlyContinue).MinAnimate
     $info = New-Object IiRescue.Anim+ANIMATIONINFO
     $info.cbSize = 8
-    $info.iMinAnimate = if ($null -ne $saved) { [int]$saved } else { 1 }
-    [void][IiRescue.Anim]::SystemParametersInfoW(0x49, 8, [ref]$info, 0x2)   # SPI_SETANIMATION, SPIF_SENDCHANGE
+    $registry = if ($null -ne $saved) { [int]([int]$saved -ne 0) } else { -1 }
+    $original = Read-State 'minAnimateOriginal' -1
+    if ($original -lt 0) { $original = if ($registry -ge 0) { $registry } else { 1 } }
+    $info.iMinAnimate = $original
+    $flags = if ($registry -ge 0 -and $registry -ne $original) { 0x3 } else { 0x2 }   # SPIF_SENDCHANGE (+ SPIF_UPDATEINIFILE)
+    [void][IiRescue.Anim]::SystemParametersInfoW(0x49, 8, [ref]$info, $flags)   # SPI_SETANIMATION
     Write-State 'minAnimateOverridden' 0
-    Log "minimize animation back to the saved setting ($($info.iMinAnimate))"
+    Log "minimize animation back to $original, as before ii$(if ($flags -eq 3) { ' (the registry too)' })"
 }
 Write-State 'hostClean' 1
 
