@@ -56,6 +56,10 @@ Scope {
 
             // The panel only needs to be as tall (wide) as the magnified dock.
             exclusiveZone: root.pinned ? dockApps.reservedThickness : 0
+            // The bar beside the dock (DockBar.qml) already reserves this strip: the dock sits in it, level with the
+            // pills, instead of being pushed above them.
+            readonly property bool besideBar: (Config.options?.bar.besideDock ?? false) && GlobalStates.barOpen && root.edge === "bottom"
+            exclusionMode: besideBar ? ExclusionMode.Ignore : ExclusionMode.Normal
 
             implicitWidth: vertical ? dockApps.thickness : 0
             implicitHeight: vertical ? 0 : dockApps.thickness
@@ -91,7 +95,7 @@ Scope {
             Binding {
                 target: GlobalStates
                 property: "dockExclusiveBottom"
-                value: (root.pinned && root.edge === "bottom") ? dockApps.reservedThickness : 0
+                value: (root.pinned && root.edge === "bottom" && !dockRoot.besideBar) ? dockApps.reservedThickness : 0 // the pills take the corners
             }
             Binding {
                 target: GlobalStates

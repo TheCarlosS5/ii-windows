@@ -620,6 +620,9 @@
   "bar.autoHide.showWhenPressingSuper.enable": {
    "kind": "bool"
   },
+  "bar.besideDock": {
+   "kind": "bool"
+  },
   "bar.borderless": {
    "kind": "bool"
   },
@@ -633,9 +636,6 @@
     1,
     2
    ]
-  },
-  "bar.enable": {
-   "kind": "bool"
   },
   "bar.floatStyleShadow": {
    "kind": "bool"

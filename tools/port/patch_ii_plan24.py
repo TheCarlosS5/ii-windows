@@ -132,21 +132,45 @@ add_translations('es_MX', {
 })
 
 
-# --- 2.1 No bar at all ------------------------------------------------------------------------------------------------
-# Bar position gets a fifth choice, "None" (bar.enable = false): neither the bar nor the vertical bar is made, and
-# what kept clear of the bar (desktop icons, notices, menus, the tour...) uses Appearance.sizes.barReserve, the bar's
-# height while there is one and 0 without. (The bar's own widgets keep barHeight: the lock screen reuses them.)
-# "Bottom" was already there; the dock stacks above a bottom bar by the panels' zones (Quickshell for Windows).
+# --- 2.1 The bar beside the dock --------------------------------------------------------------------------------------
+# Bar position gets a fifth choice, "Beside the dock" (bar.besideDock): no bar along an edge; its things (tray, clock,
+# network, sound, battery, resources) sit in two pills in the bottom corners, level with the dock, a panel of their own
+# that never magnifies (overlay modules/ii/dockBar/DockBar.qml). The choice also sets bar.bottom, so the bar's popups
+# and tray menus, the notices and the desktop icons treat it as a bar at the bottom. There is no "no bar at all": ii
+# takes the tray from Windows (D13), and apps that live only there (Discord, Steam, the antivirus) need it somewhere.
+# What kept clear of the bar uses Appearance.sizes.barReserve: the bar's height, or the dock's strip in this mode.
+# (The bar's own widgets keep barHeight: the lock screen reuses them.)
 edit(path('modules', 'common', 'Config.qml'), [
     ('''                property bool bottom: false // Instead of top
-''', '''                property bool enable: true // ii-windows: false = no bar at all (Settings > Bar > Bar position > None)
+''', '''                property bool besideDock: false // ii-windows: the bar's things in pills beside the dock (Settings > Bar > Bar position)
                 property bool bottom: false // Instead of top
 '''),
 ])
 edit(path('modules', 'common', 'Appearance.qml'), [
-    ('''        property real barCenterSideModuleWidth:''', '''        // ii-windows: the room kept clear of the bar by other panels; 0 when there is no bar.
-        property real barReserve: (Config.options.bar.enable ?? true) ? barHeight : 0
+    ('''        property real barCenterSideModuleWidth:''', '''        // ii-windows: the pills beside the dock are as tall as the dock and stand as far from the edge (DockApps.qml).
+        property real dockBarPillHeight: Math.max(24, Config.options.dock.iconSize) + 18
+        property real dockBarThickness: hyprlandGapsOut + 1 + dockBarPillHeight
+        // ii-windows: the room kept clear of the bar by other panels.
+        property real barReserve: (Config.options.bar.besideDock ?? false) ? dockBarThickness : barHeight
         property real barCenterSideModuleWidth:'''),
+])
+# Beside the dock, the dock's strip is the bar's: the desktop icons and menu count it once, not twice.
+edit(path('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopIcons.qml'), [
+    ('''    readonly property real gridBottom: height - bottomInset - 12 - (Config.options.dock.enable ? GlobalStates.dockInsetBottom : 0)''',
+     '''    readonly property real gridBottom: height - 12 - ((Config.options.bar.besideDock ?? false) ? Math.max(bottomInset, Config.options.dock.enable ? GlobalStates.dockInsetBottom : 0)
+        : bottomInset + (Config.options.dock.enable ? GlobalStates.dockInsetBottom : 0))'''),
+])
+edit(path('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopMenu.qml'), [
+    ('''        - (Config.options.dock.enable ? GlobalStates.dockInsetBottom + 16 : 0)''',
+     '''        - (Config.options.dock.enable && !(Config.options.bar.besideDock ?? false) ? GlobalStates.dockInsetBottom + 16 : 0)'''),
+])
+# The bar's popups (clock, battery, resources) stop above the pills, not above a bar's height.
+edit(path('modules', 'ii', 'bar', 'StyledPopup.qml'), [
+    ('''            right: Appearance.sizes.verticalBarWidth
+            bottom: Appearance.sizes.barHeight
+''', '''            right: Appearance.sizes.verticalBarWidth
+            bottom: Appearance.sizes.barReserve // ii-windows: the pills beside the dock too
+'''),
 ])
 for parts in [('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopIcons.qml'),
               ('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopMenu.qml'),
@@ -158,10 +182,15 @@ for parts in [('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopIcon
               ('modules', 'ii', 'wallpaperSelector', 'WallpaperSelector.qml')]:
     edit(path(*parts), [('Appearance.sizes.barHeight', 'Appearance.sizes.barReserve', 0)])
 edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
+    ('''import qs.modules.ii.dock
+''', '''import qs.modules.ii.dock
+import qs.modules.ii.dockBar
+'''),
     ('''    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }''',
-     '''    PanelLoader { extraCondition: (Config.options.bar.enable ?? true) && !Config.options.bar.vertical; component: Bar {} }'''),
+     '''    PanelLoader { extraCondition: !(Config.options.bar.besideDock ?? false) && !Config.options.bar.vertical; component: Bar {} }
+    PanelLoader { extraCondition: Config.options.bar.besideDock ?? false; component: DockBar {} } // ii-windows: plan 2.1'''),
     ('''    PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }''',
-     '''    PanelLoader { extraCondition: (Config.options.bar.enable ?? true) && Config.options.bar.vertical; component: VerticalBar {} }'''),
+     '''    PanelLoader { extraCondition: !(Config.options.bar.besideDock ?? false) && Config.options.bar.vertical; component: VerticalBar {} }'''),
 ])
 for page in ('BarConfig.qml', 'QuickConfig.qml'):
     edit(path('modules', 'settings', page), [
@@ -169,13 +198,11 @@ for page in ('BarConfig.qml', 'QuickConfig.qml'):
                     onSelected: newValue => {
                         Config.options.bar.bottom = (newValue & 1) !== 0;
                         Config.options.bar.vertical = (newValue & 2) !== 0;
-                    }''', '''                    currentValue: !(Config.options.bar.enable ?? true) ? 4 : (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0)
+                    }''', '''                    currentValue: (Config.options.bar.besideDock ?? false) ? 4 : (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0)
                     onSelected: newValue => {
-                        Config.options.bar.enable = newValue !== 4; // ii-windows: "None"
-                        if (newValue === 4)
-                            return;
-                        Config.options.bar.bottom = (newValue & 1) !== 0;
-                        Config.options.bar.vertical = (newValue & 2) !== 0;
+                        Config.options.bar.besideDock = newValue === 4; // ii-windows: a bar at the bottom, beside the dock
+                        Config.options.bar.bottom = newValue === 4 || (newValue & 1) !== 0;
+                        Config.options.bar.vertical = newValue !== 4 && (newValue & 2) !== 0;
                     }'''),
         ('''                        {
                             displayName: Translation.tr("Right"),
@@ -188,13 +215,13 @@ for page in ('BarConfig.qml', 'QuickConfig.qml'):
                             value: 3 // bottom: true, vertical: true
                         },
                         {
-                            displayName: Translation.tr("None"),
-                            icon: "visibility_off",
-                            value: 4 // ii-windows: bar.enable: false
+                            displayName: Translation.tr("Beside the dock"),
+                            icon: "dock_to_bottom",
+                            value: 4 // ii-windows: bar.besideDock
                         }
                     ]'''),
     ])
-add_translations('es_MX', {"None": "Ninguna"})
+add_translations('es_MX', {"Beside the dock": "Junto al dock"})
 
 
 # --- 2.2 Minimize into the dock ---------------------------------------------------------------------------------------
