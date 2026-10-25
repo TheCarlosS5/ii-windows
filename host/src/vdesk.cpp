@@ -281,7 +281,11 @@ int occupantsOf(const std::wstring& target, std::vector<std::pair<std::wstring, 
 		auto& s = *reinterpret_cast<State*>(l); // NOLINT
 		if (!isAppWindow(h)) return TRUE;
 		GUID id {};
-		if (FAILED(s.manager->GetWindowDesktopId(h, &id)) || IsEqualGUID(id, GUID_NULL)) {
+		auto hr = s.manager->GetWindowDesktopId(h, &id);
+		// Not a window virtual desktops manage at all (Windows' own surfaces such as the "Windows Input Experience"
+		// of TextInputHost): no desktop can hold it, so it is not an app window left out.
+		if (hr == TYPE_E_ELEMENTNOTFOUND) return TRUE;
+		if (FAILED(hr) || IsEqualGUID(id, GUID_NULL)) {
 			++s.unknown;
 			return TRUE;
 		}
