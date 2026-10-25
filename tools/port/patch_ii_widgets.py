@@ -95,6 +95,7 @@ edit(path('modules', 'common', 'Config.qml'), [
                 property string theme: "freedesktop"
                 property bool ui: true // ii-windows: panels, desktops, edit mode
                 property real uiVolume: 0.4
+                property bool uiVolumeMigrated: false // ii-windows: the old default (0.6) lowered once, see UiSounds.qml
                 property bool uiNotifications: false // Windows apps' notifications already ring'''),
 ])
 edit(path('modules', 'settings', 'GeneralConfig.qml'), [

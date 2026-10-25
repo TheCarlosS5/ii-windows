@@ -29,6 +29,23 @@ Singleton {
         UiSound.play(Quickshell.shellPath(`assets/sounds/ui/${name}.wav`), root.volume);
     }
 
+    // The default volume went from 0.6 to 0.4 (softer sounds): ii writes every option to config.json, so an install
+    // from before has 0.6 saved and would never hear the change. Lowered once; a volume the user chose later stays.
+    function migrateVolume() {
+        if (!Config.ready || (Config.options.sounds.uiVolumeMigrated ?? true))
+            return;
+        if (Math.abs((Config.options.sounds.uiVolume ?? 0.4) - 0.6) < 0.001)
+            Config.options.sounds.uiVolume = 0.4;
+        Config.options.sounds.uiVolumeMigrated = true;
+    }
+    Component.onCompleted: migrateVolume()
+    Connections {
+        target: Config
+        function onReadyChanged() {
+            root.migrateVolume();
+        }
+    }
+
     // No sounds for the panels' and desktops' initial state.
     Timer {
         running: true

@@ -455,6 +455,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"sounds.ui", K_BOOL, false, 0, 0, {}},
 	{"sounds.uiNotifications", K_BOOL, false, 0, 0, {}},
 	{"sounds.uiVolume", K_REAL, false, 0, 0, {}},
+	{"sounds.uiVolumeMigrated", K_BOOL, false, 0, 0, {}},
 	{"time.dateFormat", K_STRING, false, 0, 0, {}},
 	{"time.dateWithYearFormat", K_STRING, false, 0, 0, {}},
 	{"time.format", K_STRING, false, 0, 0, {}},

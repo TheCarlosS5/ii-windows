@@ -1268,6 +1268,9 @@
   "sounds.uiVolume": {
    "kind": "real"
   },
+  "sounds.uiVolumeMigrated": {
+   "kind": "bool"
+  },
   "time.dateFormat": {
    "kind": "string"
   },
