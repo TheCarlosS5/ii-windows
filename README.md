@@ -69,6 +69,41 @@ ii está pensado para que también vaya bien en portátiles viejos o baratos:
 - **Qué está gastando tu PC**: pasa el ratón por el indicador de CPU/RAM de la barra y verás los
   programas que más usan (sumando todos sus procesos); un clic abre el Administrador de tareas.
 
+- **Cuánta memoria usa de verdad**: unos 200 MB en el día a día. El primer arranque tras instalar o
+  actualizar puede llegar a ~1 GB un momento mientras prepara la interfaz; luego baja. En el
+  Administrador de tareas mira *Detalles* → `quickshell.exe` (columna *Espacio de trabajo privado*):
+  la cifra de "Memoria" de la pestaña Procesos suma también la memoria compartida con Windows y
+  exagera.
+
+## Juegos, gráficas NVIDIA y Wallpaper Engine
+
+- **Si la interfaz se congela** (por ejemplo, un juego pesado hace que el driver de la gráfica se
+  reinicie): en unos 5 segundos vuelve la barra de tareas de Windows y ii se reinicia sola. Si con
+  el mismo juego se congela 3 veces en pocos minutos, ii se pausa (te queda la barra de Windows y te
+  avisa) y vuelve sola cuando cierras el juego.
+- **Tecla Windows en juegos**: con un juego a pantalla completa los atajos de ii ceden y la tecla
+  abre el Inicio de Windows. Si ii toma la tecla pero no puede mostrarse, se abre el Inicio de
+  Windows en su lugar: la tecla nunca se pierde.
+  - **Valorant, League of Legends, Fortnite, Apex y otros con anticheat de kernel**: mientras el juego
+    está al frente ii quita del todo su gancho de teclado y lo vuelve a poner al salir. Puedes añadir
+    juegos en `%LOCALAPPDATA%\ii-windows\shortcuts.ini`:
+    `[unhook]` `processes=juego.exe;otro.exe` (con `nodefaults` en la lista se quita la lista incluida).
+  - **osu!** tiene su propia opción para bloquear la tecla Windows durante la partida
+    (*Opciones > Entrada > Desactivar la tecla Windows durante el juego*). Si la tecla no hace nada en
+    osu!, revisa esa opción antes de reportarlo: es osu!, no ii.
+- **Laptops gamer (NVIDIA / doble GPU)**: el instalador hace que ii dibuje en la gráfica que tiene la
+  pantalla principal (la integrada en el modo normal de la laptop; la NVIDIA si usas un monitor
+  externo como principal o el modo "solo GPU dedicada"). Si aun así va a tirones:
+  - En la **app de NVIDIA / Panel de control de NVIDIA** > *Administrar configuración 3D* >
+    *Configuración de programa*, añade `quickshell.exe` (está en
+    `%LOCALAPPDATA%\Programs\ii-windows\versions\...\quickshell\`) y pon **Tecnología de monitor:
+    frecuencia de actualización fija** (sin G-SYNC) y **Procesador de gráficos preferido: integrado**.
+  - Desactiva el **overlay de la app de NVIDIA** para ese programa si lo detecta como juego.
+- **Wallpaper Engine / Lively**: los paneles de ii (barra, dock, widgets) ya no se ponen en primer
+  plano al tocarlos, y con un fondo animado el escritorio de ii solo toma el teclado para renombrar.
+  Si tu fondo se pausa igual, en Wallpaper Engine > *Configuración* > *Rendimiento* > *Reglas de
+  aplicaciones* añade `quickshell.exe` con la acción **No hacer nada**.
+
 ## Seguridad primero
 
 Todo es por usuario y reversible. No inyecta nada en Explorer, no cambia `Winlogon\Shell`, no
