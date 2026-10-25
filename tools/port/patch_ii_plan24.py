@@ -345,6 +345,16 @@ add_translations('es_MX', {
 })
 
 
+# --- Block 3: a calmer style offered in the welcome tour (overlay Tour.qml) -------------------------------------------
+add_translations('es_MX', {
+    "A calmer style?": "¿Un estilo más sobrio?",
+    "If you come from Windows rather than from Linux: the bar's things at the bottom next to the dock, a dock that stays put like a taskbar and does not grow, softer neutral colours and no big clock on the desktop. Your apps and wallpaper stay. You can go back here or in Settings at any time.":
+        "Si vienes de Windows y no de Linux: lo de la barra abajo junto al dock, un dock que se queda fijo como una barra de tareas y no crece, colores neutros más suaves y sin el reloj grande en el escritorio. Tus apps y tu fondo se quedan. Puedes volver aquí o en Configuración cuando quieras.",
+    "Use the calmer style": "Usar el estilo sobrio",
+    "Back to ii's style": "Volver al estilo de ii",
+})
+
+
 # --- 1.1 The render loop --------------------------------------------------------------------------------------------
 # Quickshell for Windows draws with Qt Quick's threaded loop on a real GPU and the basic one on the software adapter
 # (D9). appearance.renderLoop forces one: ii-host passes it to the shell when it starts it (QSG_RENDER_LOOP).

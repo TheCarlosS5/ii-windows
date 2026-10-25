@@ -20,8 +20,30 @@ Scope {
 
     // spot: which part of the screen is lit: none | bar | barCenter | barRight | dock | right | left | desktop | overview
     // open: the part of ii the step talks about, opened while the step is shown: overview | dock | sidebarRight | sidebarLeft
-    // The light-mode step goes before the last one, only on a modest PC that does not use it yet.
-    readonly property var steps: offerLight ? baseSteps.slice(0, -1).concat([lightStep], baseSteps.slice(-1)) : baseSteps
+    // The light-mode step goes before the last one, only on a modest PC that does not use it yet; the style step
+    // (plan, block 3: a calmer ii for whoever does not come from Linux) always, just before the last one.
+    readonly property var steps: (offerLight ? baseSteps.slice(0, -1).concat([lightStep]) : baseSteps.slice(0, -1)).concat([soberStep], baseSteps.slice(-1))
+    readonly property var soberStep: ({
+            icon: "contrast",
+            spot: "none",
+            title: Translation.tr("A calmer style?"),
+            text: Translation.tr("If you come from Windows rather than from Linux: the bar's things at the bottom next to the dock, a dock that stays put like a taskbar and does not grow, softer neutral colours and no big clock on the desktop. Your apps and wallpaper stay. You can go back here or in Settings at any time."),
+            keys: [],
+            action: "sober"
+        })
+    // The calmer style is these settings; ii's own is their defaults.
+    readonly property bool sober: (Config.options.bar.besideDock ?? false) && Config.options.dock.pinnedOnStartup
+        && Config.options.dock.magnification <= 1 && Config.options.appearance.palette.type === "scheme-neutral"
+    function setSober(on) {
+        Config.options.bar.besideDock = on;
+        Config.options.bar.bottom = on;
+        Config.options.bar.vertical = false;
+        Config.options.dock.pinnedOnStartup = on;
+        Config.options.dock.magnification = on ? 1 : 1.7;
+        Config.options.background.widgets.clock.enable = !on;
+        Config.options.appearance.palette.type = on ? "scheme-neutral" : "auto";
+        Quickshell.execDetached(["bash", "-c", `${Directories.wallpaperSwitchScriptPath} --noswitch`]); // the palette again
+    }
     readonly property var lightStep: ({
             icon: "speed",
             spot: "none",
@@ -180,6 +202,11 @@ Scope {
         function open(): void {
             root.start();
         }
+        // A given step (0 = the first), for screenshots of the tour.
+        function step(n: int): void { // not "show": that is also an ipc subcommand
+            root.start();
+            root.step = Math.max(0, Math.min(n, root.steps.length - 1));
+        }
         function close(): void {
             root.finish();
         }
@@ -266,7 +293,7 @@ Scope {
             }
             Rectangle {
                 id: card
-                readonly property real wide: Math.min(520, tourWindow.width - 48)
+                readonly property real wide: Math.min(root.current.action ? 640 : 520, tourWindow.width - 48) // room for the extra button
                 width: wide
                 implicitHeight: cardColumn.implicitHeight + 40
                 radius: Appearance.rounding.large + 4
@@ -399,6 +426,21 @@ Scope {
                                 id: lightText
                                 anchors.centerIn: parent
                                 text: Performance.light ? Translation.tr("Light mode on") : Translation.tr("Use light mode")
+                                color: Appearance.colors.colOnSecondaryContainer
+                            }
+                        }
+                        RippleButton {
+                            visible: root.current.action === "sober"
+                            implicitHeight: 38
+                            implicitWidth: soberText.implicitWidth + 28
+                            buttonRadius: Appearance.rounding.full
+                            colBackground: Appearance.colors.colSecondaryContainer
+                            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                            onClicked: root.setSober(!root.sober)
+                            contentItem: StyledText {
+                                id: soberText
+                                anchors.centerIn: parent
+                                text: root.sober ? Translation.tr("Back to ii's style") : Translation.tr("Use the calmer style")
                                 color: Appearance.colors.colOnSecondaryContainer
                             }
                         }
