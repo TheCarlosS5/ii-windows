@@ -30,6 +30,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#include <bcrypt.h>
 #include <commdlg.h>
 #include <shlobj.h>
 #include <shobjidl.h>
@@ -756,30 +757,61 @@ std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool
 	return target;
 }
 
-// Width and height from a PNG's header (0, 0 when it is not a PNG).
-std::pair<uint32_t, uint32_t> pngSize(const std::wstring& path) {
-	auto file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-	if (file == INVALID_HANDLE_VALUE) return {0, 0};
-	unsigned char header[24] {};
-	DWORD n = 0;
-	auto ok = ReadFile(file, header, sizeof(header), &n, nullptr) && n == sizeof(header) && header[0] == 0x89 && header[1] == 'P' && header[12] == 'I'
-	       && header[13] == 'H';
-	CloseHandle(file);
-	if (!ok) return {0, 0};
-	auto be = [&](int at) { return (uint32_t(header[at]) << 24) | (uint32_t(header[at + 1]) << 16) | (uint32_t(header[at + 2]) << 8) | header[at + 3]; };
-	return {be(16), be(20)};
+// SHA-256 in lower-case hex ("" on failure).
+std::string sha256Hex(const void* data, size_t size) {
+	BCRYPT_ALG_HANDLE alg = nullptr;
+	BCRYPT_HASH_HANDLE hash = nullptr;
+	unsigned char digest[32] {};
+	auto ok = BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&alg, BCRYPT_SHA256_ALGORITHM, nullptr, 0))
+	       && BCRYPT_SUCCESS(BCryptCreateHash(alg, &hash, nullptr, 0, nullptr, 0, 0))
+	       && BCRYPT_SUCCESS(BCryptHashData(hash, static_cast<PUCHAR>(const_cast<void*>(data)), static_cast<ULONG>(size), 0))
+	       && BCRYPT_SUCCESS(BCryptFinishHash(hash, digest, sizeof(digest), 0));
+	if (hash) BCryptDestroyHash(hash);
+	if (alg) BCryptCloseAlgorithmProvider(alg, 0);
+	if (!ok) return {};
+	static const char* hexDigits = "0123456789abcdef";
+	std::string out;
+	for (auto b: digest) {
+		out += hexDigits[b >> 4];
+		out += hexDigits[b & 15];
+	}
+	return out;
 }
 
-// Before 0.6 the first run copied upstream's brown picture (3840 x 2160) to Pictures\Wallpapers\ii-default.png. That
-// copy becomes ii-windows' own picture, so it can never show again, from the selector or as the chosen wallpaper.
+// Upstream's brown picture: the file as upstream ships it, or its pixels (BGRA) in any re-encoded copy. The first
+// run of ii-windows before 0.6 made such a copy with `ii-shim magick` (a new PNG file, the same pixels).
+constexpr const char* UPSTREAM_DEFAULT_FILE_SHA256 = "7ca63d4f4f1fcc5a5ad842ceb826b461707c7dbcc8bc189cafd52e7589ec2ab2";
+constexpr const char* UPSTREAM_DEFAULT_PIXELS_SHA256 = "55440601ca78f93e39598b55b707e5f95716a260688b3deeae637e3552ae5a93";
+
+bool isUpstreamDefault(const std::wstring& path) {
+	auto bytes = readUtf8(path); // any file, read as bytes
+	if (bytes.empty()) return false;
+	if (sha256Hex(bytes.data(), bytes.size()) == UPSTREAM_DEFAULT_FILE_SHA256) return true;
+	ComPtr<IWICImagingFactory> wic;
+	ComPtr<IWICBitmapDecoder> decoder;
+	ComPtr<IWICBitmapFrameDecode> frame;
+	ComPtr<IWICFormatConverter> converter;
+	UINT w = 0, h = 0;
+	if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&wic)))
+	    || FAILED(wic->CreateDecoderFromFilename(path.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnDemand, &decoder))
+	    || FAILED(decoder->GetFrame(0, &frame)) || FAILED(frame->GetSize(&w, &h)) || w != 3840 || h != 2160
+	    || FAILED(wic->CreateFormatConverter(&converter))
+	    || FAILED(converter->Initialize(frame.Get(), GUID_WICPixelFormat32bppBGRA, WICBitmapDitherTypeNone, nullptr, 0, WICBitmapPaletteTypeCustom)))
+		return false;
+	std::vector<BYTE> pixels(static_cast<size_t>(w) * h * 4);
+	if (FAILED(converter->CopyPixels(nullptr, w * 4, static_cast<UINT>(pixels.size()), pixels.data()))) return false;
+	return sha256Hex(pixels.data(), pixels.size()) == UPSTREAM_DEFAULT_PIXELS_SHA256;
+}
+
+// The copy of upstream's brown picture in Pictures\Wallpapers\ii-default.png (first run before 0.6) becomes
+// ii-windows' own picture, so it can never show again, from the selector or as the chosen wallpaper.
 // True when the copy was replaced.
 bool refreshDefaultCopy(const std::wstring& ownDefault) {
 	wchar_t* pictures = nullptr;
 	if (FAILED(SHGetKnownFolderPath(FOLDERID_Pictures, 0, nullptr, &pictures)) || !pictures) return false;
 	auto copy = std::wstring(pictures) + L"\\Wallpapers\\ii-default.png";
 	CoTaskMemFree(pictures);
-	auto size = pngSize(copy);
-	if (size.first != 3840 || size.second != 2160 || pngSize(ownDefault).first == 3840) return false;
+	if (GetFileAttributesW(copy.c_str()) == INVALID_FILE_ATTRIBUTES || !isUpstreamDefault(copy) || isUpstreamDefault(ownDefault)) return false;
 	if (!CopyFileW(ownDefault.c_str(), copy.c_str(), FALSE)) return false;
 	note(L"default: upstream's picture in %s replaced by ii-windows' own", copy.c_str());
 	return true;
@@ -848,6 +880,7 @@ int switchwall(const Args& args) {
 		else if (a == L"--adopt-windows") adoptWindows = true;
 		else if (a == L"--first-run") firstRunDefault = next();
 		else if (a == L"--default") ownDefault = next();
+		else if (a == L"--is-upstream-default") return isUpstreamDefault(next()) ? 0 : 1; // diagnostics / tests
 		else if (a == L"--force") forceAdopt = true;
 		else if (a == L"--restore-windows") restoreWindows = true;
 		else if (a == L"--color") {

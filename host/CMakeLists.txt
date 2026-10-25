@@ -50,7 +50,7 @@ set_source_files_properties(${MCU_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wno-ever
 target_compile_definitions(ii-shim PRIVATE UNICODE _UNICODE)
 # capture.cpp uses C++/WinRT for Windows' OCR.
 target_compile_options(ii-shim PRIVATE /EHsc)
-target_link_libraries(ii-shim PRIVATE user32 gdi32 shell32 ole32 oleaut32 wbemuuid dxva2 powrprof windowscodecs uuid windowsapp winhttp advapi32 crypt32)
+target_link_libraries(ii-shim PRIVATE user32 gdi32 shell32 ole32 oleaut32 wbemuuid dxva2 powrprof windowscodecs uuid windowsapp winhttp advapi32 crypt32 bcrypt)
 
 # Console-only safety tests with fake displays. Never calls a display or power setter.
 add_executable(ii-sidebar-test src/nightlight_test.cpp src/nightlight_core.cpp)
