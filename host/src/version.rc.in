@@ -1,0 +1,33 @@
+// Version resource for every ii-windows executable (configured by ii_version_info in host/CMakeLists.txt).
+// A clear name, description and author: antivirus heuristics and the GPU drivers' game profiles look at these, and
+// an executable without them is easier to mistake for something else.
+#include <winver.h>
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION @II_VERSION_MAJOR@,@II_VERSION_MINOR@,@II_VERSION_PATCH@,0
+PRODUCTVERSION @II_VERSION_MAJOR@,@II_VERSION_MINOR@,@II_VERSION_PATCH@,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "040904B0"
+		BEGIN
+			VALUE "CompanyName", "ii-windows project (github.com/TheCarlosS5/ii-windows)"
+			VALUE "FileDescription", "@II_FILE_DESCRIPTION@"
+			VALUE "FileVersion", "@II_VERSION@"
+			VALUE "InternalName", "@II_FILE_NAME@"
+			VALUE "OriginalFilename", "@II_FILE_NAME@.exe"
+			VALUE "ProductName", "ii-windows (illogical-impulse desktop shell for Windows)"
+			VALUE "ProductVersion", "@II_VERSION@"
+			VALUE "LegalCopyright", "ii-windows contributors. Open source, see LICENSE."
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x409, 1200
+	END
+END

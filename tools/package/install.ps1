@@ -1,4 +1,4 @@
-# ii-windows installer (per user, no administrator rights except the optional restore point).
+﻿# ii-windows installer (per user, no administrator rights except the optional restore point).
 #
 #   install.cmd                 asks before each step that changes something
 #   install.ps1 -Yes            no questions (restore point skipped unless -RestorePoint)
@@ -235,10 +235,14 @@ try {
     $probe = Start-Process -FilePath (Join-Path $versionDir 'ii-host.exe') -ArgumentList '--gpu-policy' -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop
     $gpuPolicy = $probe.ExitCode
 } catch { }
-if ($gpuPolicy -eq 10) {
-    $gpuResult = Set-IiOwnedRegValue $manifest "gpu:$shellExe" $gpuSubKey $shellExe 'GpuPreference=1;' 'String'
+# 12: the main screen is on the high-performance GPU (an external monitor wired to it, a MUX switch in dedicated
+# mode): drawing on the integrated GPU there copied every frame across GPUs (lag on gaming laptops).
+if ($gpuPolicy -eq 10 -or $gpuPolicy -eq 12) {
+    $gpuValue = if ($gpuPolicy -eq 12) { 'GpuPreference=2;' } else { 'GpuPreference=1;' }
+    $gpuLabel = if ($gpuPolicy -eq 12) { 'GPU de alto rendimiento: tiene la pantalla principal' } else { 'GPU de ahorro de energia' }
+    $gpuResult = Set-IiOwnedRegValue $manifest "gpu:$shellExe" $gpuSubKey $shellExe $gpuValue 'String'
     if ($gpuResult -in 'applied', 'kept-ours', 'updated-ours') {
-        $manifest.registry += "HKCU\$gpuSubKey\$shellExe (GPU de ahorro de energia)"
+        $manifest.registry += "HKCU\$gpuSubKey\$shellExe ($gpuLabel)"
     } elseif ($gpuResult -eq 'foreign-existing') {
         Say 'La preferencia de GPU de este programa ya existe (es tuya): se respeta.'
     }
