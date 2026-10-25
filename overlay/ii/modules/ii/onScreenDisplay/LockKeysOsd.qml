@@ -27,7 +27,8 @@ Scope {
     }
 
     // The charger: Windows tells the battery service at once (GUID_ACDC_POWER_SOURCE). The first reading is the
-    // state at start-up, not a change.
+    // state at start-up, not a change. The level and "charging" are read a moment later: they follow the plug a
+    // little after it ("Plugged in" instead of "Charging", or the level from before).
     property var lastOnBattery: undefined
     function chargerChanged() {
         if (!Battery.available)
@@ -38,8 +39,16 @@ Scope {
             return;
         }
         root.lastOnBattery = onBattery;
-        if (!(Config.options.osd.charger ?? true))
-            return;
+        if (Config.options.osd.charger ?? true)
+            chargerSettle.restart();
+    }
+    Timer {
+        id: chargerSettle
+        interval: 1000
+        onTriggered: root.showCharger()
+    }
+    function showCharger() {
+        const onBattery = UPower.onBattery; // plugged in and out again meanwhile: what it is now
         const percent = Math.round(Battery.percentage * 100);
         if (onBattery)
             root.show(Translation.tr("On battery · %1%").arg(percent), "battery_full", false);
