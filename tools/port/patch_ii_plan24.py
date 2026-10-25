@@ -76,8 +76,15 @@ edit(path('modules', 'ii', 'overview', 'Overview.qml'), [
             id: columnLayout
             visible: GlobalStates.overviewOpen || overviewScope.warming // ii-windows: drawn once at opacity 0 to warm up
 '''),
+    # The arrows and Enter go to the grid only while it is shown (kept alive, it must not take them in Win+Tab).
+    ('''                gridNavigator: appGridLoader.item
+''', '''                gridNavigator: appGridLoader.visible ? appGridLoader.item : null
+'''),
+    # Kept while searching and in the windows mode too: only hidden (typing, or Win+Tab and back, rebuilt it whole).
     ('''                active: GlobalStates.overviewOpen && overviewScope.showApps && panelWindow.searchingText == ""
-''', '''                active: (GlobalStates.overviewOpen || overviewScope.warm) && overviewScope.showApps && panelWindow.searchingText == ""
+                visible: active
+''', '''                active: GlobalStates.overviewOpen || overviewScope.warm
+                visible: active && overviewScope.showApps && panelWindow.searchingText == ""
 '''),
 ])
 
