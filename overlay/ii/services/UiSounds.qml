@@ -18,7 +18,7 @@ Singleton {
     id: root
 
     readonly property bool enabled: Config.ready && (Config.options.sounds.ui ?? true)
-    readonly property real volume: Config.options.sounds.uiVolume ?? 0.6
+    readonly property real volume: Config.options.sounds.uiVolume ?? 0.4
     property bool started: false
 
     function load() {}

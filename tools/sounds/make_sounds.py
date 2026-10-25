@@ -1,8 +1,11 @@
-"""Synthesizes ii-windows' interface sounds (overlay/ii/assets/sounds/ui/*.wav): short, soft
-Material-like blips and chimes made from sine partials with smooth envelopes. Our own work,
-released with the project (no third-party samples). 44.1 kHz, 16-bit PCM, mono.
+"""Synthesizes ii-windows' interface sounds (overlay/ii/assets/sounds/ui/*.wav). Our own work, released with the
+project (no third-party samples). 44.1 kHz, 16-bit PCM, mono.
 
     python -I tools/sounds/make_sounds.py
+
+Soft and warm on purpose (users found the first set sharp and tiring): low-mid pitches (about 260-660 Hz), almost pure
+sines with two voices a few cents apart, unhurried attacks (15-30 ms, no click), a round release, a gentle low-pass on
+everything and quiet peaks. Settings > Sound > interface volume makes them louder for whoever wants that.
 """
 import math
 import os
@@ -14,25 +17,58 @@ RATE = 44100
 OUT = os.path.join(os.path.dirname(__file__), '..', '..', 'overlay', 'ii', 'assets', 'sounds', 'ui')
 
 
-def envelope(t, length, attack=0.006, decay=8.0):
-    """Quick fade in, exponential fade out, and a short fade to zero at the very end."""
-    a = min(1.0, t / attack) if attack > 0 else 1.0
-    tail = min(1.0, (length - t) / 0.012)
-    return a * math.exp(-decay * t / length) * max(0.0, tail)
+def envelope(t, length, attack, release):
+    """Raised-cosine attack, a held middle that fades slowly, raised-cosine release: no corner anywhere."""
+    if t < attack:
+        a = 0.5 - 0.5 * math.cos(math.pi * t / attack)
+    else:
+        a = 1.0
+    body = math.exp(-1.6 * t / length)
+    left = length - t
+    r = 0.5 - 0.5 * math.cos(math.pi * min(1.0, left / release)) if left < release else 1.0
+    return a * body * r
 
 
-def tone(f0, f1, length, gain, decay=6.0, partials=((1, 1.0), (2, 0.18), (3, 0.05)), attack=0.006):
-    """A pitch glide from f0 to f1 (Hz) with a few harmonics."""
+def note(freq, length, gain=1.0, attack=0.02, release=None, detune_cents=4.0, second=0.06):
+    """A warm sine: two voices a few cents apart (a slow beat, like a felt piano) and a whisper of the octave."""
+    release = release if release is not None else length * 0.6
+    n = int(RATE * length)
+    f2 = freq * 2 ** (detune_cents / 1200)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / RATE
+        s = 0.5 * math.sin(2 * math.pi * freq * t) + 0.5 * math.sin(2 * math.pi * f2 * t)
+        s += second * math.sin(4 * math.pi * freq * t)
+        out[i] = gain * envelope(t, length, attack, release) * s
+    return out
+
+
+def glide(f0, f1, length, gain=1.0, attack=0.02, release=None):
+    """A soft pitch glide (for open/close), exponential so it sounds even."""
+    release = release if release is not None else length * 0.6
     n = int(RATE * length)
     out = [0.0] * n
     phase = 0.0
     for i in range(n):
         t = i / RATE
-        # exponential glide sounds more natural than linear
-        f = f0 * (f1 / f0) ** (t / length) if f0 != f1 else f0
+        f = f0 * (f1 / f0) ** (t / length)
         phase += 2 * math.pi * f / RATE
-        s = sum(a * math.sin(k * phase) for k, a in partials)
-        out[i] = gain * envelope(t, length, attack, decay) * s
+        out[i] = gain * envelope(t, length, attack, release) * (math.sin(phase) + 0.05 * math.sin(2 * phase))
+    return out
+
+
+def breath(length, gain):
+    """A low, airy puff (desktop switch): noise through two one-pole low-passes, cutoff well under 1 kHz."""
+    random.seed(7)
+    n = int(RATE * length)
+    out = [0.0] * n
+    y1 = y2 = 0.0
+    for i in range(n):
+        t = i / RATE
+        k = 0.010 + 0.025 * math.sin(math.pi * t / length)  # ~70-250 Hz
+        y1 += k * (random.uniform(-1, 1) - y1)
+        y2 += k * (y1 - y2)
+        out[i] = gain * y2 * math.sin(math.pi * t / length) ** 2
     return out
 
 
@@ -47,21 +83,21 @@ def mix(*parts):
     return out
 
 
-def noise_sweep(length, gain, lo=0.02, hi=0.25):
-    """Soft airy whoosh: low-passed noise whose cutoff rises then falls."""
-    random.seed(7)
-    n = int(RATE * length)
-    out = [0.0] * n
-    y = 0.0
-    for i in range(n):
-        t = i / RATE
-        k = lo + (hi - lo) * math.sin(math.pi * t / length)
-        y += k * (random.uniform(-1, 1) - y)
-        out[i] = gain * y * math.sin(math.pi * t / length) ** 2
-    return out
+def lowpass(samples, cutoff=2200.0):
+    """Two passes of a one-pole low-pass: takes the edge off whatever is left above a couple of kHz."""
+    k = 1 - math.exp(-2 * math.pi * cutoff / RATE)
+    for _ in range(2):
+        y = 0.0
+        out = []
+        for v in samples:
+            y += k * (v - y)
+            out.append(y)
+        samples = out
+    return samples
 
 
-def save(name, samples, peak=0.5):
+def save(name, samples, peak):
+    samples = lowpass(samples)
     top = max(1e-9, max(abs(v) for v in samples))
     scale = peak / top
     os.makedirs(OUT, exist_ok=True)
@@ -73,18 +109,17 @@ def save(name, samples, peak=0.5):
     print(name, f'{len(samples) / RATE * 1000:.0f} ms')
 
 
-# Panel / overview opens: a light upward blip.
-save('open', mix((0, tone(620, 930, 0.11, 1.0, decay=5)), (0.035, tone(930, 1240, 0.09, 0.45, decay=6))), peak=0.42)
-# Closes: the same, downward and a touch softer.
-save('close', mix((0, tone(880, 600, 0.10, 1.0, decay=6)), (0.03, tone(600, 520, 0.08, 0.35, decay=7))), peak=0.36)
-# Notification: two-note glassy chime (C6 then E6).
-save('notify', mix((0, tone(1046.5, 1046.5, 0.42, 1.0, decay=5, partials=((1, 1), (2, 0.25), (4, 0.06)), attack=0.004)),
-                   (0.11, tone(1318.5, 1318.5, 0.48, 0.9, decay=5, partials=((1, 1), (2, 0.25), (4, 0.06)), attack=0.004))), peak=0.45)
-# Virtual desktop switch: a soft whoosh with a hint of pitch.
-save('switch', mix((0, noise_sweep(0.22, 1.0)), (0.02, tone(420, 700, 0.16, 0.22, decay=4))), peak=0.30)
-# A widget dropped / snapped into the grid: a small pop.
-save('snap', mix((0, tone(1500, 900, 0.045, 1.0, decay=9, attack=0.002)), (0, tone(300, 200, 0.05, 0.4, decay=10, attack=0.002))), peak=0.40)
-# A toggle switched / small click.
-save('toggle', tone(1700, 1500, 0.035, 1.0, decay=10, partials=((1, 1), (2, 0.1)), attack=0.002), peak=0.30)
-# Edit mode on: a gentle rising arpeggio.
-save('edit', mix((0, tone(784, 784, 0.16, 1.0, decay=6)), (0.06, tone(988, 988, 0.16, 0.8, decay=6)), (0.12, tone(1175, 1175, 0.22, 0.7, decay=6))), peak=0.38)
+# Panel / overview opens: a soft rising fourth (G4 -> C5).
+save('open', mix((0, note(392.0, 0.16, 1.0, attack=0.018)), (0.06, note(523.3, 0.20, 0.8, attack=0.022))), peak=0.26)
+# Closes: the same, falling (C5 -> G4), a touch quieter.
+save('close', mix((0, note(523.3, 0.14, 0.9, attack=0.018)), (0.055, note(392.0, 0.18, 0.75, attack=0.022))), peak=0.22)
+# Notification: a warm two-note bell, low (A4 then D5), long and slow to fade.
+save('notify', mix((0, note(440.0, 0.55, 1.0, attack=0.025, second=0.08)), (0.13, note(587.3, 0.65, 0.85, attack=0.03, second=0.08))), peak=0.28)
+# Virtual desktop switch: a low breath with a faint low tone, no hiss.
+save('switch', mix((0, breath(0.26, 1.0)), (0.03, glide(260, 330, 0.20, 0.35, attack=0.03))), peak=0.20)
+# A widget dropped into the grid: a small soft drop.
+save('snap', glide(520, 410, 0.09, 1.0, attack=0.012, release=0.06), peak=0.22)
+# A toggle switched: a quiet round tick.
+save('toggle', note(659.3, 0.07, 1.0, attack=0.012, release=0.05, second=0.03), peak=0.18)
+# Edit mode on: a gentle rising arpeggio, low (G4 B4 D5).
+save('edit', mix((0, note(392.0, 0.22, 1.0)), (0.08, note(493.9, 0.22, 0.85)), (0.16, note(587.3, 0.30, 0.75))), peak=0.24)

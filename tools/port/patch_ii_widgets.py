@@ -94,7 +94,7 @@ edit(path('modules', 'common', 'Config.qml'), [
      '''                property bool pomodoro: false
                 property string theme: "freedesktop"
                 property bool ui: true // ii-windows: panels, desktops, edit mode
-                property real uiVolume: 0.6
+                property real uiVolume: 0.4
                 property bool uiNotifications: false // Windows apps' notifications already ring'''),
 ])
 edit(path('modules', 'settings', 'GeneralConfig.qml'), [
