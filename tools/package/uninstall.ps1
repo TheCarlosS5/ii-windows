@@ -95,7 +95,7 @@ if ($manifest -and $manifest.changes) {
 # GPU preferences for files inside ii's own folder (ii-host writes the shell's before each start): nobody else sets
 # them, and Windows would keep them for ever once the files are gone.
 $gpuKeyItem = Get-Item 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -ErrorAction SilentlyContinue
-if ($gpuKeyItem -and -not $Sandbox) {
+if ($gpuKeyItem) { # also in -Sandbox: there $installDir is the tests' throwaway folder
     foreach ($exe in @($gpuKeyItem.GetValueNames())) {
         if ($exe -like "$installDir\*") {
             Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -Name $exe -ErrorAction SilentlyContinue

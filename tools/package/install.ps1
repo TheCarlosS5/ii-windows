@@ -245,9 +245,9 @@ if ($gpuKeyItem) {
 # The first start of a new version compiled ~600 QML files before showing anything (seconds here, half
 # a minute on a slow PC). quickshell compiles them into Qt's cache now (QS_PRECOMPILE=1: nothing is
 # shown or created) and the first start reads them from there. If this fails the first start compiles,
-# as before.
-Step 'Preparando la interfaz (solo esta vez)'
-try {
+# as before. Not in -Sandbox (the tests' stand-in shell never exits on its own; ii-host compiles at its first start).
+if (-not $Sandbox) { Step 'Preparando la interfaz (solo esta vez)' }
+if (-not $Sandbox) { try {
     $pre = New-Object System.Diagnostics.ProcessStartInfo
     $pre.FileName = $shellExe
     $pre.Arguments = '-p "' + (Join-Path $versionDir 'ii') + '"'
@@ -270,7 +270,7 @@ try {
     }
 } catch {
     Say 'No se pudo preparar la interfaz ahora: se hace en el primer arranque.'
-}
+} }
 
 # --- 4. cursor ---------------------------------------------------------------------------------
 $cursorKey = 'HKCU:\Control Panel\Cursors'

@@ -9,7 +9,7 @@
 . "$PSScriptRoot\..\..\package\ii-runtime.ps1"
 . "$PSScriptRoot\..\..\package\ii-changes.ps1"
 Require-IiHostBuild
-$launcherExe = Join-Path $script:IiRepo 'host\build\ii-launcher.exe'
+$launcherExe = Join-Path $script:IiHostBuild 'ii-launcher.exe' # the same build as the host
 if (-not (Test-Path $launcherExe)) { Skip-Test 'ii-launcher.exe not built' }
 
 $base = New-IiTestDir 'ii-flow'
@@ -28,7 +28,7 @@ function New-Package([string]$Name, [string]$Version) {
     Set-Content "$app\cursors\placeholder.txt" 'x'
     Set-Content "$app\bin\fastfetch.cmd" '@echo fastfetch'
     [void](New-IiPayloadManifest $app)
-    foreach ($f in 'install.ps1', 'uninstall.ps1', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1', 'install.cmd', 'uninstall.cmd') {
+    foreach ($f in 'install.ps1', 'uninstall.ps1', 'uninstall-gui.ps1', 'autostart-task.ps1', 'ii-ownership.ps1', 'ii-autostart.ps1', 'ii-changes.ps1', 'ii-runtime.ps1', 'install.cmd', 'uninstall.cmd') {
         Copy-Item (Join-Path $pkgSrc $f) $pkg
     }
     Copy-Item $launcherExe $pkg
@@ -76,8 +76,9 @@ try {
     $m = Get-Content (Join-Path $data 'install.json') -Raw | ConvertFrom-Json
     Assert-True ($m.schema -eq 2 -and $m.versionId -eq $cur.active) 'the manifest is schema 2 and names the version'
     $gpu1 = Join-Path $install "versions\$($cur.active)\quickshell\quickshell.exe"
-    Assert-True (@($m.changes | Where-Object { $_.id -eq "gpu:$gpu1" }).Count -eq 1) 'the GPU preference is an owned change with its original recorded'
-    Assert-Equal (Read-IiRegValue $gpuSubKey $gpu1).Value 'GpuPreference=1;' 'and was written'
+    # D23: ii-host decides the GPU before every start of the shell; the installer writes none.
+    Assert-Equal @($m.changes | Where-Object { $_.id -like 'gpu:*' }).Count 0 'the installer records no GPU preference'
+    Assert-True ($null -eq (Read-IiRegValue $gpuSubKey $gpu1).Value) 'and writes none'
     $firstInstalled = $cur.active
 
     # the launcher confirms it
@@ -94,13 +95,13 @@ try {
     Assert-True ($cur.active -eq '0.9.2-20261011-bbbbbbb' -and $cur.previous -eq $firstInstalled -and $cur.state -eq 'pending') 'v2 pending, v1 is the way back'
     Assert-Equal (Get-FileHash (Join-Path $install "versions\$firstInstalled\ii\shell.qml")).Hash $before 'v1 was not touched by the upgrade'
     $m = Get-Content (Join-Path $data 'install.json') -Raw | ConvertFrom-Json
-    Assert-Equal @($m.changes | Where-Object { $_.id -like 'gpu:*' }).Count 2 'both versions have their own owned GPU entry'
+    Assert-Equal @($m.changes | Where-Object { $_.id -like 'gpu:*' }).Count 0 'nor does the upgrade'
 
     # installing the same package again changes nothing
     $r = Invoke-Script (Join-Path $v2 'install.ps1') @('-Yes', '-Sandbox') $lad
     Assert-Equal $r.Code 0 'installing the same package again works'
     $m2 = Get-Content (Join-Path $data 'install.json') -Raw | ConvertFrom-Json
-    Assert-Equal @($m2.changes | Where-Object { $_.id -like 'gpu:*' }).Count 2 'and records nothing twice'
+    Assert-Equal @($m2.changes | Where-Object { $_.id -like 'gpu:*' }).Count 0 'and records nothing'
     Assert-True ((@(Get-ChildItem (Join-Path $install 'versions') -Directory)).Count -eq 2) 'and creates no third version folder'
 
     # ---- a tampered package is refused and nothing changes --------------------------------------------------------------------------------
@@ -115,6 +116,11 @@ try {
     # ---- uninstall ---------------------------------------------------------------------------------------------------------------------------
     New-Item -ItemType Directory -Force (Join-Path $lad 'quickshell\other-config') | Out-Null
     Set-Content (Join-Path $lad 'quickshell\other-config\shell.qml') 'not ours'
+    # What ii-host writes before it starts each version's shell (state.ini [gpu] keeps its own record).
+    New-Item -Path "HKCU:\$gpuSubKey" -Force | Out-Null
+    foreach ($v in Get-ChildItem (Join-Path $install 'versions') -Directory) {
+        Set-ItemProperty -Path "HKCU:\$gpuSubKey" -Name (Join-Path $v.FullName 'quickshell\quickshell.exe') -Value 'GpuPreference=1;'
+    }
     Assert-True (@(Get-GpuValues $lad).Count -ge 2) 'two GPU values exist before uninstalling'
     $r = Invoke-Script (Join-Path $install 'uninstall.ps1') @('-Yes', '-Sandbox') $lad
     Assert-Equal $r.Code 0 "uninstall.ps1 -Sandbox finishes ($($r.Text.Split("`n") | Select-Object -Last 2))"
