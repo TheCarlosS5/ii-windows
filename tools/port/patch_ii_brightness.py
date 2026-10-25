@@ -14,6 +14,7 @@ if hashlib.sha256(source.encode()).hexdigest() != 'd2812d48e4ae521000fbd35cb272e
     raise RuntimeError('Brightness.qml upstream changed; review the Windows replacement')
 brightness.write_text('''pragma Singleton
 pragma ComponentBehavior: Bound
+import qs
 import qs.modules.common
 import Quickshell
 import Quickshell.Io
@@ -75,8 +76,16 @@ Singleton {
             });
         }
     }
-    // Also refresh after an external brightness change or resume. No writes here.
-    Timer { interval: 60000; repeat: true; running: true; onTriggered: root.refresh() }
+    // Also refresh after an external brightness change or resume. No writes here. Each read is an ii-shim process
+    // (plan 1.2): when the slider can be seen (the right sidebar opens), when the screens change (rebuild), and every
+    // 10 min.
+    Timer { interval: 600000; repeat: true; running: true; onTriggered: root.refresh() }
+    Connections {
+        target: GlobalStates
+        function onSidebarRightOpenChanged() {
+            if (GlobalStates.sidebarRightOpen) root.refresh();
+        }
+    }
     component BrightnessMonitor: QtObject {
         id: monitor
         required property ShellScreen screen
