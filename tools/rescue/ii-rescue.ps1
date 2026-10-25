@@ -285,6 +285,21 @@ if (Test-Path $themeFile) {
     Log "theme restored ($($done.Count) values)"
 }
 Write-State 'themeApplied' 0
+
+# 6b. Windows' own minimize animation: ii only turned it off in memory, so the user's saved setting is applied again
+if ((Read-State 'minAnimateOverridden' 0) -eq 1) {
+    Add-Type -Namespace IiRescue -Name Anim -MemberDefinition @'
+[StructLayout(LayoutKind.Sequential)] public struct ANIMATIONINFO { public uint cbSize; public int iMinAnimate; }
+[DllImport("user32.dll", SetLastError = true)] public static extern bool SystemParametersInfoW(uint action, uint param, ref ANIMATIONINFO info, uint flags);
+'@
+    $saved = (Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name MinAnimate -ErrorAction SilentlyContinue).MinAnimate
+    $info = New-Object IiRescue.Anim+ANIMATIONINFO
+    $info.cbSize = 8
+    $info.iMinAnimate = if ($null -ne $saved) { [int]$saved } else { 1 }
+    [void][IiRescue.Anim]::SystemParametersInfoW(0x49, 8, [ref]$info, 0x2)   # SPI_SETANIMATION, SPIF_SENDCHANGE
+    Write-State 'minAnimateOverridden' 0
+    Log "minimize animation back to the saved setting ($($info.iMinAnimate))"
+}
 Write-State 'hostClean' 1
 
 # 7. optional clean Explorer restart

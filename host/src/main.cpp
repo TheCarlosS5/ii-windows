@@ -443,6 +443,7 @@ void exposeExplorer(const wchar_t* why) {
 	log(L"giving Explorer back while the shell is restarted: %s", why);
 	uiHidden = false;
 	splash::close();
+	minanim::restore(); // no ii to animate minimized windows meanwhile
 	taskbar::restore();
 	desktop::restoreIcons();
 }
@@ -1028,6 +1029,7 @@ void onShellExited() {
 	log(L"shell: exited with code %lu (%s)", code, shellReady ? L"after it was up" : L"before it was up");
 	nightlight::restore();
 	if (options.nightlight) nightlight::start(guardReady);
+	minanim::restore(); // until a new shell is up (TIMER_REAPPLY turns it off again)
 
 	if (code == 0) {
 		shutdown(0); // the shell quit on purpose
@@ -1112,6 +1114,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 				if (options.taskbar) { SlowStep s(L"taskbar::reapply"); taskbar::reapply(); }
 				if (options.icons) { SlowStep s(L"desktop::reapplyIcons"); desktop::reapplyIcons(); }
 			}
+			if (uiHidden && shellReady) { SlowStep s(L"minanim::tick"); minanim::tick(); }
 			// Wallpaper changes rewrite ii's palette; Windows follows.
 			if (options.theme) { SlowStep s(L"theme::apply"); theme::apply(); }
 		} else if (wParam == TIMER_RESTART_SHELL) {

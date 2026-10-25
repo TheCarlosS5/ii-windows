@@ -69,6 +69,7 @@ void restoreAll(bool restartExplorer, bool force) {
 	banners::restore();
 	windowfx::restore();
 	theme::restore();
+	minanim::restore();
 
 	if (!restartExplorer) return;
 

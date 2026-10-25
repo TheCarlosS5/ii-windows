@@ -26,6 +26,7 @@ add_executable(ii-host WIN32
 	src/jsonlite.cpp
 	src/configtool.cpp
 	src/screentime.cpp
+	src/minanim.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)

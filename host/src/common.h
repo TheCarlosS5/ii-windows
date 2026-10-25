@@ -169,6 +169,13 @@ void setCoverUp(bool up);
 void openStart();
 } // namespace keyboard
 
+namespace minanim {
+// ii's own minimize animation: Windows' own one off in memory while ii runs (minanim.cpp); restore() applies the
+// user's saved setting again (any process: exit, guard, rescue).
+void tick();
+void restore();
+} // namespace minanim
+
 namespace volume {
 // A volume key ii took from Windows (keyboard hook): one step up/down, or mute toggle, on the default
 // output. Runs on the host thread; ii's own indicator reacts to the change like to any other.
