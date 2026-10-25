@@ -317,6 +317,59 @@ void applyRenderLoopChoice() {
 	}
 }
 
+// Plan 1.3: the QML compiled into Qt's disk cache before the shell starts. The installer does it (QS_PRECOMPILE), but
+// that can time out or fail, and a disk cleanup can empty the cache later; then the long-lived shell compiled ~600
+// files itself and kept the memory peak of doing so (the "1 GB at the first start"). Here a separate process does it,
+// once, and its memory goes with it. Only for the real shell (a test host or a stand-in never runs it, unless
+// II_TEST_PRECOMPILE=1; QML_DISK_CACHE_PATH, Qt's own, moves the cache for such a test).
+void ensureCompiledQml() {
+	wchar_t flag[4] {};
+	auto testing = GetEnvironmentVariableW(L"II_TEST_PRECOMPILE", flag, _countof(flag)) > 0 && flag[0] == L'1';
+	if ((noUi() && !testing) || options.config.empty()) return;
+	auto exe = options.shell.substr(options.shell.find_last_of(L"\\/") + 1);
+	if (_wcsicmp(exe.c_str(), L"quickshell.exe") != 0) return;
+	std::wstring cache;
+	wchar_t custom[MAX_PATH] {};
+	if (GetEnvironmentVariableW(L"QML_DISK_CACHE_PATH", custom, MAX_PATH) > 0) {
+		cache = custom;
+	} else {
+		PWSTR base = nullptr;
+		if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base))) cache = std::wstring(base) + L"\\quickshell\\cache\\qmlcache";
+		CoTaskMemFree(base);
+	}
+	size_t files = 0;
+	WIN32_FIND_DATAW found {};
+	auto handle = FindFirstFileW((cache + L"\\*.qmlc").c_str(), &found);
+	if (handle != INVALID_HANDLE_VALUE) {
+		do ++files; while (files < 300 && FindNextFileW(handle, &found));
+		FindClose(handle);
+	}
+	auto done = state::getText(L"qml", L"compiledFor");
+	if (files >= 300 && _wcsicmp(done.c_str(), options.config.c_str()) == 0) return;
+
+	log(L"shell: compiling the QML first (%zu files in the cache, last compiled for %s)", files, done.empty() ? L"nothing" : done.c_str());
+	auto cmd = L"\"" + options.shell + L"\" -p \"" + options.config + L"\"";
+	SetEnvironmentVariableW(L"QS_PRECOMPILE", L"1");
+	STARTUPINFOW si {};
+	si.cb = sizeof(si);
+	PROCESS_INFORMATION pi {};
+	auto dir = options.shell.substr(0, options.shell.find_last_of(L"\\/"));
+	auto started = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS, nullptr, dir.c_str(), &si, &pi);
+	SetEnvironmentVariableW(L"QS_PRECOMPILE", nullptr);
+	if (!started) {
+		log(L"shell: could not compile the QML first (%lu): the shell does it", GetLastError());
+		return;
+	}
+	CloseHandle(pi.hThread);
+	auto began = GetTickCount64();
+	DWORD code = 1;
+	if (WaitForSingleObject(pi.hProcess, 120000) == WAIT_OBJECT_0) GetExitCodeProcess(pi.hProcess, &code);
+	else TerminateProcess(pi.hProcess, 1);
+	CloseHandle(pi.hProcess);
+	if (code == 0) state::setText(L"qml", L"compiledFor", options.config);
+	log(L"shell: QML compiled %s in %llu ms", code == 0 ? L"" : L"(not completely: the shell does the rest)", GetTickCount64() - began);
+}
+
 void rememberGoodConfig() {
 	if (!configGuardEnabled()) return;
 	auto outcome = configtool::keepGood();
@@ -366,6 +419,7 @@ bool startShell() {
 
 	guardConfig(); // a damaged config.json must not be what the shell starts from
 	applyRenderLoopChoice();
+	ensureCompiledQml();
 	reconcileGpuPreference(options.shell);
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
 	// Nobody edits an installed config: Quickshell watching its ~600 QML files (and their folders) for a

@@ -258,6 +258,12 @@ try {
     $preProcess = [System.Diagnostics.Process]::Start($pre)
     if ($preProcess.WaitForExit(240000)) {
         Say ("Interfaz preparada en {0:n0} s." -f $preWatch.Elapsed.TotalSeconds)
+        # ii-host compiles it before a start whenever this is missing (plan 1.3): it is done for this version.
+        if ($preProcess.ExitCode -eq 0) {
+            Add-Type -Namespace IiInstall -Name Ini -MemberDefinition '[DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern bool WritePrivateProfileStringW(string s, string k, string v, string f);'
+            New-Item -ItemType Directory -Force $dataDir | Out-Null
+            [void][IiInstall.Ini]::WritePrivateProfileStringW('qml', 'compiledFor', (Join-Path $versionDir 'ii'), (Join-Path $dataDir 'state.ini'))
+        }
     } else {
         try { $preProcess.Kill() } catch { }
         Say 'La preparacion tardo demasiado: se termina en el primer arranque.'
