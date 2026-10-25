@@ -132,6 +132,71 @@ add_translations('es_MX', {
 })
 
 
+# --- 2.1 No bar at all ------------------------------------------------------------------------------------------------
+# Bar position gets a fifth choice, "None" (bar.enable = false): neither the bar nor the vertical bar is made, and
+# what kept clear of the bar (desktop icons, notices, menus, the tour...) uses Appearance.sizes.barReserve, the bar's
+# height while there is one and 0 without. (The bar's own widgets keep barHeight: the lock screen reuses them.)
+# "Bottom" was already there; the dock stacks above a bottom bar by the panels' zones (Quickshell for Windows).
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property bool bottom: false // Instead of top
+''', '''                property bool enable: true // ii-windows: false = no bar at all (Settings > Bar > Bar position > None)
+                property bool bottom: false // Instead of top
+'''),
+])
+edit(path('modules', 'common', 'Appearance.qml'), [
+    ('''        property real barCenterSideModuleWidth:''', '''        // ii-windows: the room kept clear of the bar by other panels; 0 when there is no bar.
+        property real barReserve: (Config.options.bar.enable ?? true) ? barHeight : 0
+        property real barCenterSideModuleWidth:'''),
+])
+for parts in [('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopIcons.qml'),
+              ('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopMenu.qml'),
+              ('modules', 'ii', 'background', 'widgets', 'DesktopEditBar.qml'),
+              ('modules', 'ii', 'mediaControls', 'MediaControls.qml'),
+              ('modules', 'ii', 'onScreenDisplay', 'LockKeysOsd.qml'),
+              ('modules', 'ii', 'onScreenDisplay', 'OnScreenDisplay.qml'),
+              ('modules', 'ii', 'tour', 'Tour.qml'),
+              ('modules', 'ii', 'wallpaperSelector', 'WallpaperSelector.qml')]:
+    edit(path(*parts), [('Appearance.sizes.barHeight', 'Appearance.sizes.barReserve', 0)])
+edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
+    ('''    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }''',
+     '''    PanelLoader { extraCondition: (Config.options.bar.enable ?? true) && !Config.options.bar.vertical; component: Bar {} }'''),
+    ('''    PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }''',
+     '''    PanelLoader { extraCondition: (Config.options.bar.enable ?? true) && Config.options.bar.vertical; component: VerticalBar {} }'''),
+])
+for page in ('BarConfig.qml', 'QuickConfig.qml'):
+    edit(path('modules', 'settings', page), [
+        ('''                    currentValue: (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0)
+                    onSelected: newValue => {
+                        Config.options.bar.bottom = (newValue & 1) !== 0;
+                        Config.options.bar.vertical = (newValue & 2) !== 0;
+                    }''', '''                    currentValue: !(Config.options.bar.enable ?? true) ? 4 : (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0)
+                    onSelected: newValue => {
+                        Config.options.bar.enable = newValue !== 4; // ii-windows: "None"
+                        if (newValue === 4)
+                            return;
+                        Config.options.bar.bottom = (newValue & 1) !== 0;
+                        Config.options.bar.vertical = (newValue & 2) !== 0;
+                    }'''),
+        ('''                        {
+                            displayName: Translation.tr("Right"),
+                            icon: "arrow_forward",
+                            value: 3 // bottom: true, vertical: true
+                        }
+                    ]''', '''                        {
+                            displayName: Translation.tr("Right"),
+                            icon: "arrow_forward",
+                            value: 3 // bottom: true, vertical: true
+                        },
+                        {
+                            displayName: Translation.tr("None"),
+                            icon: "visibility_off",
+                            value: 4 // ii-windows: bar.enable: false
+                        }
+                    ]'''),
+    ])
+add_translations('es_MX', {"None": "Ninguna"})
+
+
 # --- 0.2 Night light off by default -------------------------------------------------------------------------------
 # Upstream ships the schedule switched on (19:00-06:30): on Windows a fresh install turned the screen yellow in the
 # evening without the user touching anything. Off by default, and an install that still has upstream's untouched

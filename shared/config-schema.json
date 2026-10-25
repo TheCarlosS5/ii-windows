@@ -633,6 +633,9 @@
     2
    ]
   },
+  "bar.enable": {
+   "kind": "bool"
+  },
   "bar.floatStyleShadow": {
    "kind": "bool"
   },

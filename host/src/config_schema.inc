@@ -270,6 +270,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"bar.borderless", K_BOOL, false, 0, 0, {}},
 	{"bar.bottom", K_BOOL, false, 0, 0, {}},
 	{"bar.cornerStyle", K_INT, false, 0, 0, {0, 1, 2}},
+	{"bar.enable", K_BOOL, false, 0, 0, {}},
 	{"bar.floatStyleShadow", K_BOOL, false, 0, 0, {}},
 	{"bar.indicators.notifications.showUnreadCount", K_BOOL, false, 0, 0, {}},
 	{"bar.resources.alwaysShowCpu", K_BOOL, false, 0, 0, {}},
