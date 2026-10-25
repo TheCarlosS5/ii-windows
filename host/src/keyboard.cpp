@@ -272,6 +272,7 @@ void refreshContext() {
 void resetState() { resetRequested = true; }
 
 void openStart() {
+	if (noUi()) return; // a test host never presses keys on the tester's desktop
 	std::array<INPUT, 2> inputs {};
 	for (auto& in: inputs) {
 		in.type = INPUT_KEYBOARD;

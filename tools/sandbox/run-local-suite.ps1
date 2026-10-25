@@ -9,7 +9,7 @@
 param([string]$Only = '', [int]$TimeoutSec = 600)
 $tests = 'test-ownership', 'test-changes', 'test-autostart', 'test-runtime', 'test-install-flow', 'test-staging', 'test-qml-lint',
          'test-actions', 'test-vdesk', 'test-config', 'test-language', 'test-linux-routes', 'test-shim-files', 'test-report-redaction', 'test-airequest',
-         'test-fastfetch', 'test-host-launch', 'test-host-heartbeat', 'test-host-health', 'test-rescue-ps', 'test-bench', 'test-qs-smoke', 'test-input-region'
+         'test-fastfetch', 'test-host-launch', 'test-host-heartbeat', 'test-host-games', 'test-host-health', 'test-rescue-ps', 'test-bench', 'test-qs-smoke', 'test-input-region'
 if ($Only) { $tests = @($tests | Where-Object { $_ -like "*$Only*" }) }
 $paths = $tests | ForEach-Object { Join-Path $PSScriptRoot "tests\$_.ps1" }
 & (Join-Path $PSScriptRoot 'run-tests.ps1') -Path ($paths -join ',') -RequireAssertions -TimeoutSec $TimeoutSec

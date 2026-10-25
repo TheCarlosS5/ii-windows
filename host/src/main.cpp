@@ -132,8 +132,11 @@ int frozenIndex = 0;
 ULONGLONG windowsLostSince = 0;
 bool sessionLocked = false;
 // The shell froze again and again with this game in front: no new shell until the game ends (or stays away).
+// The handle may be missing (an anti-cheat that denies it): then the game is followed by its pid.
+bool waitingForGame = false;
 HANDLE waitingGame = nullptr;
 DWORD waitingGamePid = 0;
+ULONGLONG waitingGameCreated = 0; // its creation time, so a reused pid is not taken for the game
 ULONGLONG gameAwaySince = 0;
 bool noticeShown = false;
 
@@ -428,6 +431,7 @@ void restoreAndStop(int code) {
 	removeNotice();
 	if (waitingGame) CloseHandle(waitingGame);
 	waitingGame = nullptr;
+	waitingForGame = false;
 	if (code == 0 && shellReady) rememberGoodConfig(); // a clean end: what the shell last wrote is good
 	splash::close();
 	windowfx::stop();
@@ -584,7 +588,14 @@ BOOL CALLBACK inspectShellWindow(HWND hwnd, LPARAM data) {
 	return TRUE;
 }
 
+// II_TEST_FULLSCREEN=1: tests act as if a game filled the screen, without putting one on the tester's desktop.
+bool testFullscreen() {
+	static const bool on = GetEnvironmentVariableW(L"II_TEST_FULLSCREEN", nullptr, 0) > 0;
+	return on;
+}
+
 bool foregroundIsFullscreenApp() {
+	if (testFullscreen()) return true;
 	auto* fg = GetForegroundWindow();
 	if (!fg) return false;
 	DWORD pid = 0;
@@ -605,6 +616,7 @@ bool foregroundIsFullscreenApp() {
 // A game rather than any window that fills the screen: exclusive fullscreen, or borderless and covering the monitor
 // without being a maximized window with a title bar (the same rule the keyboard uses to step aside).
 bool gameInFront() {
+	if (testFullscreen()) return true;
 	if (!foregroundIsFullscreenApp()) return false;
 	auto* fg = GetForegroundWindow();
 	QUERY_USER_NOTIFICATION_STATE state {};
@@ -700,6 +712,9 @@ void onShellFrozen(const wchar_t* why) {
 	DWORD fgPid = 0;
 	auto front = describeForeground(fgPid);
 	auto game = gameInFront();
+	// II_TEST_GAME_PID: the process tests use as the game in front.
+	wchar_t testGame[16];
+	if (GetEnvironmentVariableW(L"II_TEST_GAME_PID", testGame, _countof(testGame)) > 0) fgPid = static_cast<DWORD>(_wtoi(testGame));
 	log(L"hang: %s; in front: %s; shell up for %llu s", why, front.c_str(), (now - shellStartedAt) / 1000);
 	exposeExplorer(why);
 	if (bannersSuppressed) {
@@ -717,14 +732,19 @@ void onShellFrozen(const wchar_t* why) {
 	windowsLostSince = 0;
 	endedByWatchdog = true;
 	if (repeated) {
-		waitingGame = OpenProcess(SYNCHRONIZE, FALSE, fgPid);
+		waitingForGame = true;
+		// II_TEST_GAME_NO_HANDLE: tests stand for an anti-cheat that denies the handle.
+		waitingGame = GetEnvironmentVariableW(L"II_TEST_GAME_NO_HANDLE", nullptr, 0) > 0 ? nullptr : OpenProcess(SYNCHRONIZE, FALSE, fgPid);
 		waitingGamePid = fgPid;
+		ProcessIdentity identity;
+		waitingGameCreated = identityOf(fgPid, identity) ? identity.created : 0;
+		if (!waitingGame) log(L"hang: no handle on the game (%lu): following it by its pid", GetLastError());
 		gameAwaySince = 0;
 		log(L"hang: %d freezes in a few minutes with a game in front: ii waits until it ends", SHELL_FROZEN_LIMIT);
 		showNotice(L"ii se pausó mientras juegas",
 		           L"La interfaz de ii se congeló varias veces con este juego. Tienes la barra de Windows; ii vuelve sola cuando cierres el juego.");
 	}
-	TerminateProcess(shellProcess, 1); // onShellExited starts a new one (or not, while waitingGame)
+	TerminateProcess(shellProcess, 1); // onShellExited starts a new one (or not, while waitingForGame)
 }
 
 // CPU time (100 ns units) the shell's GUI thread (its main thread) has used so far.
@@ -739,7 +759,7 @@ ULONGLONG shellGuiCpu() {
 // opened for the first time) is not frozen: it gets up to SHELL_BUSY_LIMIT_MS. One that stands still, waiting on a
 // graphics driver or on anything else, uses no processor time and is acted on after the timeout.
 void checkHeartbeat() {
-	if (!shellProcess || shuttingDown || !shellReady || waitingGame || lastHeartbeat == 0) return;
+	if (!shellProcess || shuttingDown || !shellReady || waitingForGame || lastHeartbeat == 0) return;
 	auto now = GetTickCount64();
 	if (now < heartbeatGraceUntil) return;
 	auto silent = now - lastHeartbeat;
@@ -756,18 +776,39 @@ void checkHeartbeat() {
 	onShellFrozen(text);
 }
 
+// Without a handle: is the game's pid still in the process list, and still the same process (creation time)?
+// A process snapshot needs no access to the game itself.
+bool gameStillRunning() {
+	auto* snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (snapshot == INVALID_HANDLE_VALUE) return true; // cannot tell: keep waiting (it also ends after a minute away)
+	PROCESSENTRY32W entry {};
+	entry.dwSize = sizeof(entry);
+	auto found = false;
+	for (auto ok = Process32FirstW(snapshot, &entry); ok; ok = Process32NextW(snapshot, &entry)) {
+		if (entry.th32ProcessID == waitingGamePid) {
+			found = true;
+			break;
+		}
+	}
+	CloseHandle(snapshot);
+	if (!found) return false;
+	ProcessIdentity identity;
+	return waitingGameCreated == 0 || !identityOf(waitingGamePid, identity) || identity.created == waitingGameCreated;
+}
+
 // While ii waits for a game: a new shell once the game has ended, or has not been in front for a minute.
 void checkWaitingGame() {
-	if (!waitingGame || shuttingDown) return;
+	if (!waitingForGame || shuttingDown) return;
 	auto now = GetTickCount64();
-	auto ended = WaitForSingleObject(waitingGame, 0) == WAIT_OBJECT_0;
+	auto ended = waitingGame ? WaitForSingleObject(waitingGame, 0) == WAIT_OBJECT_0 : !gameStillRunning();
 	auto away = processIdOf(GetForegroundWindow()) != waitingGamePid;
 	if (!away) gameAwaySince = 0;
 	else if (gameAwaySince == 0) gameAwaySince = now;
 	if (!ended && !(gameAwaySince && now - gameAwaySince > 60000)) return;
 	log(L"hang: the game %s, starting ii again", ended ? L"ended" : L"has been away for a minute");
-	CloseHandle(waitingGame);
+	if (waitingGame) CloseHandle(waitingGame);
 	waitingGame = nullptr;
+	waitingForGame = false;
 	waitingGamePid = 0;
 	frozenIndex = 0;
 	for (auto& t: frozenTimes) t = 0;
@@ -778,10 +819,39 @@ void checkWaitingGame() {
 // A lone Win press went to ii's search. Over a window that fills its screen (a game ii's shortcuts did not step aside
 // for) or with a shell that stopped beating, ii may be unable to show anything: if no window of the shell has come
 // to the front shortly after, Windows' own Start opens instead. A key is never swallowed with nothing on screen.
+// A launcher-like window of the shell is on screen: visible, always on top and covering a whole monitor (the
+// overview). Windows may refuse it the foreground over a game while it is plainly showing.
+bool shellLauncherVisible() {
+	if (!shellPid) return false;
+	struct Search {
+		DWORD pid;
+		bool found = false;
+	} search {shellPid};
+	EnumWindows(
+	    [](HWND hwnd, LPARAM data) -> BOOL {
+		    auto* s = reinterpret_cast<Search*>(data); // NOLINT
+		    if (processIdOf(hwnd) != s->pid || !IsWindowVisible(hwnd) || !(GetWindowLongW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) return TRUE;
+		    RECT r {};
+		    MONITORINFO info {};
+		    info.cbSize = sizeof(info);
+		    if (GetWindowRect(hwnd, &r) && GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &info) && r.left <= info.rcMonitor.left
+		        && r.top <= info.rcMonitor.top && r.right >= info.rcMonitor.right && r.bottom >= info.rcMonitor.bottom)
+		    {
+			    s->found = true;
+			    return FALSE;
+		    }
+		    return TRUE;
+	    },
+	    reinterpret_cast<LPARAM>(&search) // NOLINT
+	);
+	return search.found;
+}
+
 void onLoneWin() {
 	if (shuttingDown) return;
 	auto* fg = GetForegroundWindow();
 	if (shellPid && processIdOf(fg) == shellPid) return; // ii is in front: this press closes its search
+	if (shellLauncherVisible()) return;                   // its search shows (without the foreground): this press closes it
 	auto now = GetTickCount64();
 	auto silent = !shellProcess || (lastHeartbeat != 0 && now - lastHeartbeat > 2000);
 	if (!silent && !foregroundIsFullscreenApp()) return;
@@ -791,6 +861,10 @@ void onLoneWin() {
 void onLoneWinTimeout() {
 	KillTimer(hostWindow, TIMER_LONE_WIN);
 	if (shuttingDown || (shellPid && processIdOf(GetForegroundWindow()) == shellPid)) return;
+	if (shellLauncherVisible()) {
+		log(L"keyboard: ii's search shows over the window in front (without the foreground): no Start");
+		return;
+	}
 	DWORD pid = 0;
 	auto front = describeForeground(pid);
 	log(L"keyboard: ii did not show for the Win key over %s: Windows' Start instead", front.c_str());
@@ -930,7 +1004,7 @@ void onShellExited() {
 
 	if (endedByWatchdog) {
 		endedByWatchdog = false;
-		if (!waitingGame) SetTimer(hostWindow, TIMER_RESTART_SHELL, 1000, nullptr);
+		if (!waitingForGame) SetTimer(hostWindow, TIMER_RESTART_SHELL, 1000, nullptr);
 		return;
 	}
 

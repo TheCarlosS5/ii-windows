@@ -80,7 +80,8 @@ function Wait-IiExit($Process, [int]$TimeoutSec = 30) {
     $null
 }
 
-function Send-IiWmClose([int]$ProcessId) {
+# Posts a message to the top-level windows of a process whose class starts with $ClassPrefix; returns how many.
+function Send-IiMessage([int]$ProcessId, [string]$ClassPrefix, [uint32]$Message, [long]$WParam = 0) {
     $found = New-Object System.Collections.Generic.List[IntPtr]
     $cb = [IiTest.Win+EnumProc]{
         param($h, $l)
@@ -89,14 +90,16 @@ function Send-IiWmClose([int]$ProcessId) {
         if ($pid2 -eq $ProcessId) {
             $sb = New-Object System.Text.StringBuilder 64
             [void][IiTest.Win]::GetClassName($h, $sb, 64)
-            if ($sb.ToString().StartsWith('IiHostWindow')) { $found.Add($h) }
+            if ($sb.ToString().StartsWith($ClassPrefix)) { $found.Add($h) }
         }
         $true
     }
     [void][IiTest.Win]::EnumWindows($cb, [IntPtr]::Zero)
-    foreach ($h in $found) { [void][IiTest.Win]::PostMessage($h, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) }
+    foreach ($h in $found) { [void][IiTest.Win]::PostMessage($h, $Message, [IntPtr]$WParam, [IntPtr]::Zero) }
     $found.Count
 }
+
+function Send-IiWmClose([int]$ProcessId) { Send-IiMessage $ProcessId 'IiHostWindow' 0x10 }
 
 # Processes whose executable is exactly this path.
 function Get-IiProcessesAt([string]$ExePath) {
