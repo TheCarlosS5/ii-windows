@@ -5,34 +5,67 @@ import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Services.UPower
 import Quickshell.Wayland
 
 // ii-windows: a small pill under the bar when Caps Lock, Num Lock or Scroll Lock is turned on or off
-// ("Bloq Mayús activado"), so a mistyped password or a dead numpad is no longer a mystery.
+// ("Bloq Mayús activado"), so a mistyped password or a dead numpad is no longer a mystery; and on a laptop when the
+// charger is plugged in or out, with the battery level ("Cargando · 45 %").
 Scope {
     id: root
     property string message: ""
     property string icon: "keyboard_capslock"
     property bool on: false
 
+    function show(message, icon, on) {
+        root.message = message;
+        root.icon = icon;
+        root.on = on;
+        hideTimer.restart();
+        loader.shown = true; // before the window exists: its opacity binding reads it at creation
+        loader.active = true;
+    }
+
+    // The charger: Windows tells the battery service at once (GUID_ACDC_POWER_SOURCE). The first reading is the
+    // state at start-up, not a change.
+    property var lastOnBattery: undefined
+    function chargerChanged() {
+        if (!Battery.available)
+            return;
+        const onBattery = UPower.onBattery;
+        if (root.lastOnBattery === undefined || root.lastOnBattery === onBattery) {
+            root.lastOnBattery = onBattery;
+            return;
+        }
+        root.lastOnBattery = onBattery;
+        if (!(Config.options.osd.charger ?? true))
+            return;
+        const percent = Math.round(Battery.percentage * 100);
+        if (onBattery)
+            root.show(Translation.tr("On battery · %1%").arg(percent), "battery_full", false);
+        else if (Battery.isCharging)
+            root.show(Translation.tr("Charging · %1%").arg(percent), "battery_charging_full", true);
+        else
+            root.show(Translation.tr("Plugged in · %1%").arg(percent), "power", true);
+    }
+    Component.onCompleted: chargerChanged()
+    Connections {
+        target: UPower
+        function onOnBatteryChanged() {
+            root.chargerChanged();
+        }
+    }
+
     Connections {
         target: LockKeys
         function onToggled(key, on) {
             if (!(Config.options.osd.lockKeys ?? true)) return;
-            if (key === "caps") {
-                root.message = on ? Translation.tr("Caps Lock on") : Translation.tr("Caps Lock off");
-                root.icon = "keyboard_capslock";
-            } else if (key === "num") {
-                root.message = on ? Translation.tr("Num Lock on") : Translation.tr("Num Lock off");
-                root.icon = "pin";
-            } else {
-                root.message = on ? Translation.tr("Scroll Lock on") : Translation.tr("Scroll Lock off");
-                root.icon = "swap_vert";
-            }
-            root.on = on;
-            hideTimer.restart();
-            loader.shown = true; // before the window exists: its opacity binding reads it at creation
-            loader.active = true;
+            if (key === "caps")
+                root.show(on ? Translation.tr("Caps Lock on") : Translation.tr("Caps Lock off"), "keyboard_capslock", on);
+            else if (key === "num")
+                root.show(on ? Translation.tr("Num Lock on") : Translation.tr("Num Lock off"), "pin", on);
+            else
+                root.show(on ? Translation.tr("Scroll Lock on") : Translation.tr("Scroll Lock off"), "swap_vert", on);
         }
     }
     Timer {

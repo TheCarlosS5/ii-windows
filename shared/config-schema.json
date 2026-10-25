@@ -973,6 +973,9 @@
     60000
    ]
   },
+  "osd.charger": {
+   "kind": "bool"
+  },
   "osd.lockKeys": {
    "kind": "bool"
   },

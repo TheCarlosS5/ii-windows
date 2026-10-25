@@ -370,6 +370,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"notifications.monitor.enable", K_BOOL, false, 0, 0, {}},
 	{"notifications.monitor.name", K_STRING, false, 0, 0, {}},
 	{"notifications.timeout", K_INT, true, 1000.0, 60000.0, {}},
+	{"osd.charger", K_BOOL, false, 0, 0, {}},
 	{"osd.lockKeys", K_BOOL, false, 0, 0, {}},
 	{"osd.timeout", K_INT, true, 100.0, 3000.0, {}},
 	{"osk.layout", K_STRING, false, 0, 0, {}},

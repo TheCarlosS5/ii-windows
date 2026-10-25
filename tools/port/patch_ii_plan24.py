@@ -100,6 +100,38 @@ edit(path('modules', 'ii', 'background', 'Background.qml'), [
 ])
 
 
+# --- 1.5 Charger notice ---------------------------------------------------------------------------------------------
+# The Caps/Num/Scroll Lock pill (overlay LockKeysOsd.qml) also says when the charger is plugged in or out, with the
+# battery level. Its own switch, next to the lock keys one.
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property bool lockKeys: true // ii-windows: "Caps Lock on" and the like
+''', '''                property bool lockKeys: true // ii-windows: "Caps Lock on" and the like
+                property bool charger: true // ii-windows: "Charging · 45%" when the charger is plugged in or out
+'''),
+])
+edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
+    ('''            checked: Config.options.osd.lockKeys
+            onCheckedChanged: Config.options.osd.lockKeys = checked
+        }
+''', '''            checked: Config.options.osd.lockKeys
+            onCheckedChanged: Config.options.osd.lockKeys = checked
+        }
+        ConfigSwitch {
+            buttonIcon: "battery_charging_full"
+            text: Translation.tr("Show when the charger is plugged in or out")
+            checked: Config.options.osd.charger
+            onCheckedChanged: Config.options.osd.charger = checked
+        }
+'''),
+])
+add_translations('es_MX', {
+    "On battery · %1%": "Con batería · %1 %",
+    "Charging · %1%": "Cargando · %1 %",
+    "Plugged in · %1%": "Conectado · %1 %",
+    "Show when the charger is plugged in or out": "Avisar al conectar o desconectar el cargador",
+})
+
+
 # --- 0.2 Night light off by default -------------------------------------------------------------------------------
 # Upstream ships the schedule switched on (19:00-06:30): on Windows a fresh install turned the screen yellow in the
 # evening without the user touching anything. Off by default, and an install that still has upstream's untouched
