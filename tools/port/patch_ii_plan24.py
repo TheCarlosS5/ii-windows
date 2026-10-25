@@ -31,7 +31,7 @@ def add_translations(code, strings):
 # follows), and the old copy of upstream's picture in Pictures\Wallpapers is replaced by it.
 edit(path('shell.qml'), [
     ('''        Quickshell.execDetached(["switchwall", "--adopt-windows"]) // ii-windows: the wallpaper Windows has is ii's too
-''', '''        Quickshell.execDetached(["switchwall", "--adopt-windows", "--default", FirstRunExperience.defaultWallpaperPath]) // ii-windows: one wallpaper for ii and Windows, ii's decides
+''', '''        Quickshell.execDetached(["switchwall", "--adopt-windows", "--default", FirstRunExperience.defaultWallpaperPath]) // ii-windows: one wallpaper for ii and Windows; a missing file falls back to ii-windows' own
 '''),
 ])
 

@@ -699,19 +699,6 @@ std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool
 	}
 	auto sameAsIi = normalizedPath(windows) == normalizedPath(currentConfigPath);
 	if (!force && !known.empty() && normalizedPath(known) == normalizedPath(windows)) return {}; // nothing changed in Windows
-	// ii decides after the first time: Windows drifting away (a slideshow, Spotlight, another app, a crash that left
-	// Windows on something else) is put back to ii's picture, so the lock screen, the start and a crash show the same.
-	if (!force && !known.empty() && !sameAsIi) {
-		std::wstring native = currentConfigPath;
-		for (auto& c: native) {
-			if (c == L'/') c = L'\\';
-		}
-		if (!currentConfigPath.empty() && GetFileAttributesW(native.c_str()) != INVALID_FILE_ATTRIBUTES) {
-			note(L"adopt: Windows shows %s, ii's is %s: Windows follows ii", windows.c_str(), native.c_str());
-			applyToWindows(native);
-			return {};
-		}
-	}
 	auto original = syncStateValue("original");
 	if (sameAsIi) {
 		writeSyncState(windows, original.empty() ? windows : original, syncStateValue("originalStyle"));
