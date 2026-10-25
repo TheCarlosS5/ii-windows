@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Windows
 import qs.modules.common
 
 // ii-windows: Wallpaper Engine / Lively next to ii.
@@ -14,7 +15,10 @@ import qs.modules.common
 // The palette comes from the wallpaper's preview picture (the one the program keeps for each wallpaper), through
 // `switchwall --palette-from`; when the program is closed the palette of ii's own wallpaper comes back.
 //
-// `ii-shim extwall status` does the looking (read-only, see host/src/extwall.cpp).
+// `ii-shim extwall status` does the looking (read-only, see host/src/extwall.cpp), but only when something changed:
+// every few seconds the shell checks in-process (SystemProbe) whether one of the programs runs and whether its own
+// file (`watch`: Wallpaper Engine's config.json, Lively's WallpaperLayout.json) was written since, instead of
+// starting a process each time (plan 1.2). A full look every few minutes catches anything else.
 Singleton {
     id: root
 
@@ -31,8 +35,23 @@ Singleton {
 
     // Looks again now (the settings page's button, and the timer below).
     function refresh() {
-        if (!statusProc.running)
+        if (!statusProc.running) {
+            root.lastFullLook = Date.now();
             statusProc.running = true;
+        }
+    }
+
+    // The cheap check: a full look only when a program started or ended, or its file changed.
+    readonly property var programs: ["wallpaper64.exe", "wallpaper32.exe", "Lively.exe"]
+    property string watch: ""
+    property string probeKey: ""
+    property real lastFullLook: 0
+    function probe() {
+        const key = SystemProbe.processRunning(root.programs) + "|" + SystemProbe.modifiedMs(root.watch);
+        if (key !== root.probeKey || Date.now() - root.lastFullLook > 300000) {
+            root.probeKey = key;
+            root.refresh();
+        }
     }
 
     // Makes the palette from the preview again (also after a light/dark switch, which regenerates it from ii's wallpaper).
@@ -73,6 +92,8 @@ Singleton {
         root.running = data.running === true;
         root.title = data.title ?? "";
         root.preview = data.preview ?? "";
+        root.watch = data.watch ?? "";
+        root.probeKey = SystemProbe.processRunning(root.programs) + "|" + SystemProbe.modifiedMs(root.watch);
         root.settle();
         const key = root.active + "|" + root.preview;
         if (key !== root.assistedKey) {
@@ -134,7 +155,7 @@ Singleton {
         running: root.enabled
         repeat: true
         triggeredOnStart: true
-        onTriggered: root.refresh()
+        onTriggered: root.probe()
     }
     onEnabledChanged: {
         if (!enabled) {

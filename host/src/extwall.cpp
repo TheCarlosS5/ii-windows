@@ -4,7 +4,9 @@
 //
 // Prints one line of JSON:
 //   {"provider":"wallpaperengine|lively|none","running":true,"title":"...","preview":"C:\\...\\preview.jpg",
-//    "source":"C:\\...\\project.json","type":"scene"}
+//    "source":"C:\\...\\project.json","type":"scene","watch":"C:\\...\\config.json"}
+// `watch` is the program's own file that changes when another wallpaper is chosen: the shell checks its time (and
+// whether the program runs) in-process and asks again only when one of them changes.
 // ii uses it to let the live wallpaper show through ii's (transparent) background window and to take the
 // palette from `preview`, the picture the program itself keeps for each wallpaper.
 //
@@ -187,6 +189,7 @@ struct Info {
 	std::string preview;
 	std::string source;
 	std::string type;
+	std::string watch; // the program's file that changes when another wallpaper is chosen
 };
 
 // ---- Wallpaper Engine ----------------------------------------------------------------------------------
@@ -258,6 +261,7 @@ std::vector<std::wstring> livelyDataDirs() {
 bool livelyInfoIn(const std::wstring& dataDir, Info& info) {
 	jsonlite::Value layout;
 	if (!loadJson(dataDir + L"\\WallpaperLayout.json", layout)) return false;
+	info.watch = utf8(dataDir + L"\\WallpaperLayout.json");
 	std::wstring folder = wide(textOf(findKey(layout, "livelyinfofolderpath")));
 	if (folder.empty()) {
 		auto infoPath = wide(textOf(findKey(layout, "livelyinfopath")));
@@ -369,6 +373,7 @@ int extwall(const Args& args) {
 		info.provider = "wallpaperengine";
 		info.running = true;
 		wallpaperEngineInfo(weDir, info);
+		info.watch = utf8(weDir + L"\\config.json");
 	} else if (weRunning && weDir.empty() && !assume) {
 		info.provider = "wallpaperengine";
 		info.running = true;
@@ -403,6 +408,7 @@ int extwall(const Args& args) {
 	out.set("preview", jsonlite::Value::makeString(info.preview));
 	out.set("source", jsonlite::Value::makeString(info.source));
 	out.set("type", jsonlite::Value::makeString(info.type));
+	out.set("watch", jsonlite::Value::makeString(info.watch));
 	auto text = jsonlite::stringify(out, false) + "\n";
 	std::fwrite(text.data(), 1, text.size(), stdout);
 	if (initialized) CoUninitialize();
