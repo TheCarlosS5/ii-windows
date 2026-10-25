@@ -351,6 +351,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"light.night.automatic", K_BOOL, false, 0, 0, {}},
 	{"light.night.colorTemperature", K_INT, false, 0, 0, {}},
 	{"light.night.from", K_STRING, false, 0, 0, {}},
+	{"light.night.nightLightMigrated", K_BOOL, false, 0, 0, {}},
 	{"light.night.to", K_STRING, false, 0, 0, {}},
 	{"lock.blur.enable", K_BOOL, false, 0, 0, {}},
 	{"lock.blur.extraZoom", K_REAL, false, 0, 0, {}},

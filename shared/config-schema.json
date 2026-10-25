@@ -912,6 +912,9 @@
   "light.night.from": {
    "kind": "string"
   },
+  "light.night.nightLightMigrated": {
+   "kind": "bool"
+  },
   "light.night.to": {
    "kind": "string"
   },

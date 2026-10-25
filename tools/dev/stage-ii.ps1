@@ -75,6 +75,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\patch_ii_night.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_night.py failed" }
 # Round of 2026-10-18: a new install keeps Windows' wallpaper, the tour opens what it explains, lyrics on the desktop.
 & python -I "$root\tools\port\patch_ii_ronda18.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_ronda18.py failed" }
+# Plan of 2026-10-24: night light off by default, the wallpaper never falls back to upstream's, launcher created early.
+& python -I "$root\tools\port\patch_ii_plan24.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_plan24.py failed" }
 # Every folder/file the QML imports must be there and not empty (a submodule that was never
 # initialised leaves an empty folder, and the shell then dies on start): refuse to stage such a tree.
 $importCheck = & python -I "$root\tools\dev\check-qml-imports.py" $dest
