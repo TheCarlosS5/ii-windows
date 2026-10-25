@@ -53,6 +53,19 @@ constexpr UINT BOOT_FAST_FOR_MS = 30000;
 constexpr UINT BOOT_HIGH_PRIORITY_MS = 60000;
 constexpr int HOTKEY_PANIC = 1;
 constexpr UINT WM_II_SHELL_EXITED = WM_APP + 2;
+// Once a second from a timer on the shell's GUI thread (Quickshell's win32 backend), wParam = its pid. A shell whose
+// GUI thread stands still (a graphics driver reset under a heavy game, an endless wait) keeps its process alive, and
+// the user is left with neither ii nor a taskbar: only the missing heartbeat tells.
+constexpr UINT WM_II_HEARTBEAT = WM_APP + 5;
+constexpr ULONGLONG SHELL_HEARTBEAT_TIMEOUT_MS = 5000;
+constexpr ULONGLONG SHELL_BUSY_LIMIT_MS = 30000; // silent but using the processor: working, up to this long
+// Freezes this close together, with a game in front, mean the game and ii cannot share the machine: wait for the game.
+constexpr int SHELL_FROZEN_LIMIT = 3;
+constexpr ULONGLONG SHELL_FROZEN_SPAN_MS = 5 * 60 * 1000;
+// A shell that is up but has no window on any screen (its windows went with a lost graphics device).
+constexpr ULONGLONG SHELL_WINDOWS_LOST_MS = 20000;
+constexpr UINT_PTR TIMER_NOTICE_END = 8;
+constexpr UINT_PTR TIMER_LONE_WIN = 9;
 
 struct Options {
 	std::wstring shell;
@@ -108,6 +121,21 @@ bool endedByWatchdog = false;
 // Windows' own notification banners are switched off right now. Only while the shell's listener
 // is confirmed to be receiving notifications (health channel); never on the shell's mere existence.
 bool bannersSuppressed = false;
+// Heartbeat of the current shell (0: none yet, an older shell or one still loading) and the freeze bookkeeping.
+ULONGLONG lastHeartbeat = 0;
+ULONGLONG cpuAtHeartbeat = 0; // the GUI thread's processor time at the last heartbeat
+bool busyLogged = false;
+HANDLE shellThread = nullptr; // the shell's main (GUI) thread, for its processor time
+ULONGLONG heartbeatGraceUntil = 0; // after a resume or an unlock the first heartbeat may come late
+ULONGLONG frozenTimes[SHELL_FROZEN_LIMIT] = {};
+int frozenIndex = 0;
+ULONGLONG windowsLostSince = 0;
+bool sessionLocked = false;
+// The shell froze again and again with this game in front: no new shell until the game ends (or stays away).
+HANDLE waitingGame = nullptr;
+DWORD waitingGamePid = 0;
+ULONGLONG gameAwaySince = 0;
+bool noticeShown = false;
 
 struct MonitorCover {
 	RECT rect {};
@@ -308,13 +336,16 @@ bool startShell() {
 	}
 	AssignProcessToJobObject(shellJob, pi.hProcess);
 	ResumeThread(pi.hThread);
-	CloseHandle(pi.hThread);
+	if (shellThread) CloseHandle(shellThread);
+	shellThread = pi.hThread; // kept: its processor time tells a busy GUI thread from a frozen one
 
 	shellProcess = pi.hProcess;
 	shellPid = pi.dwProcessId;
 	shellStartedAt = GetTickCount64();
 	shellReady = false;
 	shellHungSince = 0;
+	lastHeartbeat = 0;
+	windowsLostSince = 0;
 	partialSince = 0;
 	slowLogged = false;
 	monitorMarked.clear();
@@ -346,6 +377,8 @@ void stopShell() {
 }
 
 // --- apply / restore -----------------------------------------------------------------------
+
+void removeNotice(); // the host's own Windows notification (a frozen shell), below
 
 // Logs a step that kept the host's message loop busy (it also runs the readiness check and the keyboard).
 struct SlowStep {
@@ -392,6 +425,9 @@ void restoreAndStop(int code) {
 	UnregisterHotKey(hostWindow, HOTKEY_PANIC);
 	KillTimer(hostWindow, TIMER_RESTART_SHELL);
 	stopShell();
+	removeNotice();
+	if (waitingGame) CloseHandle(waitingGame);
+	waitingGame = nullptr;
 	if (code == 0 && shellReady) rememberGoodConfig(); // a clean end: what the shell last wrote is good
 	splash::close();
 	windowfx::stop();
@@ -566,6 +602,17 @@ bool foregroundIsFullscreenApp() {
 	    && r.top <= info.rcMonitor.top && r.right >= info.rcMonitor.right && r.bottom >= info.rcMonitor.bottom;
 }
 
+// A game rather than any window that fills the screen: exclusive fullscreen, or borderless and covering the monitor
+// without being a maximized window with a title bar (the same rule the keyboard uses to step aside).
+bool gameInFront() {
+	if (!foregroundIsFullscreenApp()) return false;
+	auto* fg = GetForegroundWindow();
+	QUERY_USER_NOTIFICATION_STATE state {};
+	if (SUCCEEDED(SHQueryUserNotificationState(&state)) && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE)) return true;
+	auto style = GetWindowLongPtrW(fg, GWL_STYLE);
+	return (style & WS_CAPTION) != WS_CAPTION && !IsZoomed(fg);
+}
+
 void restartStuckShell(const wchar_t* why) {
 	log(L"shell: %s, restarting it", why);
 	if (++stuckRestarts > SHELL_STUCK_RESTARTS) {
@@ -574,18 +621,186 @@ void restartStuckShell(const wchar_t* why) {
 		abortLaunch(text);
 		return;
 	}
-	// A shell that never showed anything: give Explorer back while the next one starts, instead
-	// of keeping the user in front of a cover for another round. It is hidden again when the
-	// new shell is really up (onShellReady).
-	if (!shellReady) exposeExplorer(why);
+	// Give Explorer back while the next one starts, instead of keeping the user in front of a cover (or of a
+	// frozen ii with no taskbar) for another round. It is hidden again when the new shell is really up (onShellReady).
+	exposeExplorer(why);
 	shellHungSince = 0;
 	endedByWatchdog = true;
 	TerminateProcess(shellProcess, 1); // onShellExited starts a new one
 }
 
+ULONGLONG heartbeatTimeoutMs() {
+	wchar_t value[16];
+	if (GetEnvironmentVariableW(L"II_TEST_HEARTBEAT_MS", value, _countof(value)) > 0) {
+		auto ms = _wcstoui64(value, nullptr, 10);
+		if (ms >= 500) return ms;
+	}
+	return SHELL_HEARTBEAT_TIMEOUT_MS;
+}
+
+// What is in front, for the log of a freeze: game.exe "Title" (exclusive fullscreen).
+std::wstring describeForeground(DWORD& pid) {
+	pid = 0;
+	auto* fg = GetForegroundWindow();
+	if (!fg) return L"(nothing)";
+	GetWindowThreadProcessId(fg, &pid);
+	std::wstring exe = L"?";
+	if (auto* process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+		wchar_t path[MAX_PATH * 2];
+		DWORD size = static_cast<DWORD>(_countof(path));
+		if (QueryFullProcessImageNameW(process, 0, path, &size)) {
+			exe.assign(path, size);
+			exe = exe.substr(exe.find_last_of(L"\\/") + 1);
+		}
+		CloseHandle(process);
+	}
+	wchar_t title[128] {};
+	GetWindowTextW(fg, title, _countof(title));
+	QUERY_USER_NOTIFICATION_STATE state {};
+	auto exclusive = SUCCEEDED(SHQueryUserNotificationState(&state)) && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+	return exe + L" \"" + title + L"\"" + (exclusive ? L" (exclusive fullscreen)" : foregroundIsFullscreenApp() ? L" (covers the screen)" : L"");
+}
+
+// A Windows notification from the host itself (the shell, and its notifications, are gone at that moment). The icon
+// goes after half a minute.
+void showNotice(const wchar_t* title, const wchar_t* text) {
+	log(L"notice: %s: %s", title, text);
+	if (noUi()) return;
+	NOTIFYICONDATAW nid {};
+	nid.cbSize = sizeof(nid);
+	nid.hWnd = hostWindow;
+	nid.uID = 1;
+	nid.uFlags = NIF_ICON | NIF_TIP | NIF_INFO;
+	nid.hIcon = LoadIconW(nullptr, IDI_INFORMATION);
+	nid.dwInfoFlags = NIIF_INFO;
+	wcsncpy_s(nid.szTip, L"ii-windows", _TRUNCATE);
+	wcsncpy_s(nid.szInfoTitle, title, _TRUNCATE);
+	wcsncpy_s(nid.szInfo, text, _TRUNCATE);
+	if (noticeShown) Shell_NotifyIconW(NIM_DELETE, &nid);
+	noticeShown = Shell_NotifyIconW(NIM_ADD, &nid) != FALSE;
+	if (noticeShown) SetTimer(hostWindow, TIMER_NOTICE_END, 30000, nullptr);
+}
+
+void removeNotice() {
+	if (!noticeShown) return;
+	NOTIFYICONDATAW nid {};
+	nid.cbSize = sizeof(nid);
+	nid.hWnd = hostWindow;
+	nid.uID = 1;
+	Shell_NotifyIconW(NIM_DELETE, &nid);
+	noticeShown = false;
+}
+
+// The shell is alive but frozen (or lost its windows). In this order: Windows' taskbar, icons and banners come back
+// at once, then exactly the process this host started is ended (its handle, not a name or a PID), and a new one
+// starts, unless it keeps freezing.
+void onShellFrozen(const wchar_t* why) {
+	if (!shellProcess || shuttingDown) return;
+	auto now = GetTickCount64();
+	DWORD fgPid = 0;
+	auto front = describeForeground(fgPid);
+	auto game = gameInFront();
+	log(L"hang: %s; in front: %s; shell up for %llu s", why, front.c_str(), (now - shellStartedAt) / 1000);
+	exposeExplorer(why);
+	if (bannersSuppressed) {
+		banners::restore();
+		bannersSuppressed = false;
+	}
+	frozenTimes[frozenIndex++ % SHELL_FROZEN_LIMIT] = now;
+	auto repeated = frozenIndex >= SHELL_FROZEN_LIMIT && now - frozenTimes[frozenIndex % SHELL_FROZEN_LIMIT] < SHELL_FROZEN_SPAN_MS;
+	if (repeated && !game) {
+		abortLaunch(L"la shell se congeló varias veces seguidas");
+		return;
+	}
+	lastHeartbeat = 0;
+	shellHungSince = 0;
+	windowsLostSince = 0;
+	endedByWatchdog = true;
+	if (repeated) {
+		waitingGame = OpenProcess(SYNCHRONIZE, FALSE, fgPid);
+		waitingGamePid = fgPid;
+		gameAwaySince = 0;
+		log(L"hang: %d freezes in a few minutes with a game in front: ii waits until it ends", SHELL_FROZEN_LIMIT);
+		showNotice(L"ii se pausó mientras juegas",
+		           L"La interfaz de ii se congeló varias veces con este juego. Tienes la barra de Windows; ii vuelve sola cuando cierres el juego.");
+	}
+	TerminateProcess(shellProcess, 1); // onShellExited starts a new one (or not, while waitingGame)
+}
+
+// CPU time (100 ns units) the shell's GUI thread (its main thread) has used so far.
+ULONGLONG shellGuiCpu() {
+	FILETIME created, exited, kernel, user;
+	if (!shellThread || !GetThreadTimes(shellThread, &created, &exited, &kernel, &user)) return 0;
+	auto value = [](const FILETIME& f) { return (static_cast<ULONGLONG>(f.dwHighDateTime) << 32) | f.dwLowDateTime; };
+	return value(kernel) + value(user);
+}
+
+// Once a second, on the host's clock. A silent GUI thread that is busy (loading QML on a slow PC, compiling a page
+// opened for the first time) is not frozen: it gets up to SHELL_BUSY_LIMIT_MS. One that stands still, waiting on a
+// graphics driver or on anything else, uses no processor time and is acted on after the timeout.
+void checkHeartbeat() {
+	if (!shellProcess || shuttingDown || !shellReady || waitingGame || lastHeartbeat == 0) return;
+	auto now = GetTickCount64();
+	if (now < heartbeatGraceUntil) return;
+	auto silent = now - lastHeartbeat;
+	if (silent < heartbeatTimeoutMs()) return;
+	// 100 ns units over ms of silence: more than a quarter of a core on average counts as working.
+	auto busy = (shellGuiCpu() - cpuAtHeartbeat) / 10000 > silent / 4;
+	if (busy && silent < SHELL_BUSY_LIMIT_MS) {
+		if (!busyLogged) log(L"shell: GUI thread silent for %llu ms but working (processor time rising): waiting", silent);
+		busyLogged = true;
+		return;
+	}
+	wchar_t text[128];
+	swprintf_s(text, L"the shell's GUI thread has been silent for %llu ms%s", silent, busy ? L" (busy all along)" : L"");
+	onShellFrozen(text);
+}
+
+// While ii waits for a game: a new shell once the game has ended, or has not been in front for a minute.
+void checkWaitingGame() {
+	if (!waitingGame || shuttingDown) return;
+	auto now = GetTickCount64();
+	auto ended = WaitForSingleObject(waitingGame, 0) == WAIT_OBJECT_0;
+	auto away = processIdOf(GetForegroundWindow()) != waitingGamePid;
+	if (!away) gameAwaySince = 0;
+	else if (gameAwaySince == 0) gameAwaySince = now;
+	if (!ended && !(gameAwaySince && now - gameAwaySince > 60000)) return;
+	log(L"hang: the game %s, starting ii again", ended ? L"ended" : L"has been away for a minute");
+	CloseHandle(waitingGame);
+	waitingGame = nullptr;
+	waitingGamePid = 0;
+	frozenIndex = 0;
+	for (auto& t: frozenTimes) t = 0;
+	removeNotice();
+	if (!shellProcess) SetTimer(hostWindow, TIMER_RESTART_SHELL, 500, nullptr);
+}
+
+// A lone Win press went to ii's search. Over a window that fills its screen (a game ii's shortcuts did not step aside
+// for) or with a shell that stopped beating, ii may be unable to show anything: if no window of the shell has come
+// to the front shortly after, Windows' own Start opens instead. A key is never swallowed with nothing on screen.
+void onLoneWin() {
+	if (shuttingDown) return;
+	auto* fg = GetForegroundWindow();
+	if (shellPid && processIdOf(fg) == shellPid) return; // ii is in front: this press closes its search
+	auto now = GetTickCount64();
+	auto silent = !shellProcess || (lastHeartbeat != 0 && now - lastHeartbeat > 2000);
+	if (!silent && !foregroundIsFullscreenApp()) return;
+	SetTimer(hostWindow, TIMER_LONE_WIN, silent ? 50 : 700, nullptr);
+}
+
+void onLoneWinTimeout() {
+	KillTimer(hostWindow, TIMER_LONE_WIN);
+	if (shuttingDown || (shellPid && processIdOf(GetForegroundWindow()) == shellPid)) return;
+	DWORD pid = 0;
+	auto front = describeForeground(pid);
+	log(L"keyboard: ii did not show for the Win key over %s: Windows' Start instead", front.c_str());
+	keyboard::openStart();
+}
+
 void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 	shellReady = true;
 	stuckRestarts = 0;
+	lastHeartbeat = 0; // judged from the first heartbeat after this: the load before it may have kept the GUI thread busy
 	bench(covered < total ? L"ready-partial" : L"ready");
 	// A freshly installed version is "pending" until its host says it works; tell the launcher.
 	if (rollout::markVerified(selfDir())) log(L"runtime: this version is now verified");
@@ -674,6 +889,17 @@ void watchShell() {
 		}
 		return;
 	}
+	// Up, answering, but no window on any screen while nothing fullscreen is in front: its windows went (a lost
+	// graphics device) and the user sees Explorer's bare desktop with no taskbar.
+	if (found.covered() == 0 && !found.monitors.empty() && !sessionLocked && !foregroundIsFullscreenApp() && now >= heartbeatGraceUntil) {
+		if (windowsLostSince == 0) windowsLostSince = now;
+		else if (now - windowsLostSince > SHELL_WINDOWS_LOST_MS) {
+			onShellFrozen(L"no window of the shell on any screen for 20 s");
+			return;
+		}
+	} else {
+		windowsLostSince = 0;
+	}
 	if (!found.hung) {
 		shellHungSince = 0;
 	} else if (shellHungSince == 0) {
@@ -704,7 +930,7 @@ void onShellExited() {
 
 	if (endedByWatchdog) {
 		endedByWatchdog = false;
-		SetTimer(hostWindow, TIMER_RESTART_SHELL, 1000, nullptr);
+		if (!waitingGame) SetTimer(hostWindow, TIMER_RESTART_SHELL, 1000, nullptr);
 		return;
 	}
 
@@ -745,7 +971,23 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 	case keyboard::WM_II_SHORTCUT: dispatchShortcut(wParam, lParam); return 0;
 	case keyboard::WM_II_VOLUME: volume::handleKey(static_cast<unsigned>(wParam)); return 0;
+	case keyboard::WM_II_LONE_WIN: onLoneWin(); return 0;
 	case WM_II_SHELL_EXITED: onShellExited(); return 0;
+	case WM_II_HEARTBEAT:
+		if (shellProcess && static_cast<DWORD>(wParam) == shellPid) {
+			lastHeartbeat = GetTickCount64();
+			cpuAtHeartbeat = shellGuiCpu();
+			busyLogged = false;
+		}
+		return 0;
+	case WM_POWERBROADCAST:
+		// Asleep, nothing beats; awake, the shell needs a moment before its timers run again.
+		if (wParam == PBT_APMSUSPEND) heartbeatGraceUntil = ~0ULL;
+		else if (wParam == PBT_APMRESUMEAUTOMATIC || wParam == PBT_APMRESUMESUSPEND) {
+			heartbeatGraceUntil = GetTickCount64() + 15000;
+			windowsLostSince = 0;
+		}
+		return TRUE;
 	case WM_HOTKEY:
 		if (wParam == HOTKEY_PANIC) {
 			log(L"panic hotkey");
@@ -776,6 +1018,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (options.windowfx && uiHidden) { SlowStep s(L"windowfx::tick"); windowfx::tick(); }
 			if (options.hook) { SlowStep s(L"keyboard::refreshContext"); keyboard::refreshContext(); } // reconcile what the hook reads (shell, foreground, shortcuts.ini)
 			screentime::tick(shellPid); // the "Usage" tab of the right sidebar
+			checkHeartbeat();
+			checkWaitingGame();
 		} else if (wParam == TIMER_WATCHDOG) {
 			SlowStep s(L"watchShell");
 			watchShell();
@@ -792,6 +1036,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
 			if (shellProcess) SetPriorityClass(shellProcess, NORMAL_PRIORITY_CLASS);
 			log(L"boot: priority back to normal");
+		} else if (wParam == TIMER_LONE_WIN) {
+			onLoneWinTimeout();
+		} else if (wParam == TIMER_NOTICE_END) {
+			KillTimer(hwnd, TIMER_NOTICE_END);
+			removeNotice();
 		} else if (wParam == TIMER_AFTER_EXPLORER) {
 			KillTimer(hwnd, TIMER_AFTER_EXPLORER);
 			watchExplorer();
@@ -808,6 +1057,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case WM_WTSSESSION_CHANGE:
 		// Lock, unlock, console/remote switch: a key-up may have been lost on the secure desktop.
 		log(L"session change %llu: key state reset", static_cast<unsigned long long>(wParam));
+		if (wParam == WTS_SESSION_LOCK) sessionLocked = true;
+		if (wParam == WTS_SESSION_UNLOCK) {
+			sessionLocked = false;
+			heartbeatGraceUntil = GetTickCount64() + 10000;
+			windowsLostSince = 0;
+		}
 		screentime::sessionChanged(wParam);
 		if (options.hook) {
 			keyboard::resetState();
@@ -983,30 +1238,45 @@ int runRescue(bool restartExplorer) {
 // preference is only right when the power-saving GPU is the one driving the screen (laptops: the
 // integrated GPU has the panel). On a desktop with a graphics card and the integrated GPU switched on,
 // it made ii draw on a GPU with no screen and Windows copied every frame across: animations and the
-// wallpaper stalled, colours changed late. Exit 10 = power saving is right, 11 = leave it to Windows.
+// wallpaper stalled, colours changed late. The same happened the other way on gaming laptops: an external
+// monitor (wired to the NVIDIA GPU) or a MUX switch in "dedicated GPU" mode puts the main screen on the big
+// GPU while ii drew on the integrated one. So ii draws on the GPU that drives the main screen.
+// Exit 10 = power saving GPU, 12 = high performance GPU, 11 = leave it to Windows (one GPU, or unknown).
 int gpuPolicy(bool quiet) {
 	IDXGIFactory6* factory = nullptr;
 	if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) return 11;
 	int adapters = 0;
-	bool lowPowerHasScreen = false;
+	int primaryOn = -1; // index (in power-saving order) of the GPU with the main screen
 	for (UINT i = 0;; ++i) {
 		IDXGIAdapter1* adapter = nullptr;
 		if (factory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_MINIMUM_POWER, IID_PPV_ARGS(&adapter)) != S_OK) break;
 		DXGI_ADAPTER_DESC1 desc {};
 		adapter->GetDesc1(&desc);
 		if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
+			int screens = 0;
+			bool primary = false;
 			IDXGIOutput* output = nullptr;
-			bool screen = adapter->EnumOutputs(0, &output) == S_OK;
-			if (output) output->Release();
-			if (adapters == 0) lowPowerHasScreen = screen;
+			for (UINT o = 0; adapter->EnumOutputs(o, &output) == S_OK; ++o) {
+				DXGI_OUTPUT_DESC od {};
+				MONITORINFO info {};
+				info.cbSize = sizeof(info);
+				if (SUCCEEDED(output->GetDesc(&od)) && od.AttachedToDesktop) {
+					++screens;
+					if (GetMonitorInfoW(od.Monitor, &info) && (info.dwFlags & MONITORINFOF_PRIMARY)) primary = true;
+				}
+				output->Release();
+				output = nullptr;
+			}
+			if (primary && primaryOn < 0) primaryOn = adapters;
+			if (!quiet) log(L"gpu: %s (%s, %d screen(s)%s, %llu MB)", desc.Description, adapters == 0 ? L"power saving" : L"other", screens,
+			                primary ? L", the main one" : L"", static_cast<unsigned long long>(desc.DedicatedVideoMemory / (1024 * 1024)));
 			++adapters;
-			if (!quiet) log(L"gpu: %s (%s%s, %llu MB)", desc.Description, adapters == 1 ? L"power saving" : L"other", screen ? L", drives a screen" : L"",
-			                static_cast<unsigned long long>(desc.DedicatedVideoMemory / (1024 * 1024)));
 		}
 		adapter->Release();
 	}
 	factory->Release();
-	return adapters >= 2 && lowPowerHasScreen ? 10 : 11;
+	if (adapters < 2 || primaryOn < 0) return 11;
+	return primaryOn == 0 ? 10 : 12;
 }
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {

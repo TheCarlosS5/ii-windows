@@ -14,6 +14,10 @@
 //         revoke2      two good heartbeats, then permission-required / denied (revoked)
 //         foreign      like ok, but this is not the process the host started (must be ignored);
 //                      the test passes II_HOST_HWND and a guessed II_INSTANCE_ID in the environment
+//     beat          like "window", and posts the GUI-thread heartbeat (WM_APP + 5) once a second, as Quickshell does
+//     freeze:<n>    "beat", then after n beats the GUI thread stops for ever (its windows stay on screen)
+//     nowin:<n>     "beat", then after n beats its windows go (a lost graphics device) while it keeps beating
+//     busy:<n>      "beat", then after n beats the GUI thread computes for 9 s (busy, not frozen) and goes on beating
 // The host starts its shell as: "<shell>" -p "<config>", so the mode travels as the config.
 //
 // Named ii-host.exe it is a stand-in for the HOST, started by ii-launcher (R07 tests); the mode is
@@ -80,9 +84,37 @@ void sendHeartbeat(HWND self) {
 	SendMessageTimeoutW(host, WM_COPYDATA, reinterpret_cast<WPARAM>(self), reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 500, &result);
 }
 
+// beat / freeze:<n> / nowin:<n>
+int guiBeats = 0;
+int freezeAfter = 0;
+int hideAfter = 0;
+int busyAfter = 0;
+bool guiHeartbeat = false;
+
+void postGuiHeartbeat() {
+	auto* host = reinterpret_cast<HWND>(static_cast<ULONG_PTR>(_wcstoui64(env(L"II_HOST_HWND").c_str(), nullptr, 10))); // NOLINT
+	if (host) PostMessageW(host, WM_APP + 5, GetCurrentProcessId(), 0);
+	++guiBeats;
+	if (freezeAfter > 0 && guiBeats >= freezeAfter) {
+		for (;;) Sleep(1000);
+	}
+	if (busyAfter > 0 && guiBeats == busyAfter) {
+		volatile unsigned long long x = 0;
+		auto until = GetTickCount64() + 9000;
+		while (GetTickCount64() < until) x = x + 1;
+	}
+	if (hideAfter > 0 && guiBeats == hideAfter) {
+		for (auto* w: windows) ShowWindow(w, SW_HIDE);
+	}
+}
+
 LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	if (msg == WM_TIMER && wParam == 1) {
 		sendHeartbeat(hwnd);
+		return 0;
+	}
+	if (msg == WM_TIMER && wParam == 2) {
+		postGuiHeartbeat();
 		return 0;
 	}
 	return DefWindowProcW(hwnd, msg, wParam, lParam);
@@ -122,6 +154,7 @@ void showWindowsAndWait() {
 	RegisterClassW(&wc);
 	EnumDisplayMonitors(nullptr, nullptr, onMonitor, 0);
 	if (!variant.empty() && !windows.empty()) SetTimer(windows.front(), 1, 1000, nullptr);
+	if (guiHeartbeat && !windows.empty()) SetTimer(windows.front(), 2, 1000, nullptr);
 	MSG msg;
 	while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
 		TranslateMessage(&msg);
@@ -190,6 +223,10 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		return 0;
 	}
 	if (mode.rfind(L"hb:", 0) == 0) variant = mode.substr(3);
+	if (mode == L"beat" || mode.rfind(L"freeze:", 0) == 0 || mode.rfind(L"nowin:", 0) == 0 || mode.rfind(L"busy:", 0) == 0) guiHeartbeat = true;
+	if (mode.rfind(L"busy:", 0) == 0) busyAfter = _wtoi(mode.c_str() + 5);
+	if (mode.rfind(L"freeze:", 0) == 0) freezeAfter = _wtoi(mode.c_str() + 7);
+	if (mode.rfind(L"nowin:", 0) == 0) hideAfter = _wtoi(mode.c_str() + 6);
 	showWindowsAndWait();
 	return 0;
 }

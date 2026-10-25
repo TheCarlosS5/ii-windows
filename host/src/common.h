@@ -153,6 +153,7 @@ namespace keyboard {
 // Window that receives shortcut notifications posted from the hook (handled outside the hook).
 constexpr UINT WM_II_SHORTCUT = WM_APP + 1; // wParam: 1 pressed / 0 released, lParam: index
 constexpr UINT WM_II_VOLUME = WM_APP + 3;   // wParam: VK_VOLUME_UP / _DOWN / _MUTE (WM_APP + 2 is the shell-exited message in main.cpp)
+constexpr UINT WM_II_LONE_WIN = WM_APP + 4; // a lone Win press went to ii's search (WM_APP + 5 is the shell's heartbeat)
 bool install(HWND notifyWindow);
 void uninstall();
 const wchar_t* shortcutName(LPARAM index);
@@ -163,6 +164,9 @@ void resetState();
 // While ii's welcome cover is up the Windows key goes nowhere: Start (or StartAllBack's menu) would
 // open above the cover of a desktop that is still loading. Ctrl+Esc too.
 void setCoverUp(bool up);
+// Opens Windows' own Start menu (an injected Win tap the hook lets through): ii took a lone Win press but could not
+// show anything for it, and a key must never be swallowed with nothing on screen.
+void openStart();
 } // namespace keyboard
 
 namespace volume {

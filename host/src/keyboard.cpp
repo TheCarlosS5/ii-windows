@@ -69,6 +69,8 @@ std::wstring lowerExeName(DWORD pid) {
 //   [policy]  fullscreen = auto | geometry | never
 //   [yield]   processes = game.exe;other.exe     (ii's keys step aside for these)
 //   [keep]    processes = app.exe                (ii's keys never step aside for these)
+//   [unhook]  processes = game.exe               (no keyboard hook at all while these are in front; adds to
+//                                                 UNHOOK_BY_DEFAULT, "nodefaults" drops that list)
 ForegroundRules loadRules() {
 	static ForegroundRules rules;
 	static FILETIME stamp {};
@@ -99,6 +101,7 @@ ForegroundRules loadRules() {
 	else if (policy == L"never") rules.policy = FullscreenPolicy::Never;
 	rules.yieldExes = read(L"yield", L"processes");
 	rules.keepExes = read(L"keep", L"processes");
+	rules.unhookExes = read(L"unhook", L"processes");
 	rules.windowsVolumeKeys = read(L"audio", L"volumekeys") == L"windows";
 	log(L"keyboard: shortcuts.ini loaded (fullscreen=%s)", policy.empty() ? L"auto" : policy.c_str());
 	return rules;
@@ -161,6 +164,7 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 		PostMessageW(notify, WM_II_SHORTCUT, result.posts[static_cast<size_t>(i)].pressed ? 1 : 0, result.posts[static_cast<size_t>(i)].index);
 	}
 	if (result.maskWinRelease) releaseWinMasked(result.winVk);
+	if (result.loneWin) PostMessageW(notify, WM_II_LONE_WIN, 0, 0);
 	return result.swallow ? 1 : CallNextHookEx(hook, code, wParam, lParam);
 }
 
@@ -171,6 +175,10 @@ void CALLBACK onForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD,
 HANDLE hookThread = nullptr;
 DWORD hookThreadId = 0;
 HANDLE hookReady = nullptr;
+// Thread messages to the hook's thread: remove the hook while an anti-cheat game is in front, put it back after.
+constexpr UINT WM_HOOK_REMOVE = WM_APP + 20;
+constexpr UINT WM_HOOK_RESTORE = WM_APP + 21;
+std::atomic<bool> wantHook {true}; // what the host thread last asked for
 
 // The hook lives on its own thread. Windows calls a low-level hook on the thread that installed
 // it, and if that thread is busy for a moment (tray forwarding, Explorer restarts, the theme...)
@@ -186,8 +194,23 @@ DWORD WINAPI hookThreadMain(LPVOID) {
 	}
 	log(L"keyboard: hook installed");
 	MSG msg;
-	while (GetMessageW(&msg, nullptr, 0, 0) > 0) DispatchMessageW(&msg);
-	UnhookWindowsHookEx(hook);
+	while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+		if (msg.hwnd == nullptr && msg.message == WM_HOOK_REMOVE) {
+			if (hook) UnhookWindowsHookEx(hook);
+			hook = nullptr;
+			continue;
+		}
+		if (msg.hwnd == nullptr && msg.message == WM_HOOK_RESTORE) {
+			if (!hook) {
+				router.reset(); // keys pressed while there was no hook were never seen
+				hook = SetWindowsHookExW(WH_KEYBOARD_LL, proc, GetModuleHandleW(nullptr), 0);
+				if (!hook) log(L"keyboard: SetWindowsHookEx failed again (%lu)", GetLastError());
+			}
+			continue;
+		}
+		DispatchMessageW(&msg);
+	}
+	if (hook) UnhookWindowsHookEx(hook);
 	hook = nullptr;
 	return 0;
 }
@@ -233,6 +256,12 @@ void refreshContext() {
 		                         && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 		facts.exe = lowerExeName(pid);
 	}
+	auto unhook = shouldUnhook(facts, rules);
+	if (hookThread && unhook == wantHook.load()) {
+		wantHook = !unhook;
+		log(L"keyboard: hook %s for %s", unhook ? L"removed (anti-cheat game in front)" : L"back", facts.exe.empty() ? L"(unknown)" : facts.exe.c_str());
+		PostThreadMessageW(hookThreadId, unhook ? WM_HOOK_REMOVE : WM_HOOK_RESTORE, 0, 0);
+	}
 	auto yield = shouldYield(facts, rules);
 	if (yield != cachedYield.load()) {
 		log(L"keyboard: shortcuts %s for %s", yield ? L"step aside" : L"active again", facts.exe.empty() ? L"(unknown)" : facts.exe.c_str());
@@ -241,6 +270,18 @@ void refreshContext() {
 }
 
 void resetState() { resetRequested = true; }
+
+void openStart() {
+	std::array<INPUT, 2> inputs {};
+	for (auto& in: inputs) {
+		in.type = INPUT_KEYBOARD;
+		in.ki.wVk = VK_LWIN;
+		in.ki.dwExtraInfo = OWN_INPUT_TAG; // the hook lets its own input through untouched
+	}
+	inputs[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+	inputs[1].ki.dwFlags = KEYEVENTF_KEYUP | KEYEVENTF_EXTENDEDKEY;
+	SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+}
 
 void setCoverUp(bool up) {
 	if (coverUp.exchange(up) != up) log(L"keyboard: Windows key %s", up ? L"held back while the welcome cover is up" : L"back to normal");

@@ -68,6 +68,42 @@ int main() {
 		auto up = k.release(VK_LWIN);
 		check(up.swallow && up.maskWinRelease && up.winVk == VK_LWIN, "lone Win up: masked, the real key-up is swallowed");
 		check(posted(up, IDX_SEARCH, false), "and the shell is told the search key was released");
+		check(up.loneWin, "and the host is told it was a lone press (it checks ii really showed)");
+	}
+
+	// Plan 2026-10-24 0.5: a chord is not a lone press; with a game in front Win is not taken at all.
+	{
+		resetKeys();
+		Keyboard k;
+		k.press(VK_LWIN);
+		k.press('S');
+		k.release('S');
+		check(!k.release(VK_LWIN).loneWin, "Win+S is not a lone press");
+		resetKeys();
+		Keyboard game;
+		game.context.yieldToForeground = true;
+		game.press(VK_LWIN);
+		auto up = game.release(VK_LWIN);
+		check(!up.swallow && !up.maskWinRelease && !up.loneWin, "with a game in front a lone Win reaches Windows untouched");
+	}
+
+	// Plan 2026-10-24 0.5: the hook goes away entirely for anti-cheat games.
+	{
+		ForegroundRules rules;
+		ForegroundFacts valorant;
+		valorant.exe = L"valorant-win64-shipping.exe";
+		check(shouldUnhook(valorant, rules), "Valorant (Vanguard) is in the default [unhook] list");
+		ForegroundFacts other;
+		other.exe = L"notepad.exe";
+		check(!shouldUnhook(other, rules), "an ordinary program keeps the hook");
+		rules.unhookExes = L"mygame.exe";
+		other.exe = L"mygame.exe";
+		check(shouldUnhook(other, rules) && shouldUnhook(valorant, rules), "[unhook] adds to the defaults");
+		rules.unhookExes = L"nodefaults;mygame.exe";
+		check(shouldUnhook(other, rules) && !shouldUnhook(valorant, rules), "'nodefaults' drops the built-in list");
+		ForegroundFacts desktop;
+		desktop.isShellOrDesktop = true;
+		check(!shouldUnhook(desktop, ForegroundRules {}), "ii and the desktop always keep the hook");
 	}
 
 	// 2. Win+S: swallowed; Start is masked afterwards because ii took a key of the chord.

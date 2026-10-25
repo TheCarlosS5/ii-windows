@@ -65,6 +65,7 @@ struct Result {
 	bool maskWinRelease = false; // replay this Win key-up behind an unassigned key (no Start menu), and swallow the real one
 	unsigned winVk = 0;
 	unsigned volumeVk = 0;       // a volume key went down and ii handles it: the host changes the volume
+	bool loneWin = false;        // a lone Win press ii took (it opens ii's search): the host checks ii really showed
 	std::array<Post, 4> posts {};
 	int postCount = 0;
 	void add(bool pressed, Index index) {
@@ -122,6 +123,7 @@ struct ForegroundRules {
 	FullscreenPolicy policy = FullscreenPolicy::Auto;
 	std::wstring yieldExes; // ';'-separated, lower case: always step aside for these (a game profile)
 	std::wstring keepExes;  // ';'-separated, lower case: never step aside for these
+	std::wstring unhookExes; // ';'-separated, lower case: the keyboard hook is removed entirely while these are in front
 	bool windowsVolumeKeys = false; // [audio] volumekeys = windows: leave the volume keys (and Windows' flyout) alone
 };
 
@@ -130,5 +132,13 @@ struct ForegroundRules {
 // user still wants ii's keys. A maximized window with a title bar never makes ii step aside.
 // Geometry (the old behaviour): any window covering the monitor. Never: ii's shortcuts always work.
 bool shouldYield(const ForegroundFacts& facts, const ForegroundRules& rules);
+
+// Games whose kernel anti-cheat watches for keyboard hooks (Valorant's Vanguard and similar): while one is in front
+// ii removes its hook altogether. shortcuts.ini [unhook] processes= adds to this list; "nodefaults" in it drops it.
+inline constexpr const wchar_t* UNHOOK_BY_DEFAULT =
+    L"valorant-win64-shipping.exe;league of legends.exe;fortniteclient-win64-shipping.exe;r5apex.exe;r5apex_dx12.exe;"
+    L"rainbowsix.exe;rainbowsix_be.exe;escapefromtarkov.exe;destiny2.exe;cod.exe;bf2042.exe;pubg-win64-shipping.exe;"
+    L"tslgame.exe;deadbydaylight-win64-shipping.exe";
+bool shouldUnhook(const ForegroundFacts& facts, const ForegroundRules& rules);
 
 } // namespace ii::keyboard

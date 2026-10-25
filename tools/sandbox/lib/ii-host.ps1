@@ -13,8 +13,13 @@ public delegate bool EnumProc(System.IntPtr h, System.IntPtr l);
 '@
 
 $script:IiRepo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
-$script:IiHostExe = Join-Path $script:IiRepo 'host\build\ii-host.exe'
-$script:IiFakeShell = Join-Path $script:IiRepo 'host\build\ii-fake-shell.exe'
+# The newest host build (host\build, or host\build-clang where the host is compiled with clang-cl).
+$script:IiHostBuild = @('host\build', 'host\build-clang') | ForEach-Object { Join-Path $script:IiRepo $_ } |
+    Where-Object { Test-Path (Join-Path $_ 'ii-host.exe') } | Sort-Object { (Get-Item (Join-Path $_ 'ii-host.exe')).LastWriteTime } |
+    Select-Object -Last 1
+if (-not $script:IiHostBuild) { $script:IiHostBuild = Join-Path $script:IiRepo 'host\build' }
+$script:IiHostExe = Join-Path $script:IiHostBuild 'ii-host.exe'
+$script:IiFakeShell = Join-Path $script:IiHostBuild 'ii-fake-shell.exe'
 $script:InertFlags = @('--no-taskbar', '--no-icons', '--no-hook', '--keep-banners', '--no-theme', '--no-nightlight', '--no-splash')
 
 function Require-IiHostBuild {

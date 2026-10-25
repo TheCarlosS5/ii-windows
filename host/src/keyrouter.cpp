@@ -108,6 +108,7 @@ Result Router::onKey(unsigned vk, bool down, const Context& context) {
 				// Keep Start closed: for a lone press (ii opens search) and for chords whose other key
 				// ii swallowed (Windows would otherwise see a lone Win press).
 				if (winSolo || swallowedInChord) {
+					r.loneWin = winSolo;
 					chordActive = false;
 					r.maskWinRelease = true;
 					r.winVk = vk;
@@ -209,6 +210,12 @@ bool listed(const std::wstring& list, const std::wstring& exe) {
 const wchar_t* const KEEP_BY_DEFAULT = L"chrome.exe;msedge.exe;firefox.exe;brave.exe;opera.exe;vivaldi.exe;arc.exe;zen.exe;librewolf.exe;explorer.exe";
 
 } // namespace
+
+bool shouldUnhook(const ForegroundFacts& facts, const ForegroundRules& rules) {
+	if (facts.isShellOrDesktop || facts.exe.empty()) return false;
+	if (listed(rules.unhookExes, facts.exe)) return true;
+	return !listed(rules.unhookExes, L"nodefaults") && listed(UNHOOK_BY_DEFAULT, facts.exe);
+}
 
 bool shouldYield(const ForegroundFacts& facts, const ForegroundRules& rules) {
 	if (facts.isShellOrDesktop) return false;
