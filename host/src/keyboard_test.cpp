@@ -430,6 +430,22 @@ int main() {
 		check(!k.press(VK_TAB).swallow, "Ctrl+Alt+Tab stays Windows'");
 	}
 
+	// Plan 2.3: the media keys, opted in.
+	{
+		resetKeys();
+		Keyboard k;
+		check(!k.press(VK_MEDIA_PLAY_PAUSE).swallow, "by default the media keys are Windows'");
+		k.release(VK_MEDIA_PLAY_PAUSE);
+		k.context.mediaKeys = true;
+		auto play = k.press(VK_MEDIA_PLAY_PAUSE);
+		check(play.swallow && posted(play, IDX_MEDIA_PLAY, true), "[audio] mediakeys = ii: play/pause goes to ii");
+		check(k.release(VK_MEDIA_PLAY_PAUSE).swallow, "and its key-up is swallowed too");
+		check(posted(k.press(VK_MEDIA_NEXT_TRACK), IDX_MEDIA_NEXT, true) && posted(k.press(VK_MEDIA_PREV_TRACK), IDX_MEDIA_PREV, true), "next and previous too");
+		check(nameOf(IDX_MEDIA_PLAY) && std::wstring(nameOf(IDX_MEDIA_PLAY)) == L"mediaPlayPause", "the shell's shortcut names");
+		k.context.yieldToForeground = true;
+		check(!k.press(VK_MEDIA_PLAY_PAUSE).swallow, "with a game in front they are Windows' again");
+	}
+
 	std::printf("keyrouter: %d checks, %d failed\n", checks, failures);
 	return failures == 0 ? 0 : 1;
 }

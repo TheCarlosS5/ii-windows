@@ -22,7 +22,7 @@ de pánico, el guardián, `ii-rescue` y el desinstalador). Lo que no cumple eso 
 | Vista de tareas (Win+Tab) | ✅ Reemplazada | Vista general de ii. |
 | Alt+Tab | ✅ Reemplazado | El selector de ii: mantener Alt, Tab avanza (Mayús+Tab o ← retrocede), soltar elige, Esc cancela; miniaturas en vivo en orden de uso, y el dock visible mientras tanto. Encima de un juego que hace ceder los atajos, o si la shell no responde, sigue siendo el de Windows. Ctrl+Alt+Tab es de Windows. |
 | Aviso de brillo (portátiles) | ⛔ Se queda | Las teclas de brillo las procesa el firmware/driver y Windows muestra su aviso. No hay forma documentada y por usuario de apagarlo sin tocar el sistema. |
-| Aviso multimedia (play/pausa) | 🟡 Se queda por ahora | ii podría tomar las teclas multimedia como hace con las de volumen y mandarlas a su control de medios, pero con varios reproductores el comportamiento de Windows es más fiable. Pendiente de probar. |
+| Aviso multimedia (play/pausa) | 🟡 Opcional | Con `shortcuts.ini [audio] mediakeys=ii`, ii toma play/pausa, siguiente y anterior, los manda a su reproductor activo y su píldora dice qué suena (sin el aviso de Windows). Por defecto siguen siendo de Windows: con varios reproductores, o uno que no se anuncia a Windows, su manejo es más fiable. Con un juego al frente siempre son de Windows. |
 | Proyectar (Win+P) | ⛔ Se queda | Es una función del sistema (pantallas y proyectores); no hay nada de ii que la iguale. |
 | Game Bar (Win+G) | ⛔ Se queda | Útil para grabar en juegos; ii no la sustituye. |
 | Pantalla de bloqueo (Win+L) | ⛔ Se queda | La única segura es la de Windows (R03). |

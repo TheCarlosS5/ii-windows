@@ -17,6 +17,9 @@ const wchar_t* nameOf(Index index) {
 	case IDX_SWITCH_PREV: return L"windowSwitcherPrevious";
 	case IDX_SWITCH_PICK: return L"windowSwitcherPick";
 	case IDX_SWITCH_CANCEL: return L"windowSwitcherCancel";
+	case IDX_MEDIA_PLAY: return L"mediaPlayPause";
+	case IDX_MEDIA_NEXT: return L"mediaNext";
+	case IDX_MEDIA_PREV: return L"mediaPrevious";
 	default:
 		if (index >= IDX_DESKTOP && index < IDX_DESKTOP + 10) {
 			static const wchar_t* desktops[] = {
@@ -89,6 +92,15 @@ Result Router::onKey(unsigned vk, bool down, const Context& context) {
 	if ((vk == VK_VOLUME_UP || vk == VK_VOLUME_DOWN || vk == VK_VOLUME_MUTE) && context.volumeKeys && context.shellPresent
 	    && !context.yieldToForeground) {
 		if (down) r.volumeVk = vk;
+		r.swallow = true;
+		return r;
+	}
+
+	// The media keys, opted in: ii's player and pill, not Windows' flyout. Off by default: with several players
+	// Windows' own handling is the safer one.
+	if ((vk == VK_MEDIA_PLAY_PAUSE || vk == VK_MEDIA_NEXT_TRACK || vk == VK_MEDIA_PREV_TRACK) && context.mediaKeys && context.shellPresent
+	    && !context.yieldToForeground) {
+		if (down) r.add(true, vk == VK_MEDIA_PLAY_PAUSE ? IDX_MEDIA_PLAY : vk == VK_MEDIA_NEXT_TRACK ? IDX_MEDIA_NEXT : IDX_MEDIA_PREV);
 		r.swallow = true;
 		return r;
 	}

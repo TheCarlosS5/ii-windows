@@ -50,6 +50,10 @@ inline constexpr Index IDX_SWITCH_NEXT = 1300;
 inline constexpr Index IDX_SWITCH_PREV = 1301;
 inline constexpr Index IDX_SWITCH_PICK = 1302;
 inline constexpr Index IDX_SWITCH_CANCEL = 1303;
+// The media keys, when shortcuts.ini [audio] mediakeys = ii: the shell's player and pill instead of Windows' flyout.
+inline constexpr Index IDX_MEDIA_PLAY = 1310;
+inline constexpr Index IDX_MEDIA_NEXT = 1311;
+inline constexpr Index IDX_MEDIA_PREV = 1312;
 
 const wchar_t* nameOf(Index index);
 
@@ -60,6 +64,7 @@ struct Context {
 	bool desktopInFront = false;    // Explorer's own desktop is the foreground window (Alt+F4 there opens ii's session menu)
 	bool volumeKeys = false;        // ii takes the volume keys (Windows would also show its own volume flyout)
 	bool shellResponsive = true;    // the shell's GUI thread beats: it can show ii's Alt+Tab (else Windows' one opens)
+	bool mediaKeys = false;         // ii takes play/pause, next and previous (opt-in: [audio] mediakeys = ii)
 };
 
 struct Post {
@@ -136,6 +141,7 @@ struct ForegroundRules {
 	std::wstring keepExes;  // ';'-separated, lower case: never step aside for these
 	std::wstring unhookExes; // ';'-separated, lower case: the keyboard hook is removed entirely while these are in front
 	bool windowsVolumeKeys = false; // [audio] volumekeys = windows: leave the volume keys (and Windows' flyout) alone
+	bool iiMediaKeys = false;       // [audio] mediakeys = ii: the media keys go to ii's player instead of Windows
 };
 
 // Auto (default): step aside for exclusive fullscreen / presentation mode and for borderless

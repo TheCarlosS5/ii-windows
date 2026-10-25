@@ -41,6 +41,7 @@ HWND notify = nullptr;
 std::atomic<bool> cachedYield {false};
 std::atomic<bool> cachedDesktop {false};
 std::atomic<bool> cachedVolumeKeys {true}; // shortcuts.ini [audio] volumekeys = windows turns it off
+std::atomic<bool> cachedMediaKeys {false}; // shortcuts.ini [audio] mediakeys = ii turns it on
 std::atomic<bool> shellResponsive {true};  // the shell's GUI thread beats (set by the host's heartbeat check)
 std::atomic<HWND> cachedSink {nullptr};
 std::atomic<bool> resetRequested {false};
@@ -70,6 +71,8 @@ std::wstring lowerExeName(DWORD pid) {
 //   [policy]  fullscreen = auto | geometry | never
 //   [yield]   processes = game.exe;other.exe     (ii's keys step aside for these)
 //   [keep]    processes = app.exe                (ii's keys never step aside for these)
+//   [audio]   volumekeys = windows                (Windows keeps the volume keys and its flyout)
+//             mediakeys = ii                     (play/pause, next, previous go to ii's player and pill)
 //   [unhook]  processes = game.exe               (no keyboard hook at all while these are in front; adds to
 //                                                 UNHOOK_BY_DEFAULT, "nodefaults" drops that list)
 ForegroundRules loadRules() {
@@ -104,6 +107,7 @@ ForegroundRules loadRules() {
 	rules.keepExes = read(L"keep", L"processes");
 	rules.unhookExes = read(L"unhook", L"processes");
 	rules.windowsVolumeKeys = read(L"audio", L"volumekeys") == L"windows";
+	rules.iiMediaKeys = read(L"audio", L"mediakeys") == L"ii";
 	log(L"keyboard: shortcuts.ini loaded (fullscreen=%s)", policy.empty() ? L"auto" : policy.c_str());
 	return rules;
 }
@@ -174,6 +178,7 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	context.desktopInFront = cachedDesktop.load();
 	context.volumeKeys = cachedVolumeKeys.load();
 	context.shellResponsive = shellResponsive.load();
+	context.mediaKeys = cachedMediaKeys.load();
 
 	auto result = router.onKey(key->vkCode, down, context);
 	// The audio is changed on the host's thread: the hook only posts (it must return at once).
@@ -242,6 +247,7 @@ void refreshContext() {
 	cachedSink = findShellSink();
 	auto rules = loadRules();
 	cachedVolumeKeys = !rules.windowsVolumeKeys;
+	cachedMediaKeys = rules.iiMediaKeys;
 	HWND fg = GetForegroundWindow();
 	if (!fg) {
 		cachedYield = false;

@@ -5,6 +5,7 @@ import qs.modules.common.widgets
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Services.UPower
 import Quickshell.Wayland
 
@@ -77,6 +78,46 @@ Scope {
                 root.show(on ? Translation.tr("Scroll Lock on") : Translation.tr("Scroll Lock off"), "swap_vert", on);
         }
     }
+    // The media keys, when ii takes them (shortcuts.ini [audio] mediakeys = ii, ii-host): the active player, and the
+    // pill says what is playing instead of Windows' media flyout. The player's state follows a moment later.
+    function media(action) {
+        if (action === "play") MprisController.togglePlaying();
+        else if (action === "next") MprisController.next();
+        else MprisController.previous();
+        mediaShow.action = action;
+        mediaShow.restart();
+    }
+    Timer {
+        id: mediaShow
+        property string action: "play"
+        interval: 400
+        onTriggered: {
+            const player = MprisController.activePlayer;
+            if (!player) {
+                root.show(Translation.tr("No media"), "music_off", false);
+                return;
+            }
+            const title = player.trackTitle || player.identity || Translation.tr("Media");
+            const icon = action === "next" ? "skip_next" : action === "previous" ? "skip_previous" : (player.isPlaying ? "play_arrow" : "pause");
+            root.show(title, icon, player.isPlaying);
+        }
+    }
+    GlobalShortcut {
+        name: "mediaPlayPause"
+        description: "Media key: play/pause (when ii takes the media keys)"
+        onPressed: root.media("play")
+    }
+    GlobalShortcut {
+        name: "mediaNext"
+        description: "Media key: next track"
+        onPressed: root.media("next")
+    }
+    GlobalShortcut {
+        name: "mediaPrevious"
+        description: "Media key: previous track"
+        onPressed: root.media("previous")
+    }
+
     Timer {
         id: hideTimer
         interval: 1700
