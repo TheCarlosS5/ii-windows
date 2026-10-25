@@ -58,7 +58,7 @@ Scope {
             exclusiveZone: root.pinned ? dockApps.reservedThickness : 0
             // The bar beside the dock (DockBar.qml) already reserves this strip: the dock sits in it, level with the
             // pills, instead of being pushed above them.
-            readonly property bool besideBar: (Config.options?.bar.besideDock ?? false) && GlobalStates.barOpen && root.edge === "bottom"
+            readonly property bool besideBar: Appearance.barBesideDock && GlobalStates.barOpen
             exclusionMode: besideBar ? ExclusionMode.Ignore : ExclusionMode.Normal
 
             implicitWidth: vertical ? dockApps.thickness : 0

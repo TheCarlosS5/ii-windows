@@ -152,22 +152,29 @@ edit(path('modules', 'common', 'Config.qml'), [
 '''),
 ])
 edit(path('modules', 'common', 'Appearance.qml'), [
+    # Beside the dock only with the dock at the bottom: with the dock at a side the pills would sit in corners away
+    # from it, so the bar is shown at the bottom instead (the choice sets bar.bottom) and the setting is kept.
+    ('''    property QtObject sizes
+''', '''    property QtObject sizes
+    readonly property bool barBesideDock: (Config.options.bar.besideDock ?? false) && (Config.options.dock.enable ?? true)
+        && (Config.options.dock.position ?? "bottom") !== "left" && (Config.options.dock.position ?? "bottom") !== "right" // ii-windows
+'''),
     ('''        property real barCenterSideModuleWidth:''', '''        // ii-windows: the pills beside the dock are as tall as the dock and stand as far from the edge (DockApps.qml).
         property real dockBarPillHeight: Math.max(24, Config.options.dock.iconSize) + 18
         property real dockBarThickness: hyprlandGapsOut + 1 + dockBarPillHeight
         // ii-windows: the room kept clear of the bar by other panels.
-        property real barReserve: (Config.options.bar.besideDock ?? false) ? dockBarThickness : barHeight
+        property real barReserve: root.barBesideDock ? dockBarThickness : barHeight
         property real barCenterSideModuleWidth:'''),
 ])
 # Beside the dock, the dock's strip is the bar's: the desktop icons and menu count it once, not twice.
 edit(path('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopIcons.qml'), [
     ('''    readonly property real gridBottom: height - bottomInset - 12 - (Config.options.dock.enable ? GlobalStates.dockInsetBottom : 0)''',
-     '''    readonly property real gridBottom: height - 12 - ((Config.options.bar.besideDock ?? false) ? Math.max(bottomInset, Config.options.dock.enable ? GlobalStates.dockInsetBottom : 0)
+     '''    readonly property real gridBottom: height - 12 - (Appearance.barBesideDock ? Math.max(bottomInset, Config.options.dock.enable ? GlobalStates.dockInsetBottom : 0)
         : bottomInset + (Config.options.dock.enable ? GlobalStates.dockInsetBottom : 0))'''),
 ])
 edit(path('modules', 'ii', 'background', 'widgets', 'desktop', 'DesktopMenu.qml'), [
     ('''        - (Config.options.dock.enable ? GlobalStates.dockInsetBottom + 16 : 0)''',
-     '''        - (Config.options.dock.enable && !(Config.options.bar.besideDock ?? false) ? GlobalStates.dockInsetBottom + 16 : 0)'''),
+     '''        - (Config.options.dock.enable && !Appearance.barBesideDock ? GlobalStates.dockInsetBottom + 16 : 0)'''),
 ])
 # The bar's popups (clock, battery, resources) stop above the pills, not above a bar's height.
 edit(path('modules', 'ii', 'bar', 'StyledPopup.qml'), [
@@ -192,10 +199,10 @@ edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
 import qs.modules.ii.dockBar
 '''),
     ('''    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }''',
-     '''    PanelLoader { extraCondition: !(Config.options.bar.besideDock ?? false) && !Config.options.bar.vertical; component: Bar {} }
-    PanelLoader { extraCondition: Config.options.bar.besideDock ?? false; component: DockBar {} } // ii-windows: plan 2.1'''),
+     '''    PanelLoader { extraCondition: !Appearance.barBesideDock && !Config.options.bar.vertical; component: Bar {} }
+    PanelLoader { extraCondition: Appearance.barBesideDock; component: DockBar {} } // ii-windows: plan 2.1'''),
     ('''    PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }''',
-     '''    PanelLoader { extraCondition: !(Config.options.bar.besideDock ?? false) && Config.options.bar.vertical; component: VerticalBar {} }'''),
+     '''    PanelLoader { extraCondition: !Appearance.barBesideDock && Config.options.bar.vertical; component: VerticalBar {} }'''),
 ])
 for page in ('BarConfig.qml', 'QuickConfig.qml'):
     edit(path('modules', 'settings', page), [
@@ -214,7 +221,8 @@ for page in ('BarConfig.qml', 'QuickConfig.qml'):
                             icon: "arrow_forward",
                             value: 3 // bottom: true, vertical: true
                         }
-                    ]''', '''                        {
+                    ]
+                }''', '''                        {
                             displayName: Translation.tr("Right"),
                             icon: "arrow_forward",
                             value: 3 // bottom: true, vertical: true
@@ -224,9 +232,19 @@ for page in ('BarConfig.qml', 'QuickConfig.qml'):
                             icon: "dock_to_bottom",
                             value: 4 // ii-windows: bar.besideDock
                         }
-                    ]'''),
+                    ]
+                }
+                NoticeBox { // ii-windows: beside the dock needs the dock at the bottom
+                    Layout.fillWidth: true
+                    visible: (Config.options.bar.besideDock ?? false) && !Appearance.barBesideDock
+                    text: Translation.tr("Beside the dock needs the dock at the bottom and turned on: until then the bar is shown at the bottom.")
+                }'''),
     ])
-add_translations('es_MX', {"Beside the dock": "Junto al dock"})
+add_translations('es_MX', {
+    "Beside the dock": "Junto al dock",
+    "Beside the dock needs the dock at the bottom and turned on: until then the bar is shown at the bottom.":
+        "«Junto al dock» necesita el dock abajo y encendido: mientras tanto, la barra se muestra abajo.",
+})
 
 
 # --- 2.2 Minimize into the dock ---------------------------------------------------------------------------------------
