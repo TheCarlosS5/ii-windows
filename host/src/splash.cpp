@@ -504,7 +504,11 @@ DWORD WINAPI worker(LPVOID param) {
 		auto started = GetTickCount64();
 		Small reduced;
 		std::wstring image;
-		bool cached = readCache(reduced, {}, &image);
+		// The copy must be of the wallpaper ii has now: a copy of an older one would show a different picture
+		// under the cover than the desktop it fades into.
+		auto current = wallpaperPath();
+		if (!current.empty() && GetFileAttributesW(current.c_str()) == INVALID_FILE_ATTRIBUTES) current.clear();
+		bool cached = readCache(reduced, current, &image);
 		bool ok = cached;
 		if (!ok) {
 			// No copy yet (the first logon after installing): ii's wallpaper (the cover then fades into the
@@ -1321,7 +1325,21 @@ void refreshCache() {
 	// worker does it at start).
 	static ULONGLONG last = 0;
 	auto now = GetTickCount64();
-	if (!covers.empty() || (last && now - last < 600000)) return;
+	// config.json written since the last look (a new wallpaper, most likely): refresh now, not up to ten minutes
+	// later, or a logon right after a wallpaper change shows the old picture under the cover.
+	static uint64_t configStamp = 0;
+	auto configChanged = false;
+	wchar_t* base = nullptr;
+	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &base))) {
+		WIN32_FILE_ATTRIBUTE_DATA data {};
+		if (GetFileAttributesExW((std::wstring(base) + L"\\quickshell\\illogical-impulse\\config.json").c_str(), GetFileExInfoStandard, &data)) {
+			auto stamp = (static_cast<uint64_t>(data.ftLastWriteTime.dwHighDateTime) << 32) | data.ftLastWriteTime.dwLowDateTime;
+			configChanged = configStamp != 0 && stamp != configStamp;
+			configStamp = stamp;
+		}
+	}
+	CoTaskMemFree(base);
+	if (!covers.empty() || (last && now - last < 600000 && !configChanged)) return;
 	if (refreshing.exchange(true)) return;
 	last = now;
 	if (auto* t = CreateThread(nullptr, 0, refreshCacheThread, nullptr, 0, nullptr)) CloseHandle(t);

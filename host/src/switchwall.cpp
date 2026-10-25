@@ -698,6 +698,19 @@ std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool
 	}
 	auto sameAsIi = normalizedPath(windows) == normalizedPath(currentConfigPath);
 	if (!force && !known.empty() && normalizedPath(known) == normalizedPath(windows)) return {}; // nothing changed in Windows
+	// ii decides after the first time: Windows drifting away (a slideshow, Spotlight, another app, a crash that left
+	// Windows on something else) is put back to ii's picture, so the lock screen, the start and a crash show the same.
+	if (!force && !known.empty() && !sameAsIi) {
+		std::wstring native = currentConfigPath;
+		for (auto& c: native) {
+			if (c == L'/') c = L'\\';
+		}
+		if (!currentConfigPath.empty() && GetFileAttributesW(native.c_str()) != INVALID_FILE_ATTRIBUTES) {
+			note(L"adopt: Windows shows %s, ii's is %s: Windows follows ii", windows.c_str(), native.c_str());
+			applyToWindows(native);
+			return {};
+		}
+	}
 	auto original = syncStateValue("original");
 	if (sameAsIi) {
 		writeSyncState(windows, original.empty() ? windows : original, syncStateValue("originalStyle"));
@@ -741,6 +754,35 @@ std::wstring adoptedWindowsWallpaper(const std::wstring& currentConfigPath, bool
 	note(L"adopt: took Windows' wallpaper %s as %s", windows.c_str(), target.c_str());
 	writeSyncState(windows, original.empty() ? windows : original, syncStateValue("originalStyle"));
 	return target;
+}
+
+// Width and height from a PNG's header (0, 0 when it is not a PNG).
+std::pair<uint32_t, uint32_t> pngSize(const std::wstring& path) {
+	auto file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (file == INVALID_HANDLE_VALUE) return {0, 0};
+	unsigned char header[24] {};
+	DWORD n = 0;
+	auto ok = ReadFile(file, header, sizeof(header), &n, nullptr) && n == sizeof(header) && header[0] == 0x89 && header[1] == 'P' && header[12] == 'I'
+	       && header[13] == 'H';
+	CloseHandle(file);
+	if (!ok) return {0, 0};
+	auto be = [&](int at) { return (uint32_t(header[at]) << 24) | (uint32_t(header[at + 1]) << 16) | (uint32_t(header[at + 2]) << 8) | header[at + 3]; };
+	return {be(16), be(20)};
+}
+
+// Before 0.6 the first run copied upstream's brown picture (3840 x 2160) to Pictures\Wallpapers\ii-default.png. That
+// copy becomes ii-windows' own picture, so it can never show again, from the selector or as the chosen wallpaper.
+// True when the copy was replaced.
+bool refreshDefaultCopy(const std::wstring& ownDefault) {
+	wchar_t* pictures = nullptr;
+	if (FAILED(SHGetKnownFolderPath(FOLDERID_Pictures, 0, nullptr, &pictures)) || !pictures) return false;
+	auto copy = std::wstring(pictures) + L"\\Wallpapers\\ii-default.png";
+	CoTaskMemFree(pictures);
+	auto size = pngSize(copy);
+	if (size.first != 3840 || size.second != 2160 || pngSize(ownDefault).first == 3840) return false;
+	if (!CopyFileW(ownDefault.c_str(), copy.c_str(), FALSE)) return false;
+	note(L"default: upstream's picture in %s replaced by ii-windows' own", copy.c_str());
+	return true;
 }
 
 // Puts back the wallpaper Windows had before ii (rescue / uninstall).
@@ -790,6 +832,9 @@ int switchwall(const Args& args) {
 	// --first-run <ii's own picture>: a new install. The wallpaper the user already has in Windows becomes ii's;
 	// ii's own picture only when Windows has none to give (a plain colour), and then Windows keeps its colour.
 	std::wstring firstRunDefault;
+	// --default <ii-windows' own picture> (with --adopt-windows, at every start): a chosen wallpaper whose file is gone
+	// falls back to this one, never to upstream's brown picture or an empty desktop.
+	std::wstring ownDefault;
 	for (size_t i = 0; i < args.size(); ++i) {
 		const auto& a = args[i];
 		auto next = [&]() { return i + 1 < args.size() ? args[++i] : std::wstring(); };
@@ -802,6 +847,7 @@ int switchwall(const Args& args) {
 		else if (a == L"--noswitch") noswitch = true;
 		else if (a == L"--adopt-windows") adoptWindows = true;
 		else if (a == L"--first-run") firstRunDefault = next();
+		else if (a == L"--default") ownDefault = next();
 		else if (a == L"--force") forceAdopt = true;
 		else if (a == L"--restore-windows") restoreWindows = true;
 		else if (a == L"--color") {
@@ -829,10 +875,33 @@ int switchwall(const Args& args) {
 		if (image.empty()) image = firstRunDefault;
 		adopted = true; // nothing is pushed to Windows either way
 	} else if (adoptWindows) {
-		if (!syncWindows) return 0;
-		image = adoptedWindowsWallpaper(getString(background, L"wallpaperPath"), forceAdopt);
-		if (image.empty()) return 0; // nothing new in Windows
-		adopted = true;
+		auto current = getString(background, L"wallpaperPath");
+		auto native = [](std::wstring p) {
+			if (p.rfind(L"file:///", 0) == 0) p = p.substr(8);
+			if (p.size() > 2 && p[0] == L'/' && p[2] == L':') p = p.substr(1); // "/C:/..." from QML
+			for (auto& c: p) {
+				if (c == L'/') c = L'\\';
+			}
+			return p;
+		};
+		auto fallback = native(ownDefault);
+		if (!fallback.empty() && GetFileAttributesW(fallback.c_str()) == INVALID_FILE_ATTRIBUTES) fallback.clear();
+		auto replacedCopy = !fallback.empty() && refreshDefaultCopy(fallback);
+		auto lowerCurrent = normalizedPath(native(current));
+		// An empty path is a new install: --first-run (running next to this) takes care of it.
+		auto missing = !current.empty() && GetFileAttributesW(native(current).c_str()) == INVALID_FILE_ATTRIBUTES;
+		auto showsCopy = replacedCopy && lowerCurrent.size() >= 15 && lowerCurrent.compare(lowerCurrent.size() - 15, 15, L"/ii-default.png") == 0;
+		if (!fallback.empty() && missing) {
+			note(L"default: ii's wallpaper %s is gone, ii-windows' own picture instead", native(current).c_str());
+			image = fallback; // its colours, and Windows follows
+		} else if (showsCopy) {
+			image = native(current); // same file, new picture: colours again, and Windows follows
+		} else {
+			if (!syncWindows) return 0;
+			image = adoptedWindowsWallpaper(current, forceAdopt);
+			if (image.empty()) return 0; // nothing new in Windows
+			adopted = true;
+		}
 	}
 
 	// --color: an explicit accent replaces the wallpaper as the palette's source.
