@@ -13,8 +13,13 @@ $name = "ii-windows-$version"
 $outRoot = Join-Path $root 'out'
 $pkg = Join-Path $outRoot $name
 $app = Join-Path $pkg 'app'
+# The newest host build: host\build-clang (clang-cl, what is built today) or host\build (an older cl.exe tree). A package
+# must never carry a stale ii-host.exe from a tree nobody builds any more.
+$hostBuild = @('host\build-clang', 'host\build') | Where-Object { Test-Path (Join-Path $root "$_\ii-host.exe") } |
+    Sort-Object { (Get-Item (Join-Path $root "$_\ii-host.exe")).LastWriteTime } | Select-Object -Last 1
+if (-not $hostBuild) { $hostBuild = 'host\build-clang' }
 
-foreach ($required in 'dist\quickshell\quickshell.exe', 'dist\quickshell\bin\ii-shim.exe', 'host\build\ii-host.exe', 'host\build\ii-launcher.exe',
+foreach ($required in 'dist\quickshell\quickshell.exe', 'dist\quickshell\bin\ii-shim.exe', "$hostBuild\ii-host.exe", "$hostBuild\ii-launcher.exe",
                        'build\ii\shell.qml', 'third_party\cursors\Bibata-Modern-Classic\Pointer.cur',
                        'third_party\fastfetch\fastfetch.exe') {
     if (-not (Test-Path (Join-Path $root $required))) { throw "missing $required (build, deploy, stage, fetch first)" }
@@ -37,7 +42,7 @@ Mirror 'third_party\fastfetch' 'fastfetch'
 Copy-Item (Join-Path $root 'extras\fastfetch\ii.jsonc'), (Join-Path $root 'extras\fastfetch\ii-logo.txt'), (Join-Path $root 'extras\fastfetch\ii-logo-ascii.txt') (Join-Path $app 'fastfetch')
 New-Item -ItemType Directory -Force (Join-Path $app 'bin') | Out-Null
 Copy-Item (Join-Path $root 'extras\fastfetch\fastfetch.cmd') (Join-Path $app 'bin')
-Copy-Item (Join-Path $root 'host\build\ii-host.exe') $app
+Copy-Item (Join-Path $root "$hostBuild\ii-host.exe") $app
 "$version`nii-windows $commit, quickshell $qsCommit" | Set-Content (Join-Path $app 'VERSION') -Encoding ASCII
 
 # Licenses: every component that ships, with its own text.
@@ -89,6 +94,10 @@ $qtCore = Get-Item (Join-Path $root 'dist\quickshell\Qt6Core.dll') -ErrorAction 
     note      = 'dirty = the working tree had uncommitted changes when this was built; a release must be false.'
 } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $app 'build-info.json') -Encoding UTF8
 
+# ii-windows' own programs signed (plan 1.4; says NOT SIGNED without a certificate), before the manifest: a signature
+# changes the file.
+& (Join-Path $PSScriptRoot 'sign.ps1') -Path $app
+
 # The manifest is the last thing written into app\: every file above is covered by it.
 $files = New-IiPayloadManifest $app
 "payload manifest: $files files"
@@ -101,7 +110,8 @@ foreach ($script in 'install.ps1', 'uninstall.ps1', 'uninstall-gui.ps1', 'autost
 }
 Copy-Item (Join-Path $PSScriptRoot 'install.cmd'), (Join-Path $PSScriptRoot 'uninstall.cmd') $pkg
 # The one stable entry point: next to the installer, not inside the versioned payload.
-Copy-Item (Join-Path $root 'host\build\ii-launcher.exe') $pkg
+Copy-Item (Join-Path $root "$hostBuild\ii-launcher.exe") $pkg
+& (Join-Path $PSScriptRoot 'sign.ps1') -Path (Join-Path $pkg 'ii-launcher.exe')
 @"
 ii-windows $version
 
@@ -115,3 +125,5 @@ Remove-Item $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $pkg -DestinationPath $zip -CompressionLevel Optimal
 $size = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 "package: $zip ($size MB)"
+# Version information, packers, signatures and hashes of every program (plan 1.4): <package>\release-check.md.
+& (Join-Path $PSScriptRoot 'release-check.ps1') -Package $pkg
