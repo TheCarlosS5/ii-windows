@@ -4,6 +4,7 @@
 #include <cstring>
 #include <condition_variable>
 #include <functional>
+#include <atomic>
 #include <mutex>
 #include <thread>
 #include <magnification.h>
@@ -207,6 +208,20 @@ Engine magEngine(magBackend);
 Engine* active = &engine;
 std::mutex queueMutex;
 std::condition_variable changed;
+// Windows' own night light is on: ii's tint on top would double the yellow, so ii's colour temperature
+// stays off and the panel says why (error 6). Gamma alone (no temperature) is still allowed.
+std::atomic<bool> windowsOwn {false};
+constexpr int ERROR_WINDOWS_NIGHT_LIGHT = 6;
+// Settings > Display > Night light keeps its state in the per-user CloudStore. Byte 18 of the blob is
+// 0x15 while it is on and 0x13 while off (no public API exposes this; an unknown layout reads as off).
+bool windowsNightLightOn() {
+    static const wchar_t* key = L"Software\\Microsoft\\Windows\\CurrentVersion\\CloudStore\\Store\\DefaultAccount\\Current\\"
+        L"default$windows.data.bluelightreduction.bluelightreductionstate\\windows.data.bluelightreduction.bluelightreductionstate";
+    BYTE data[64] {};
+    DWORD size = sizeof(data);
+    if (RegGetValueW(HKEY_CURRENT_USER, key, L"Data", RRF_RT_REG_BINARY, nullptr, data, &size) != ERROR_SUCCESS) return false;
+    return size > 18 && data[18] == 0x15;
+}
 std::thread worker;
 bool stopping = false, pending = false;
 Request latest;
@@ -248,9 +263,13 @@ void start(bool guardReady) {
                 if (stopping) return;
                 haveRequest = pending; request = latest; pending = false;
             }
+            const bool own = windowsNightLightOn();
+            if (own != windowsOwn.exchange(own)) log(L"nightlight: Windows' own night light is %s", own ? L"on: ii's colour temperature stays off" : L"off");
             Lock lock;
             if (!lock.held) continue;
-            if (haveRequest && request.action == Action::Apply) active->apply(request.kelvin, request.gamma, GetTickCount64());
+            // With Windows' night light on, only a gamma change goes through, never a second tint.
+            if (own && active->status.active && active->status.kelvin < 6500) active->apply(6500, active->status.gamma, GetTickCount64());
+            if (haveRequest && request.action == Action::Apply) active->apply(own ? 6500 : request.kelvin, request.gamma, GetTickCount64());
             else if (haveRequest && request.action == Action::Off) active->restore();
             active->tick(GetTickCount64());
             { std::scoped_lock qlock(queueMutex); published = active->status; }
@@ -263,7 +282,9 @@ intptr_t receive(const void* data, uint32_t size) {
     if (request.version != 1 || request.action > Action::Off || request.kelvin < 1200 || request.kelvin > 6500 || request.gamma < 25 || request.gamma > 100) return 0;
     std::scoped_lock lock(queueMutex);
     if (!stopping && request.action != Action::Status) { latest = request; pending = true; changed.notify_one(); }
-    return static_cast<intptr_t>(pack(published));
+    auto status = published;
+    if (windowsOwn.load() && !status.error) status.error = ERROR_WINDOWS_NIGHT_LIGHT;
+    return static_cast<intptr_t>(pack(status));
 }
 void tick() { changed.notify_one(); }
 void restore() {
