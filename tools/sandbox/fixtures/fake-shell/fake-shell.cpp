@@ -17,8 +17,10 @@
 //     beat          like "window", and posts the GUI-thread heartbeat (WM_APP + 5) once a second, as Quickshell does
 //     freeze:<n>    "beat", then after n beats the GUI thread stops for ever (its windows stay on screen)
 //     nowin:<n>     "beat", then after n beats its windows go (a lost graphics device) while it keeps beating
-//     (any mode) WM_APP + 30 posted to its window: its windows go always-on-top without the foreground, the way ii's
-//                   search shows over a game that keeps the foreground
+//     (any mode) WM_APP + 30 posted to its window: its windows go always-on-top without the foreground and are marked
+//                   "quickshell:overview", the way ii's search shows over a game that keeps the foreground
+//     (any mode) WM_APP + 31: its windows go always-on-top without the mark (another full-screen layer of ii's, such
+//                   as the minimize animation: not the search)
 //     busy:<n>      "beat", then after n beats the GUI thread computes for 9 s (busy, not frozen) and goes on beating
 // The host starts its shell as: "<shell>" -p "<config>", so the mode travels as the config.
 //
@@ -119,8 +121,11 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		postGuiHeartbeat();
 		return 0;
 	}
-	if (msg == WM_APP + 30) { // tests: "the search is showing" - always on top, without taking the foreground
-		for (auto* w: windows) SetWindowPos(w, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	if (msg == WM_APP + 30 || msg == WM_APP + 31) { // tests: "the search is showing" / another layer on top
+		for (auto* w: windows) {
+			SetWindowPos(w, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+			if (msg == WM_APP + 30) SetPropW(w, L"quickshell:overview", reinterpret_cast<HANDLE>(1)); // NOLINT
+		}
 		return 0;
 	}
 	return DefWindowProcW(hwnd, msg, wParam, lParam);

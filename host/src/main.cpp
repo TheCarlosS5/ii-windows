@@ -852,8 +852,10 @@ void checkWaitingGame() {
 // A lone Win press went to ii's search. Over a window that fills its screen (a game ii's shortcuts did not step aside
 // for) or with a shell that stopped beating, ii may be unable to show anything: if no window of the shell has come
 // to the front shortly after, Windows' own Start opens instead. A key is never swallowed with nothing on screen.
-// A launcher-like window of the shell is on screen: visible, always on top and covering a whole monitor (the
-// overview). Windows may refuse it the foreground over a game while it is plainly showing.
+// ii's search is on screen: the shell's visible window marked "quickshell:overview" (Quickshell for Windows marks each
+// panel window with its namespace, and the overview has that one only while it is open). Windows may refuse it the
+// foreground over a game while it is plainly showing. Only that window counts: the shell's other full-screen layers
+// (the minimize animation, the launcher warming up) are not the search.
 bool shellLauncherVisible() {
 	if (!shellPid) return false;
 	struct Search {
@@ -863,17 +865,9 @@ bool shellLauncherVisible() {
 	EnumWindows(
 	    [](HWND hwnd, LPARAM data) -> BOOL {
 		    auto* s = reinterpret_cast<Search*>(data); // NOLINT
-		    if (processIdOf(hwnd) != s->pid || !IsWindowVisible(hwnd) || !(GetWindowLongW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) return TRUE;
-		    RECT r {};
-		    MONITORINFO info {};
-		    info.cbSize = sizeof(info);
-		    if (GetWindowRect(hwnd, &r) && GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &info) && r.left <= info.rcMonitor.left
-		        && r.top <= info.rcMonitor.top && r.right >= info.rcMonitor.right && r.bottom >= info.rcMonitor.bottom)
-		    {
-			    s->found = true;
-			    return FALSE;
-		    }
-		    return TRUE;
+		    if (processIdOf(hwnd) != s->pid || !IsWindowVisible(hwnd) || !GetPropW(hwnd, L"quickshell:overview")) return TRUE;
+		    s->found = true;
+		    return FALSE;
 	    },
 	    reinterpret_cast<LPARAM>(&search) // NOLINT
 	);

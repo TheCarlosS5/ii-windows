@@ -8,6 +8,7 @@ Require-IiHostBuild
 
 $WM_II_LONE_WIN = 0x8004       # WM_APP + 4: the hook saw a lone Win press go to ii's search
 $WM_FAKE_LAUNCHER = 0x801E     # WM_APP + 30: the fake shell shows its "search" on top, without the foreground
+$WM_FAKE_LAYER = 0x801F        # WM_APP + 31: a full-screen layer of the shell on top that is not the search
 $startLine = "ii did not show for the Win key"
 $shownLine = "ii's search shows over the window in front"
 
@@ -22,6 +23,16 @@ try {
     Assert-True (Wait-IiLog $data 'phase: awaiting-ready -> active' 60) 'the shell comes up'
     Assert-Equal (Send-IiMessage $p.Id 'IiHostWindow' $WM_II_LONE_WIN) 1 'the lone Win press reaches the host'
     Assert-True (Wait-IiLog $data $startLine 10) 'with nothing of ii on screen, Windows Start opens instead'
+
+    # ---- a2: another full-screen layer of ii's on top (the minimize animation) is not the search: Start still opens -
+    Start-Sleep -Seconds 1
+    $shellProc = @(Get-IiProcessesAt $shell)[0]
+    Assert-True ((Send-IiMessage $shellProc.Id 'IiFakeShell' $WM_FAKE_LAYER) -ge 1) 'an unmarked layer of the shell is on top'
+    $before = ([regex]::Matches((Get-IiHostLog $data), [regex]::Escape($startLine))).Count
+    Send-IiMessage $p.Id 'IiHostWindow' $WM_II_LONE_WIN | Out-Null
+    $deadline = (Get-Date).AddSeconds(10)
+    while ((Get-Date) -lt $deadline -and ([regex]::Matches((Get-IiHostLog $data), [regex]::Escape($startLine))).Count -le $before) { Start-Sleep -Milliseconds 200 }
+    Assert-True (([regex]::Matches((Get-IiHostLog $data), [regex]::Escape($startLine))).Count -gt $before) 'it does not count as an answer: Start opens'
 
     # ---- b: ii's search shows (on top) but Windows keeps the game in front: no Start on top of it -------------------
     Start-Sleep -Seconds 1

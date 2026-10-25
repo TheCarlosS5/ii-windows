@@ -69,6 +69,11 @@ edit(path('modules', 'ii', 'overview', 'Overview.qml'), [
 ''', '''        property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
         visible: GlobalStates.overviewOpen || overviewScope.warming
 '''),
+    # ii-host knows the search shows by this name on the window (Quickshell for Windows marks each panel window with
+    # its namespace): not while it is only warming up, invisible.
+    ('''        WlrLayershell.namespace: "quickshell:overview"
+''', '''        WlrLayershell.namespace: GlobalStates.overviewOpen ? "quickshell:overview" : "quickshell:overviewHidden"
+'''),
     ('''        Column {
             id: columnLayout
             visible: GlobalStates.overviewOpen
