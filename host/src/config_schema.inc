@@ -126,6 +126,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"appearance.palette.accentColor", K_STRING, false, 0, 0, {}},
 	{"appearance.palette.type", K_STRING, false, 0, 0, {}},
 	{"appearance.reduceMotion", K_BOOL, false, 0, 0, {}},
+	{"appearance.renderLoop", K_STRING, false, 0, 0, {}},
 	{"appearance.transparency.automatic", K_BOOL, false, 0, 0, {}},
 	{"appearance.transparency.backgroundTransparency", K_REAL, false, 0, 0, {}},
 	{"appearance.transparency.blurBehind", K_BOOL, false, 0, 0, {}},

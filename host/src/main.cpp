@@ -288,6 +288,35 @@ void guardConfig() {
 	if (outcome.userShouldKnow()) configNotices.push_back(fromUtf8(outcome.message));
 }
 
+// Plan 1.1: Qt Quick's render loop. Quickshell for Windows draws with the threaded one on a real GPU (drawing then
+// does not wait for the GUI thread) and with the basic one on the software adapter, where the threaded one froze
+// animations (D9, seen in Windows Sandbox). config.json appearance.renderLoop = "threaded" | "basic" forces one;
+// "auto" (the default) leaves it to Quickshell. A QSG_RENDER_LOOP the user set for ii-host itself wins.
+void applyRenderLoopChoice() {
+	static const bool userSet = GetEnvironmentVariableW(L"QSG_RENDER_LOOP", nullptr, 0) > 0;
+	if (userSet) return;
+	std::string text;
+	if (auto* f = _wfopen(configtool::paths().file.c_str(), L"rb")) {
+		char buffer[4096];
+		size_t n = 0;
+		while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0) text.append(buffer, n);
+		fclose(f);
+	}
+	std::string choice = "auto";
+	auto parsed = jsonlite::parse(text);
+	if (parsed.ok) {
+		const auto* section = parsed.value.find("appearance");
+		const auto* value = section && section->isObject() ? section->find("renderLoop") : nullptr;
+		if (value && value->type == jsonlite::Type::String) choice = value->text;
+	}
+	if (choice == "threaded" || choice == "basic") {
+		SetEnvironmentVariableW(L"QSG_RENDER_LOOP", choice == "threaded" ? L"threaded" : L"basic");
+		log(L"shell: render loop %s (config.json)", choice == "threaded" ? L"threaded" : L"basic");
+	} else {
+		SetEnvironmentVariableW(L"QSG_RENDER_LOOP", nullptr);
+	}
+}
+
 void rememberGoodConfig() {
 	if (!configGuardEnabled()) return;
 	auto outcome = configtool::keepGood();
@@ -336,6 +365,7 @@ bool startShell() {
 	}
 
 	guardConfig(); // a damaged config.json must not be what the shell starts from
+	applyRenderLoopChoice();
 	reconcileGpuPreference(options.shell);
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
 	// Nobody edits an installed config: Quickshell watching its ~600 QML files (and their folders) for a

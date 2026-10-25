@@ -162,6 +162,9 @@
   "appearance.reduceMotion": {
    "kind": "bool"
   },
+  "appearance.renderLoop": {
+   "kind": "string"
+  },
   "appearance.transparency.automatic": {
    "kind": "bool"
   },

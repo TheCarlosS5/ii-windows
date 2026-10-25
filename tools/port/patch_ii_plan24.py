@@ -345,6 +345,49 @@ add_translations('es_MX', {
 })
 
 
+# --- 1.1 The render loop --------------------------------------------------------------------------------------------
+# Quickshell for Windows draws with Qt Quick's threaded loop on a real GPU and the basic one on the software adapter
+# (D9). appearance.renderLoop forces one: ii-host passes it to the shell when it starts it (QSG_RENDER_LOOP).
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property bool reduceMotion: false // ii-windows: no decorative animation that only costs frames
+''', '''                property bool reduceMotion: false // ii-windows: no decorative animation that only costs frames
+                property string renderLoop: "auto" // ii-windows: "auto", "threaded" or "basic" (ii-host, at the next start of the shell)
+'''),
+])
+edit(path('modules', 'settings', 'AppearanceConfig.qml'), [
+    ('''            StyledToolTip {
+                text: Translation.tr("Panels and menus appear without moving; animated widgets stay still")
+            }
+        }
+''', '''            StyledToolTip {
+                text: Translation.tr("Panels and menus appear without moving; animated widgets stay still")
+            }
+        }
+        ContentSubsection { // ii-windows: plan 1.1
+            title: Translation.tr("Drawing")
+            tooltip: Translation.tr("Separate thread: drawing does not wait for the interface, a busy moment does not freeze the screen. Interface thread: for a PC where animations stop until the mouse moves. Applies when ii restarts.")
+            ConfigSelectionArray {
+                currentValue: Config.options.appearance.renderLoop ?? "auto"
+                onSelected: newValue => Config.options.appearance.renderLoop = newValue
+                options: [
+                    { displayName: Translation.tr("Automatic"), icon: "auto_mode", value: "auto" },
+                    { displayName: Translation.tr("Separate thread"), icon: "call_split", value: "threaded" },
+                    { displayName: Translation.tr("Interface thread"), icon: "linear_scale", value: "basic" }
+                ]
+            }
+        }
+'''),
+])
+add_translations('es_MX', {
+    "Drawing": "Dibujo",
+    "Separate thread: drawing does not wait for the interface, a busy moment does not freeze the screen. Interface thread: for a PC where animations stop until the mouse moves. Applies when ii restarts.":
+        "Hilo aparte: el dibujo no espera a la interfaz, y un momento de mucho trabajo no congela la pantalla. Hilo de la interfaz: para un PC donde las animaciones se paran hasta mover el ratón. Se aplica al reiniciar ii.",
+    "Automatic": "Automático",
+    "Separate thread": "Hilo aparte",
+    "Interface thread": "Hilo de la interfaz",
+})
+
+
 # --- 0.2 Night light off by default -------------------------------------------------------------------------------
 # Upstream ships the schedule switched on (19:00-06:30): on Windows a fresh install turned the screen yellow in the
 # evening without the user touching anything. Off by default, and an install that still has upstream's untouched
