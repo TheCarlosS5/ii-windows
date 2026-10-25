@@ -31,6 +31,37 @@ using namespace ii;
 int gpuPolicy(bool quiet); // below wWinMain's helpers
 namespace {
 
+// The GPU the shell draws on (Settings > Display > Graphics, per user, per executable): decided again before every
+// launch, since a monitor plugged in later or a MUX switch moves the main screen to another GPU, and Windows applies
+// the preference to each new process. ii only changes a value it wrote itself (recorded in state.ini) or one that
+// does not exist: a preference the user set stays theirs. The uninstaller removes values for files inside ii's folder.
+void reconcileGpuPreference(const std::wstring& shellExe) {
+	if (shellExe.empty() || !instanceTag().empty()) return; // test hosts never touch the real preference
+	static const wchar_t* key = L"Software\\Microsoft\\DirectX\\UserGpuPreferences";
+	auto policy = gpuPolicy(true);
+	std::wstring wanted = policy == 10 ? L"GpuPreference=1;" : policy == 12 ? L"GpuPreference=2;" : L"";
+	wchar_t current[64] {};
+	DWORD size = sizeof(current);
+	auto exists = RegGetValueW(HKEY_CURRENT_USER, key, shellExe.c_str(), RRF_RT_REG_SZ, nullptr, current, &size) == ERROR_SUCCESS;
+	auto recorded = state::getText(L"gpu", shellExe.c_str());
+	if (exists && recorded != current) {
+		log(L"gpu: %s has the user's own preference (%s): left alone", shellExe.c_str(), current);
+		return;
+	}
+	if (exists && wanted == current) return;
+	HKEY handle = nullptr;
+	if (RegCreateKeyExW(HKEY_CURRENT_USER, key, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &handle, nullptr) != ERROR_SUCCESS) return;
+	if (wanted.empty()) {
+		RegDeleteValueW(handle, shellExe.c_str());
+		log(L"gpu: one GPU or no main screen found: Windows chooses for the shell");
+	} else {
+		RegSetValueExW(handle, shellExe.c_str(), 0, REG_SZ, reinterpret_cast<const BYTE*>(wanted.c_str()), static_cast<DWORD>((wanted.size() + 1) * sizeof(wchar_t)));
+		log(L"gpu: the shell draws on the %s GPU (it has the main screen)", policy == 12 ? L"high-performance" : L"power-saving");
+	}
+	RegCloseKey(handle);
+	state::setText(L"gpu", shellExe.c_str(), wanted);
+}
+
 constexpr UINT_PTR TIMER_REAPPLY = 1;
 constexpr UINT_PTR TIMER_RESTART_SHELL = 2;
 constexpr UINT_PTR TIMER_AFTER_EXPLORER = 3;
@@ -305,6 +336,7 @@ bool startShell() {
 	}
 
 	guardConfig(); // a damaged config.json must not be what the shell starts from
+	reconcileGpuPreference(options.shell);
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
 	// Nobody edits an installed config: Quickshell watching its ~600 QML files (and their folders) for a
 	// live reload only cost start-up time and watcher threads. II_WATCH_QML=1 keeps it, for development.

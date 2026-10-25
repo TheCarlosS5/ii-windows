@@ -92,6 +92,18 @@ if ($manifest -and $manifest.changes) {
     if ($haveCursorChanges) { [IiUninstall.Win]::SystemParametersInfoW(0x57, 0, [IntPtr]::Zero, 0x3) | Out-Null }   # SPI_SETCURSORS
 }
 
+# GPU preferences for files inside ii's own folder (ii-host writes the shell's before each start): nobody else sets
+# them, and Windows would keep them for ever once the files are gone.
+$gpuKeyItem = Get-Item 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -ErrorAction SilentlyContinue
+if ($gpuKeyItem -and -not $Sandbox) {
+    foreach ($exe in @($gpuKeyItem.GetValueNames())) {
+        if ($exe -like "$installDir\*") {
+            Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\DirectX\UserGpuPreferences' -Name $exe -ErrorAction SilentlyContinue
+            Say "Quitada la preferencia de GPU de $exe"
+        }
+    }
+}
+
 # Installs from before changes[] recorded the whole cursor key in cursors.json. Only the values that
 # still point into ii's own folder are put back; a cursor chosen since stays.
 $cursorBackup = Join-Path $dataDir 'cursors.json'

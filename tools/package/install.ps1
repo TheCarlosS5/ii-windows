@@ -218,40 +218,17 @@ foreach ($folder in 'rescue', 'cursors', 'bin') {
 Say "Version $($runtime.Id) copiada y verificada en $installDir\versions; se activa al arrancar (si no arranca, se vuelve a la anterior: $($runtime.Previous))."
 $manifest.runtime = @([ordered]@{ active = $runtime.Id; previous = $runtime.Previous })
 
-# --- 3b. power-saving GPU for the shell ----------------------------------------------------------
-# On laptops with two GPUs (iGPU + NVIDIA/AMD) a shell that lands on the dedicated one keeps it
-# awake all day and copies every frame between GPUs. Same setting as Settings > System > Display >
-# Graphics, per user; only written if the user never chose one for this file.
+# --- 3b. the GPU the shell draws on --------------------------------------------------------------
+# Same setting as Settings > System > Display > Graphics, per user and per executable.
 $gpuSubKey = 'Software\Microsoft\DirectX\UserGpuPreferences'
 $shellExe = Join-Path $versionDir 'quickshell\quickshell.exe'
-# A value that already exists is the user's choice and is left alone; one that is ii's own from an
-# earlier install keeps its true original (absent) and is not mistaken for the user's.
-# Only where the power-saving GPU is the one with the screen (ii-host --gpu-policy asks DirectX: exit
-# 10). On a desktop whose monitor is on the graphics card it made ii draw on the integrated GPU and
-# Windows copied every frame across: the wallpaper stalled and colours changed late. There nothing
-# is forced, and a value an earlier ii wrote is taken back.
-$gpuPolicy = 11
-try {
-    $probe = Start-Process -FilePath (Join-Path $versionDir 'ii-host.exe') -ArgumentList '--gpu-policy' -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop
-    $gpuPolicy = $probe.ExitCode
-} catch { }
-# 12: the main screen is on the high-performance GPU (an external monitor wired to it, a MUX switch in dedicated
-# mode): drawing on the integrated GPU there copied every frame across GPUs (lag on gaming laptops).
-if ($gpuPolicy -eq 10 -or $gpuPolicy -eq 12) {
-    $gpuValue = if ($gpuPolicy -eq 12) { 'GpuPreference=2;' } else { 'GpuPreference=1;' }
-    $gpuLabel = if ($gpuPolicy -eq 12) { 'GPU de alto rendimiento: tiene la pantalla principal' } else { 'GPU de ahorro de energia' }
-    $gpuResult = Set-IiOwnedRegValue $manifest "gpu:$shellExe" $gpuSubKey $shellExe $gpuValue 'String'
-    if ($gpuResult -in 'applied', 'kept-ours', 'updated-ours') {
-        $manifest.registry += "HKCU\$gpuSubKey\$shellExe ($gpuLabel)"
-    } elseif ($gpuResult -eq 'foreign-existing') {
-        Say 'La preferencia de GPU de este programa ya existe (es tuya): se respeta.'
-    }
-} else {
-    foreach ($change in @(@($manifest.changes) | Where-Object { $_ -and $_.id -like 'gpu:*' })) {
-        [void](Restore-IiOwnedRegValue $manifest $change.id)
-    }
-    Say 'GPU: Windows elige la tarjeta de ii (la pantalla no esta en la grafica de ahorro).'
+# ii-host decides it before every start of the shell (the GPU with the main screen: a monitor plugged in later or a
+# MUX switch changes it), so the installer no longer writes it. A value an earlier installer wrote is taken back here
+# when it is still ii's; ii-host then writes its own (state.ini [gpu]) and never touches a value the user set.
+foreach ($change in @(@($manifest.changes) | Where-Object { $_ -and $_.id -like 'gpu:*' })) {
+    [void](Restore-IiOwnedRegValue $manifest $change.id)
 }
+Say 'GPU: ii elige la grafica que tiene la pantalla principal cada vez que arranca.'
 # GPU values for versions of ii that are gone (their folder under versions\ was removed): nobody else
 # writes values for files inside ii's own folder, and Windows keeps them for ever otherwise.
 $gpuKeyItem = Get-Item "HKCU:\$gpuSubKey" -ErrorAction SilentlyContinue
