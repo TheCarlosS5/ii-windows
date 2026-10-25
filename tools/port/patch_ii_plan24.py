@@ -197,6 +197,79 @@ for page in ('BarConfig.qml', 'QuickConfig.qml'):
 add_translations('es_MX', {"None": "Ninguna"})
 
 
+# --- 2.2 Minimize into the dock ---------------------------------------------------------------------------------------
+# overlay modules/ii/minimizeAnimation/MinimizeAnimation.qml flies a live thumbnail of a minimized window into the dock
+# (and back on restore); ii-host turns Windows' own minimize animation off in memory meanwhile (minanim.cpp).
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject dock: JsonObject {
+''', '''            property JsonObject windowAnimations: JsonObject { // ii-windows
+                property bool minimizeToDock: true // ii's own minimize/restore animation instead of Windows' one
+                property int duration: 320 // ms, 100-600
+                property string curve: "expressive" // "expressive" (M3 Expressive spring) or "linear"
+            }
+
+            property JsonObject dock: JsonObject {
+'''),
+])
+edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
+    ('''import qs.modules.ii.mediaControls
+''', '''import qs.modules.ii.mediaControls
+import qs.modules.ii.minimizeAnimation
+'''),
+    ('''    PanelLoader { phase: 2; component: MediaControls {} }
+''', '''    PanelLoader { phase: 2; component: MediaControls {} }
+    PanelLoader { phase: 2; component: MinimizeAnimation {} } // ii-windows: minimize into the dock
+'''),
+])
+edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
+    ('''    ContentSection {
+        icon: "voting_chip"
+        title: Translation.tr("On-screen display")
+''', '''    ContentSection {
+        icon: "animation"
+        title: Translation.tr("Window animations")
+
+        ConfigSwitch {
+            buttonIcon: "minimize"
+            text: Translation.tr("Minimize into the dock (instead of Windows' animation)")
+            checked: Config.options.windowAnimations.minimizeToDock
+            onCheckedChanged: Config.options.windowAnimations.minimizeToDock = checked
+        }
+        ConfigSpinBox {
+            icon: "av_timer"
+            text: Translation.tr("Duration (ms)")
+            enabled: Config.options.windowAnimations.minimizeToDock
+            value: Config.options.windowAnimations.duration
+            from: 100
+            to: 600
+            stepSize: 20
+            onValueChanged: Config.options.windowAnimations.duration = value
+        }
+        ConfigSelectionArray {
+            enabled: Config.options.windowAnimations.minimizeToDock
+            currentValue: Config.options.windowAnimations.curve
+            onSelected: newValue => Config.options.windowAnimations.curve = newValue
+            options: [
+                { displayName: Translation.tr("Springy"), icon: "airwave", value: "expressive" },
+                { displayName: Translation.tr("Linear"), icon: "trending_flat", value: "linear" }
+            ]
+        }
+    }
+
+    ContentSection {
+        icon: "voting_chip"
+        title: Translation.tr("On-screen display")
+'''),
+])
+add_translations('es_MX', {
+    "Window animations": "Animaciones de ventanas",
+    "Minimize into the dock (instead of Windows' animation)": "Minimizar hacia el dock (en vez de la animación de Windows)",
+    "Duration (ms)": "Duración (ms)",
+    "Springy": "Con rebote",
+    "Linear": "Lineal",
+})
+
+
 # --- 0.2 Night light off by default -------------------------------------------------------------------------------
 # Upstream ships the schedule switched on (19:00-06:30): on Windows a fresh install turned the screen yellow in the
 # evening without the user touching anything. Off by default, and an install that still has upstream's untouched

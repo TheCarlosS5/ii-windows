@@ -105,6 +105,7 @@
   "waffles.calendar",
   "waffles.tweaks",
   "wallpaperSelector",
+  "windowAnimations",
   "windows",
   "workSafety",
   "workSafety.enable",
@@ -1356,6 +1357,19 @@
    "kind": "bool"
   },
   "wallpaperSelector.useSystemFileDialog": {
+   "kind": "bool"
+  },
+  "windowAnimations.curve": {
+   "kind": "string"
+  },
+  "windowAnimations.duration": {
+   "kind": "int",
+   "range": [
+    100,
+    600
+   ]
+  },
+  "windowAnimations.minimizeToDock": {
    "kind": "bool"
   },
   "windows.centerTitle": {
