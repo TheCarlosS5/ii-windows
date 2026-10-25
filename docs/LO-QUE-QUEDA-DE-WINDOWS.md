@@ -17,7 +17,7 @@ de pánico, el guardián, `ii-rescue` y el desinstalador). Lo que no cumple eso 
 | Menú Win+X | ✅ Reemplazado | Menú de sesión de ii. Las herramientas del sistema de ese menú siguen en Configuración. |
 | Aviso de volumen | ✅ Reemplazado | ii toma las teclas de volumen y muestra el suyo (`shortcuts.ini [audio] volumekeys=windows` lo devuelve). |
 | Captura (Impr Pant, Win+Shift+S) | ✅ Reemplazada | Selector de región de ii. |
-| Animación de minimizar | ✅ Reemplazada | Hacia el dock, de ii (2.2). La de Windows se apaga solo en memoria. |
+| Animación de minimizar | ✅ Reemplazada | Hacia el dock, de ii (2.2). La de Windows se apaga solo en memoria; es el mismo ajuste que sus animaciones de maximizar y restaurar, que también se apagan. Restaurar no tiene animación de ii (la ventana real vuelve al instante y una copia encima se veía doble). |
 | Aviso de Bloq Mayús / cargador | ✅ Propio | Píldora de ii (1.5). |
 | Vista de tareas (Win+Tab) | ✅ Reemplazada | Vista general de ii. |
 | Alt+Tab | 🔧 Pendiente | Hace falta un selector que funcione con Alt mantenido, Tab para avanzar y soltar para elegir. Es factible con el gancho de `ii-host` y la vista de ventanas de ii, pero es un trabajo propio (X02). Mientras tanto, Alt+Tab sigue siendo el de Windows. |
