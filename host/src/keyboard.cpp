@@ -256,6 +256,8 @@ void refreshContext() {
 		                         && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
 		facts.exe = lowerExeName(pid);
 	}
+	// This runs from the foreground event (onForegroundChanged), so the hook goes the moment an anti-cheat game comes
+	// to the front; the once-a-second reconciliation only catches what that event missed.
 	auto unhook = shouldUnhook(facts, rules);
 	if (hookThread && unhook == wantHook.load()) {
 		wantHook = !unhook;
