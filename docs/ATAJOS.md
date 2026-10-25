@@ -52,6 +52,6 @@ Los atajos de ii se resuelven dentro de ii también con una aplicación maximiza
 | Ctrl+Shift+Escape (lo atiende Windows) | Task Manager (Windows) | external | `windows` | No process center in ii yet (X03). |
 | Win+E (lo atiende Windows) | File Explorer | external | `windows` | No file center in ii yet (X02). |
 | Win+P (lo atiende Windows) | Display modes (Windows) | external | `windows` | ii's display selector with rollback comes with U05. |
-| Alt+Tab (lo atiende Windows) | Switch windows | external | `windows` | ii's own switcher is U03. |
+| Alt+Tab | Switch windows (hold Alt, Tab moves on, letting go picks) | available | `windowSwitcherNext` | ii's switcher (ii-host's keyboard router, not this table); over a game or with a shell that does not answer, Windows' own. |
 | Win+Up (lo atiende Windows) | Maximize / snap | external | `windows` | Windows' own combination. |
 | Ctrl+Alt+Shift+R | Panic: restore Windows' taskbar and desktop, stop ii | available | `@panic` | A system hotkey of ii-host itself: it works with shortcuts suspended and over games. |

@@ -20,7 +20,7 @@ de pánico, el guardián, `ii-rescue` y el desinstalador). Lo que no cumple eso 
 | Animación de minimizar | ✅ Reemplazada | Hacia el dock, de ii (2.2). La de Windows se apaga solo en memoria; es el mismo ajuste que sus animaciones de maximizar y restaurar, que también se apagan. Restaurar no tiene animación de ii (la ventana real vuelve al instante y una copia encima se veía doble). |
 | Aviso de Bloq Mayús / cargador | ✅ Propio | Píldora de ii (1.5). |
 | Vista de tareas (Win+Tab) | ✅ Reemplazada | Vista general de ii. |
-| Alt+Tab | 🔧 Pendiente | Hace falta un selector que funcione con Alt mantenido, Tab para avanzar y soltar para elegir. Es factible con el gancho de `ii-host` y la vista de ventanas de ii, pero es un trabajo propio (X02). Mientras tanto, Alt+Tab sigue siendo el de Windows. |
+| Alt+Tab | ✅ Reemplazado | El selector de ii: mantener Alt, Tab avanza (Mayús+Tab o ← retrocede), soltar elige, Esc cancela; miniaturas en vivo en orden de uso, y el dock visible mientras tanto. Encima de un juego que hace ceder los atajos, o si la shell no responde, sigue siendo el de Windows. Ctrl+Alt+Tab es de Windows. |
 | Aviso de brillo (portátiles) | ⛔ Se queda | Las teclas de brillo las procesa el firmware/driver y Windows muestra su aviso. No hay forma documentada y por usuario de apagarlo sin tocar el sistema. |
 | Aviso multimedia (play/pausa) | 🟡 Se queda por ahora | ii podría tomar las teclas multimedia como hace con las de volumen y mandarlas a su control de medios, pero con varios reproductores el comportamiento de Windows es más fiable. Pendiente de probar. |
 | Proyectar (Win+P) | ⛔ Se queda | Es una función del sistema (pantallas y proyectores); no hay nada de ii que la iguale. |

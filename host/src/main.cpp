@@ -792,8 +792,10 @@ ULONGLONG shellGuiCpu() {
 // opened for the first time) is not frozen: it gets up to SHELL_BUSY_LIMIT_MS. One that stands still, waiting on a
 // graphics driver or on anything else, uses no processor time and is acted on after the timeout.
 void checkHeartbeat() {
-	if (!shellProcess || shuttingDown || !shellReady || waitingForGame || lastHeartbeat == 0) return;
 	auto now = GetTickCount64();
+	// ii's Alt+Tab only from a shell that is up and answering (2 s, like the lone Win key); else Windows' one.
+	keyboard::setShellResponsive(shellProcess && shellReady && !waitingForGame && (lastHeartbeat == 0 || now - lastHeartbeat <= 2000));
+	if (!shellProcess || shuttingDown || !shellReady || waitingForGame || lastHeartbeat == 0) return;
 	if (now < heartbeatGraceUntil) return;
 	auto silent = now - lastHeartbeat;
 	if (silent < heartbeatTimeoutMs()) return;

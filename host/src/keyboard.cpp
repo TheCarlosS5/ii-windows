@@ -41,6 +41,7 @@ HWND notify = nullptr;
 std::atomic<bool> cachedYield {false};
 std::atomic<bool> cachedDesktop {false};
 std::atomic<bool> cachedVolumeKeys {true}; // shortcuts.ini [audio] volumekeys = windows turns it off
+std::atomic<bool> shellResponsive {true};  // the shell's GUI thread beats (set by the host's heartbeat check)
 std::atomic<HWND> cachedSink {nullptr};
 std::atomic<bool> resetRequested {false};
 std::atomic<bool> coverUp {false};
@@ -135,6 +136,22 @@ void releaseWinMasked(UINT winVk) {
 	SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
 }
 
+// The same for an Alt key-up after ii took Alt+Tab: the app in front saw only Alt go down and up, which opens its
+// menu bar; with the unassigned key between them it is a combination it ignores.
+void releaseAltMasked(UINT altVk) {
+	std::array<INPUT, 3> inputs {};
+	for (auto& in: inputs) {
+		in.type = INPUT_KEYBOARD;
+		in.ki.dwExtraInfo = OWN_INPUT_TAG;
+	}
+	inputs[0].ki.wVk = 0xE8;
+	inputs[1].ki.wVk = 0xE8;
+	inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+	inputs[2].ki.wVk = static_cast<WORD>(altVk);
+	inputs[2].ki.dwFlags = KEYEVENTF_KEYUP | (altVk == VK_RMENU ? KEYEVENTF_EXTENDEDKEY : 0);
+	SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+}
+
 LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	if (code != HC_ACTION) return CallNextHookEx(hook, code, wParam, lParam);
 
@@ -156,6 +173,7 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	context.yieldToForeground = cachedYield.load();
 	context.desktopInFront = cachedDesktop.load();
 	context.volumeKeys = cachedVolumeKeys.load();
+	context.shellResponsive = shellResponsive.load();
 
 	auto result = router.onKey(key->vkCode, down, context);
 	// The audio is changed on the host's thread: the hook only posts (it must return at once).
@@ -164,6 +182,7 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 		PostMessageW(notify, WM_II_SHORTCUT, result.posts[static_cast<size_t>(i)].pressed ? 1 : 0, result.posts[static_cast<size_t>(i)].index);
 	}
 	if (result.maskWinRelease) releaseWinMasked(result.winVk);
+	if (result.maskAltRelease) releaseAltMasked(result.altVk);
 	if (result.loneWin) PostMessageW(notify, WM_II_LONE_WIN, 0, 0);
 	return result.swallow ? 1 : CallNextHookEx(hook, code, wParam, lParam);
 }
@@ -272,6 +291,10 @@ void refreshContext() {
 }
 
 void resetState() { resetRequested = true; }
+
+void setShellResponsive(bool responsive) {
+	if (shellResponsive.exchange(responsive) != responsive) log(L"keyboard: Alt+Tab %s", responsive ? L"is ii's again" : L"left to Windows (the shell does not answer)");
+}
 
 void openStart() {
 	if (noUi()) return; // a test host never presses keys on the tester's desktop

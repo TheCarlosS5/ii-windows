@@ -320,6 +320,31 @@ add_translations('es_MX', {
 })
 
 
+# --- 2.3 ii's Alt+Tab, and the dock with the launcher -----------------------------------------------------------------
+# overlay modules/ii/windowSwitcher/WindowSwitcher.qml: hold Alt, Tab moves on, letting go picks (keys from ii-host's
+# keyboard router). While it or the launcher/overview is open the dock shows, above everything (Dock.qml), and goes
+# back (hidden in front of a game) when they close.
+edit(path('GlobalStates.qml'), [
+    ('''    property bool overviewOpen: false
+''', '''    property bool overviewOpen: false
+    property bool windowSwitcherOpen: false // ii-windows: Alt+Tab
+'''),
+])
+edit(path('panelFamilies', 'IllogicalImpulseFamily.qml'), [
+    ('''import qs.modules.ii.wallpaperSelector
+''', '''import qs.modules.ii.wallpaperSelector
+import qs.modules.ii.windowSwitcher
+'''),
+    ('''    PanelLoader { phase: 2; component: MinimizeAnimation {} } // ii-windows: minimize into the dock
+''', '''    PanelLoader { phase: 2; component: MinimizeAnimation {} } // ii-windows: minimize into the dock
+    PanelLoader { phase: 2; component: WindowSwitcher {} } // ii-windows: Alt+Tab
+'''),
+])
+add_translations('es_MX', {
+    "Switch windows (hold Alt, Tab moves on, letting go picks)": "Cambiar de ventana (mantén Alt, Tab avanza, al soltar se elige)",
+})
+
+
 # --- 0.2 Night light off by default -------------------------------------------------------------------------------
 # Upstream ships the schedule switched on (19:00-06:30): on Windows a fresh install turned the screen yellow in the
 # evening without the user touching anything. Off by default, and an install that still has upstream's untouched

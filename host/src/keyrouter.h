@@ -44,6 +44,12 @@ inline constexpr Index IDX_DESKTOP = 1100;     // + 0..9: Win+number
 inline constexpr Index IDX_MOVE = 1110;        // + 0..9: Win+Shift+number
 inline constexpr Index IDX_BLOCK = 1200;       // a Win combination that would open a hidden taskbar button
 inline constexpr Index IDX_SESSION = 1201;     // Alt+F4 on Explorer's desktop: ii's session menu
+// ii's Alt+Tab (plan 2.3): Tab with Alt held moves on (Shift+Tab / Left back, Right on), letting go of Alt picks the
+// window, Esc gives up. Only while ii can show it; otherwise Windows keeps Alt+Tab.
+inline constexpr Index IDX_SWITCH_NEXT = 1300;
+inline constexpr Index IDX_SWITCH_PREV = 1301;
+inline constexpr Index IDX_SWITCH_PICK = 1302;
+inline constexpr Index IDX_SWITCH_CANCEL = 1303;
 
 const wchar_t* nameOf(Index index);
 
@@ -53,6 +59,7 @@ struct Context {
 	bool yieldToForeground = false; // a game / exclusive fullscreen app is in front: ii's shortcuts step aside
 	bool desktopInFront = false;    // Explorer's own desktop is the foreground window (Alt+F4 there opens ii's session menu)
 	bool volumeKeys = false;        // ii takes the volume keys (Windows would also show its own volume flyout)
+	bool shellResponsive = true;    // the shell's GUI thread beats: it can show ii's Alt+Tab (else Windows' one opens)
 };
 
 struct Post {
@@ -64,7 +71,9 @@ struct Result {
 	bool swallow = false;       // do not pass this event on
 	bool maskWinRelease = false; // replay this Win key-up behind an unassigned key (no Start menu), and swallow the real one
 	unsigned winVk = 0;
-	unsigned volumeVk = 0;       // a volume key went down and ii handles it: the host changes the volume
+	bool maskAltRelease = false; // replay this Alt key-up behind an unassigned key (the app in front does not take a
+	unsigned altVk = 0;          // lone Alt press for "open the menu bar"), and swallow the real one
+	unsigned volumeVk = 0;      // a volume key went down and ii handles it: the host changes the volume
 	bool loneWin = false;        // a lone Win press ii took (it opens ii's search): the host checks ii really showed
 	std::array<Post, 4> posts {};
 	int postCount = 0;
@@ -101,6 +110,8 @@ private:
 	bool winSolo = false;
 	bool chordActive = false;       // ii handles this Win chord
 	bool swallowedInChord = false;
+	bool switching = false;      // ii's Alt+Tab is open
+	bool maskAltUp = false;      // a Tab went to ii while Alt was held: its release must not reach the app alone
 	std::array<bool, 256> swallowedDown {};
 	[[nodiscard]] bool ctrl() const { return lctrl || rctrl; }
 	[[nodiscard]] bool alt() const { return lalt || ralt; }

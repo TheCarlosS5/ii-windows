@@ -63,7 +63,7 @@ Singleton {
         bind(ctrl | shift, "Escape", "Session: Task Manager (Windows)"),
         bind(superKey, "E", "Windows: File Explorer"),
         bind(superKey, "P", "Windows: Display modes (Windows)"),
-        bind(alt, "Tab", "Windows: Switch windows"),
+        bind(alt, "Tab", "Shell: Switch windows (hold Alt, Tab moves on, letting go picks)"),
         bind(superKey, "Up", "Windows: Maximize / snap"),
         bind(ctrl | alt | shift, "R", "Safety: Panic: restore Windows' taskbar and desktop, stop ii"),
     ]

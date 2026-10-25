@@ -245,6 +245,9 @@ Item {
             Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("store.qml")]);
             return;
         }
+        // The dock shows with the launcher open (Win): picking an app there leaves the launcher.
+        if (GlobalStates.overviewOpen)
+            GlobalStates.overviewOpen = false;
         if (windows.length === 0) {
             AppUsage.launch(desktopEntry);
             bounceAnim.restart();

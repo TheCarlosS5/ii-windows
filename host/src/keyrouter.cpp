@@ -13,6 +13,10 @@ const wchar_t* nameOf(Index index) {
 	case IDX_WSNUMBER: return L"workspaceNumber";
 	case IDX_BLOCK: return L"@block";
 	case IDX_SESSION: return L"sessionToggle";
+	case IDX_SWITCH_NEXT: return L"windowSwitcherNext";
+	case IDX_SWITCH_PREV: return L"windowSwitcherPrevious";
+	case IDX_SWITCH_PICK: return L"windowSwitcherPick";
+	case IDX_SWITCH_CANCEL: return L"windowSwitcherCancel";
 	default:
 		if (index >= IDX_DESKTOP && index < IDX_DESKTOP + 10) {
 			static const wchar_t* desktops[] = {
@@ -38,6 +42,7 @@ const wchar_t* nameOf(Index index) {
 void Router::reset() {
 	lctrl = rctrl = lalt = ralt = lshift = rshift = false;
 	winDown = winSolo = chordActive = swallowedInChord = false;
+	switching = maskAltUp = false;
 	swallowedDown.fill(false);
 }
 
@@ -134,6 +139,53 @@ Result Router::onKey(unsigned vk, bool down, const Context& context) {
 	// The same for Ctrl/Alt/Shift, but only for real keys: the async state of the modifier being
 	// pressed right now has not been updated by the time the hook sees it.
 	if (down && !isModifier) healModifiers();
+
+	// ii's Alt+Tab. Letting go of Alt (of both) picks the window shown. The app in front saw Alt go down but not the
+	// Tab, so a bare Alt release would open its menu bar: after a Tab ii took, that release is masked like a Win one.
+	if (isModifier && !down && (vk == VK_LMENU || vk == VK_RMENU || vk == VK_MENU) && !alt()) {
+		if (switching) {
+			switching = false;
+			r.add(true, IDX_SWITCH_PICK);
+		}
+		if (maskAltUp) {
+			maskAltUp = false;
+			r.maskAltRelease = true;
+			r.altVk = vk;
+			r.swallow = true; // the real key-up is replayed after the mask key
+		}
+		if (r.postCount > 0 || r.swallow) return r;
+	}
+	if (switching && down && !isModifier && !alt()) {
+		// Alt is up but its release never came (secure desktop, a lost event): the switcher must not stay open.
+		switching = false;
+		maskAltUp = false;
+		r.add(true, IDX_SWITCH_CANCEL);
+	}
+	if (switching && down && !isModifier) {
+		Index step = -1;
+		if (vk == VK_TAB) step = shift() ? IDX_SWITCH_PREV : IDX_SWITCH_NEXT;
+		else if (vk == VK_LEFT) step = IDX_SWITCH_PREV;
+		else if (vk == VK_RIGHT) step = IDX_SWITCH_NEXT;
+		else if (vk == VK_ESCAPE || vk == VK_RETURN) {
+			switching = false;
+			step = vk == VK_ESCAPE ? IDX_SWITCH_CANCEL : IDX_SWITCH_PICK;
+		}
+		if (step >= 0) {
+			r.add(true, step);
+			swallowedDown[vk] = true;
+			r.swallow = true;
+			return r;
+		}
+	}
+	if (!switching && down && vk == VK_TAB && alt() && !ctrl() && !winDown && context.shellPresent && context.shellResponsive
+	    && !context.yieldToForeground) {
+		switching = true;
+		maskAltUp = true;
+		r.add(true, shift() ? IDX_SWITCH_PREV : IDX_SWITCH_NEXT);
+		swallowedDown[VK_TAB] = true;
+		r.swallow = true;
+		return r;
+	}
 
 	// Any other key while Win is held (a modifier too) means it was not a lone press.
 	if (down && winDown && winSolo) {

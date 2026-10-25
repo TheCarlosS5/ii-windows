@@ -44,7 +44,9 @@ Scope {
             visible: !GlobalStates.screenLocked && (Config.options?.dock.enable ?? true)
 
             readonly property bool vertical: root.edge !== "bottom"
-            property bool reveal: root.pinned || dockApps.requestDockShow || GlobalStates.dockForceReveal || (!ToplevelManager.activeToplevel?.activated)
+            // The launcher (Win) and the window switcher (Alt+Tab) show the dock too, as Windows shows its taskbar.
+            readonly property bool withLauncher: GlobalStates.overviewOpen || GlobalStates.windowSwitcherOpen
+            property bool reveal: root.pinned || dockApps.requestDockShow || GlobalStates.dockForceReveal || (!ToplevelManager.activeToplevel?.activated) || dockRoot.withLauncher
                 || (Config.options?.dock.hoverToReveal && dockApps.hovering)
 
             anchors {
@@ -64,6 +66,9 @@ Scope {
             implicitWidth: vertical ? dockApps.thickness : 0
             implicitHeight: vertical ? 0 : dockApps.thickness
             WlrLayershell.namespace: "quickshell:dock"
+            // Above them meanwhile, also over a game (the top layer steps aside for one, the overlay does not); back
+            // in its own layer, and so behind the game again, when they close.
+            WlrLayershell.layer: dockRoot.withLauncher ? WlrLayer.Overlay : WlrLayer.Top
             color: "transparent"
 
             // Input: the dock when idle, the magnified area while the cursor is on it, a thin strip at

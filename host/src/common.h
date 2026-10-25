@@ -167,6 +167,8 @@ void setCoverUp(bool up);
 // Opens Windows' own Start menu (an injected Win tap the hook lets through): ii took a lone Win press but could not
 // show anything for it, and a key must never be swallowed with nothing on screen.
 void openStart();
+// The shell beats (or not): ii's Alt+Tab only while it can show it, else Windows' one opens.
+void setShellResponsive(bool responsive);
 } // namespace keyboard
 
 namespace minanim {

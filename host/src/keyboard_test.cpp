@@ -363,6 +363,73 @@ int main() {
 		check(shouldYield(windowedGame, neverButListed), "an explicit [yield] entry is more specific than policy 'never' and wins");
 	}
 
+	// Plan 2.3: ii's Alt+Tab.
+	{
+		resetKeys();
+		Keyboard k;
+		check(!k.press(VK_LMENU).swallow, "Alt down reaches the app");
+		auto tab = k.press(VK_TAB);
+		check(tab.swallow && posted(tab, IDX_SWITCH_NEXT, true), "Alt+Tab: swallowed, the switcher moves on");
+		check(k.release(VK_TAB).swallow, "and its key-up too");
+		k.press(VK_LSHIFT);
+		check(posted(k.press(VK_TAB), IDX_SWITCH_PREV, true), "Alt+Shift+Tab moves back");
+		k.release(VK_TAB);
+		k.release(VK_LSHIFT);
+		check(posted(k.press(VK_LEFT), IDX_SWITCH_PREV, true) && posted(k.press(VK_RIGHT), IDX_SWITCH_NEXT, true), "Left/Right move too");
+		k.release(VK_LEFT);
+		k.release(VK_RIGHT);
+		auto up = k.release(VK_LMENU);
+		check(posted(up, IDX_SWITCH_PICK, true) && up.maskAltRelease && up.altVk == VK_LMENU && up.swallow,
+		      "letting go of Alt picks the window, and the release is masked (no menu bar in the app)");
+		check(nameOf(IDX_SWITCH_PICK) && std::wstring(nameOf(IDX_SWITCH_PICK)) == L"windowSwitcherPick", "the shell's shortcut names");
+	}
+	{
+		resetKeys();
+		Keyboard k;
+		k.press(VK_LMENU);
+		k.press(VK_TAB);
+		k.release(VK_TAB);
+		auto esc = k.press(VK_ESCAPE);
+		check(esc.swallow && posted(esc, IDX_SWITCH_CANCEL, true), "Esc gives up");
+		check(k.release(VK_ESCAPE).swallow, "and its key-up is swallowed");
+		auto up = k.release(VK_LMENU);
+		check(!posted(up, IDX_SWITCH_PICK, true) && up.maskAltRelease, "Alt up after Esc picks nothing, but is still masked");
+		check(!k.press(VK_TAB).swallow, "a Tab without Alt is the app's");
+	}
+	{
+		resetKeys();
+		Keyboard k;
+		k.context.yieldToForeground = true;
+		k.press(VK_LMENU);
+		check(!k.press(VK_TAB).swallow, "with a game in front Alt+Tab is Windows'");
+		k.release(VK_TAB);
+		check(!k.release(VK_LMENU).maskAltRelease, "and Alt up is left alone");
+		k.context.yieldToForeground = false;
+		k.context.shellResponsive = false;
+		k.press(VK_LMENU);
+		check(!k.press(VK_TAB).swallow, "with a shell that does not beat Alt+Tab is Windows'");
+		k.release(VK_TAB);
+		k.release(VK_LMENU);
+		k.context.shellResponsive = true;
+		k.context.shellPresent = false;
+		k.press(VK_LMENU);
+		check(!k.press(VK_TAB).swallow, "and without a shell");
+	}
+	{
+		resetKeys();
+		Keyboard k;
+		k.press(VK_LMENU);
+		k.press(VK_TAB);
+		k.release(VK_TAB);
+		g_down[VK_LMENU] = false; // Alt's release was lost
+		auto a = k.press('A');
+		check(posted(a, IDX_SWITCH_CANCEL, true) && !a.swallow, "a lost Alt release closes the switcher at the next key, which goes on");
+		k.release('A');
+		k.press(VK_LCONTROL);
+		k.press(VK_LMENU);
+		check(!k.press(VK_TAB).swallow, "Ctrl+Alt+Tab stays Windows'");
+	}
+
 	std::printf("keyrouter: %d checks, %d failed\n", checks, failures);
 	return failures == 0 ? 0 : 1;
 }
