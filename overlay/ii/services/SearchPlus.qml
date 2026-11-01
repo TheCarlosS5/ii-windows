@@ -120,6 +120,7 @@ Singleton {
         if (q.length < 2) return out;
         if (root.enabled("conversions")) out.conversion = root.colorRow(q) ?? root.conversionRow(q);
         if (root.enabled("commands")) out.rows = out.rows.concat(root.colorHistoryRows(q));
+        out.rows = out.rows.concat(root.snippetRows(q));
         if (root.enabled("commands")) out.rows = out.rows.concat(root.commandRows(q), root.modeRows(q));
         if (root.enabled("windows")) out.rows = out.rows.concat(root.windowRows(q));
         if (root.enabled("windowsSettings")) out.rows = out.rows.concat(root.windowsSettingsRows(q));
@@ -221,6 +222,40 @@ Singleton {
                 type: Translation.tr("Picked color"), iconName: "colorize", iconType: LauncherSearchResult.IconType.Material,
                 execute: () => { Quickshell.clipboardText = f.hex; }, actions: root.colorActions(f) }) };
         });
+    }
+
+    // ---- snippets (plan E8): texts you keep (Configuración > Servicios > Fragmentos, or "Guardar como fragmento" on a
+    // clipboard entry), pasted into the app in front. "fragmentos" lists them all.
+    readonly property var snippets: (Config.options?.search?.snippets ?? []).filter(x => x && x.text)
+    function saveSnippet(text) {
+        const clean = String(text ?? "").trim();
+        if (!clean || root.snippets.some(x => x.text === clean)) return;
+        const name = clean.replace(/\s+/g, " ").slice(0, 32);
+        Config.options.search.snippets = root.snippets.concat([{ name: name, text: clean }]);
+    }
+    function pasteText(text) {
+        root.later(() => Quickshell.execDetached(["ii-shim", "cliphist", "paste-text", text]));
+    }
+    function snippetRows(q) {
+        if (root.snippets.length === 0) return [];
+        const all = Plus.bestScore(q, ["fragmentos", "snippets", "textos guardados"]) > 0;
+        const out = [];
+        for (const x of root.snippets) {
+            const score = all ? 0.85 : Math.max(Plus.matchScore(q, x.name ?? ""), Plus.matchScore(q, x.text) * 0.8);
+            if (score <= 0) continue;
+            const text = x.text;
+            out.push({ score: score * 0.97, result: root.row({
+                name: x.name || text,
+                verb: Translation.tr("Paste"),
+                type: `${Translation.tr("Snippet")} · ${text.replace(/\s+/g, " ").slice(0, 60)}`,
+                iconName: "text_snippet",
+                iconType: LauncherSearchResult.IconType.Material,
+                execute: () => root.pasteText(text),
+                actions: [root.row({ name: Translation.tr("Copy"), iconName: "content_copy", iconType: LauncherSearchResult.IconType.Material,
+                    execute: () => { Quickshell.clipboardText = text; } })]
+            }) });
+        }
+        return out.sort((a, b) => b.score - a.score).slice(0, 6);
     }
 
     // ---- commands -------------------------------------------------------------------------------------------------

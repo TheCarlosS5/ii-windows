@@ -10,6 +10,8 @@
 //   cliphist delete-id <id|line>
 //   cliphist paste <id|line>      copy, then Ctrl+V into the app in front
 //   cliphist superpaste <delay ms> <id> ...   pastes several entries in order
+//   cliphist paste-text <text>     that text into the app in front (ii's saved snippets)
+//   cliphist paste-plain <id|line> the entry as plain text, without its formatting
 //   cliphist wipe                 clears Windows' clipboard history
 //   cliphist enabled              exit 0 if Windows' clipboard history is on
 //
@@ -179,6 +181,23 @@ int cliphist(const std::vector<std::wstring>& args) {
 		if (command == L"paste" && args.size() > 1) {
 			if (!copyEntry(idFromArg(args[1]))) return 1;
 			Sleep(80); // let the clipboard settle, and ii's panel close
+			pressCtrlV();
+			return 0;
+		}
+		// Plan 2026-10-31, E8: a text into the app in front (ii's saved snippets), and an entry as plain text (without
+		// its formatting: what Ctrl+Shift+V does in some apps, for all of them).
+		if ((command == L"paste-text" && args.size() > 1) || (command == L"paste-plain" && args.size() > 1)) {
+			std::wstring text = args[1];
+			if (command == L"paste-plain") {
+				auto item = find(idFromArg(args[1]));
+				if (!item || !item.Content().Contains(StandardDataFormats::Text())) return 1;
+				text = std::wstring(item.Content().GetTextAsync().get());
+			}
+			DataPackage package;
+			package.SetText(text);
+			Clipboard::SetContent(package);
+			Clipboard::Flush();
+			Sleep(80);
 			pressCtrlV();
 			return 0;
 		}

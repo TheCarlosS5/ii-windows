@@ -1209,6 +1209,9 @@
   "search.sloppy": {
    "kind": "bool"
   },
+  "search.snippets": {
+   "kind": "list"
+  },
   "sidebar.ai.textFadeIn": {
    "kind": "bool"
   },

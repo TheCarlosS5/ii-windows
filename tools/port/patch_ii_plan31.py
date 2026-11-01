@@ -1449,3 +1449,54 @@ add_translations('es_MX', {
     "Color": "Color",
     "Picked color": "Color elegido",
 })
+
+# --- E8: the clipboard with memory: snippets (search.snippets; overlay SnippetsSection.qml; SearchPlus snippetRows),
+# "Guardar como fragmento" and "Pegar sin formato" on clipboard entries (ii-shim cliphist paste-text / paste-plain) ------
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property JsonObject everything: JsonObject { // ii-windows (plan 2026-10-31, E1): what the launcher finds besides apps
+''', '''                property list<var> snippets: [] // ii-windows (plan 2026-10-31, E8): { name, text }, pasted from the search
+                property JsonObject everything: JsonObject { // ii-windows (plan 2026-10-31, E1): what the launcher finds besides apps
+'''),
+])
+edit(path('services', 'LauncherSearch.qml'), [
+    ('''                                Cliphist.deleteEntry(entry);
+                            }
+                        })],
+''', '''                                Cliphist.deleteEntry(entry);
+                            }
+                        }), resultComp.createObject(null, { // ii-windows (plan 2026-10-31, E8)
+                            name: Translation.tr("Paste as plain text"),
+                            iconName: "format_clear",
+                            iconType: LauncherSearchResult.IconType.Material,
+                            execute: () => {
+                                Quickshell.execDetached(["ii-shim", "cliphist", "paste-plain", entry]);
+                            }
+                        }), resultComp.createObject(null, {
+                            name: Translation.tr("Save as snippet"),
+                            iconName: "bookmark_add",
+                            iconType: LauncherSearchResult.IconType.Material,
+                            execute: () => {
+                                if (!Cliphist.entryIsImage(entry)) SearchPlus.saveSnippet(StringUtils.cleanCliphistEntry(entry));
+                            }
+                        })],
+'''),
+])
+edit(path('modules', 'settings', 'ServicesConfig.qml'), [
+    ('''    TimetableSection {} // ii-windows (plan 2026-10-31, E3)
+''', '''    TimetableSection {} // ii-windows (plan 2026-10-31, E3)
+
+    SnippetsSection {} // ii-windows (plan 2026-10-31, E8)
+'''),
+])
+add_translations('es_MX', {
+    "Snippet": "Fragmento",
+    "Snippets": "Fragmentos",
+    "Paste": "Pegar",
+    "Paste as plain text": "Pegar como texto sin formato",
+    "Save as snippet": "Guardar como fragmento",
+    "Texts you paste often. Type their name in the search and press Enter: it is pasted into the app you were using.":
+        "Textos que pegas seguido. Escribe su nombre en la búsqueda y presiona Enter: se pega en la app que estabas usando.",
+    "Add a snippet": "Agregar un fragmento",
+    "Name (what you type in the search, e.g. correo)": "Nombre (lo que escribes en la búsqueda, p. ej. correo)",
+    "Text": "Texto",
+})

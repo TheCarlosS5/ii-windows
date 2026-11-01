@@ -448,6 +448,7 @@ static const SchemaKey SCHEMA_KEYS[] = {
 	{"search.prefix.showDefaultActionsWithoutPrefix", K_BOOL, false, 0, 0, {}},
 	{"search.prefix.webSearch", K_STRING, false, 0, 0, {}},
 	{"search.sloppy", K_BOOL, false, 0, 0, {}},
+	{"search.snippets", K_LIST, false, 0, 0, {}},
 	{"sidebar.ai.textFadeIn", K_BOOL, false, 0, 0, {}},
 	{"sidebar.booru.allowNsfw", K_BOOL, false, 0, 0, {}},
 	{"sidebar.booru.defaultProvider", K_STRING, false, 0, 0, {}},
