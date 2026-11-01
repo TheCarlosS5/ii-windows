@@ -21,10 +21,29 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, prueba parcial · ⏳ pendiente
 | F1 indicadores de privacidad | ✅ | PrivacyMonitor (fork) + barra; test-privacy-monitor 5/5, captura. |
 | D4 conserje + desinstalador | ✅ | ii-shim janitor diario, host.log rota a 2 MB; test-janitor, test-ownership. |
 | C5 una ventana + C4.2 sliders | ✅ | SingleInstance (fork); probado con dos lanzamientos. |
+| A6 auditoría nativa | ✅ | `check-winrt-null.py` + test-winrt-null; getters WinRT revisados. |
+| H1 español | ✅ | `find-untranslated.py` + test-untranslated: 0 textos sin es_MX. |
+| G2 CI básica | 🟡 | `.github/workflows/build.yml` escrito; nunca corrido en GitHub (no se sube sin permiso). |
+| C2 galería de widgets + C6 engranaje | ✅ | `gen_widget_pages.py` (915 → 84 líneas), WidgetGallery, engranaje en modo edición → `backgroundconfig/<widget>` (SettingsRequest). Capturas. |
+| C2.4 reloj con pestañas | ✅ | Estilo · Esfera · Manecillas · Fecha · Cita; aviso en las de Cookie. |
+| C3 buscador + C8 | ✅ | `gen_settings_index.py` (304 entradas), sinónimos, Ctrl+F, salta y resalta (también dentro de widgets/pestañas). `check-settings-search.py` 72/72, test-settings-search. |
+| C4.1 LazySection | ✅ | `gen_lazy_sections.py` (27 secciones). `settings-switch-bench.ps1`: todas las páginas < 150 ms al cambiar (Paneles 135 → 87 ms). |
+| C1/C7 reorganización | ✅ | `compose_settings_pages.py`: página Rendimiento nueva, General → Sistema, animaciones de ventanas y fondos animados a Apariencia, avisos de la barra en Paneles › Notificaciones. |
+| D1 rastreador incremental | ✅ | Fork: un evento relee solo su ventana; AppId/escritorio en caché; escaneo completo de red cada 10 s. `test-toplevels`: 62 ms vs 516 ms de CPU con 17 ventanas (−88 %). |
+| D2 escritorio tapado | ✅ | Arreglo de fondo: las ventanas no tenían pantalla (QScreen::name ≠ nombre del dispositivo) → DesktopCover nunca tapaba. Ahora por HMONITOR; DesktopCover por eventos; DesktopTime para relojes; tarjeta de recursos quieta. `test-desktop-cover` (164 ms / 211 ms). D2.4 (barra bajo pantalla completa) no hecho: solo redibuja 1/min. |
+| D5 arranque | 🟡 | Portada (A9) y fases ya estaban. Precalentado (D5.2/D5.3) **no** hecho: el Prefetcher de Windows ya carga exe/DLL; hace falta un trazo WPR de un inicio de sesión real con ii instalado para decidir. |
+| D8 memoria | 🟡 | `tools/dev/soak.ps1` (CSV + veredicto). Falta la corrida de 8 h con ii instalado. |
+| F17 apps que piden atención | ✅ | Fork: `urgent` por shell hook (HSHELL_REDRAW sin título nuevo = parpadeo). Dock: rebote + punto terciario. test-toplevels 7/7. |
+| F2/F14 reinicio pendiente / poco espacio | ✅ | ii-host `syshealth.cpp` (hilo propio, cada hora), avisos con botón a ms-settings (lista cerrada), `system-status.json`, sesión "Actualizar y reiniciar", Sistema > Avisos de Windows. `test-host-syshealth` 14/14. |
+| F4 ahorro de energía | ✅ | Interruptor rápido (estado por SystemStatusFlag; abre su página, Windows no deja cambiarlo). |
+| F3 actualizaciones de apps | ✅ | La tienda ya tenía "Actualizar todo"; ahora el dock muestra el número (AppUpdates, winget cada 12 h). 34 = 34. |
+| F23 multi-monitor | 🟡 | Barra y dock: todas las pantallas o solo la principal. Sin segundo monitor aquí para verlo. |
+| E16 atajos | ✅ | Host: `[keys]` en shortcuts.ini (tabla en tiempo de ejecución, 102 pruebas). Configuración > Atajos: lista, cambiar con conflictos, juegos y teclas de audio. Probado a mano. |
+| G6 winget | ✅ | `make-winget-manifest.ps1` (validado con `winget validate`). El PR a winget-pkgs lo hace el autor. |
 
 
 ## Retomar aquí
-Siguiente (0.7.0): A6 auditoría nativa → H1 español → G2 CI básica. Luego 0.8.0: C1–C3/C6–C8 (galería de widgets, buscador), D1, D2, D5, D8, E16, F2/F3/F4/F14/F17/F23.
+Siguiente: cierre de la ronda (make-package, publish-release -DryRun, prueba del actualizador con el paquete real, suite local, docs) y luego 0.9.0 (E1…).
 Al final de la ronda: make-package + publish-release -DryRun + prueba del actualizador con el paquete real.
 Trampas: pantalla dormida = capturas viejas (mover el ratón 1 px); heredocs comen las barras (usar Write/Edit);
 `state` es palabra reservada en QML; upstream ya tiene services/Updates.qml.
