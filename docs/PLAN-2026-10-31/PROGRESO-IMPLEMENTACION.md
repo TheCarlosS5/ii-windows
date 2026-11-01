@@ -16,10 +16,15 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, prueba parcial · ⏳ pendiente
 | A7 ready/verified + rollback | ✅ | rollout markReady/markVerified/rollBack; orden `rollback`. |
 | A9 portada | ✅ | Clic/Esc, 3 opciones tras problemas, "Hoy no"; capturas revisadas. |
 | B1–B5, B10 actualizador | ✅ | ii-shim update (test-updater 39 ok); claves en %USERPROFILE%\.ii-release-key (¡respaldar!). |
-| B3 aviso/UI | 🟡 | Host: búsqueda/avisos con botones (compila). QML: Updates.qml, UpdatesConfig.qml, punto en barra, About — SIN PROBAR. |
+| B3 aviso/UI | ✅ | Host: búsqueda cada 6 h, avisos con botones (Actualizar/Novedades/Más tarde). QML IiUpdates + Configuración > Actualizaciones + punto en la barra + Acerca de (capturas). Upstream ya tenía services/Updates.qml (Arch): los nuestros son IiUpdates / config iiUpdates. |
+| B1.3 publish-release.ps1 | 🟡 | Sintaxis ok; falta -DryRun con un paquete real (al final de la ronda). |
+| F1 indicadores de privacidad | ✅ | PrivacyMonitor (fork) + barra; test-privacy-monitor 5/5, captura. |
+| D4 conserje + desinstalador | ✅ | ii-shim janitor diario, host.log rota a 2 MB; test-janitor, test-ownership. |
+| C5 una ventana + C4.2 sliders | ✅ | SingleInstance (fork); probado con dos lanzamientos. |
+
 
 ## Retomar aquí
-1. `stage-ii.ps1` falla en **patch_ii_perf.py** (antes de plan31) tras añadir el bloque B3 de patch_ii_plan31.py: ejecutar
-   `python -I tools/port/patch_ii_perf.py` con `II_STAGE_DIR=build/ii` para ver el error (¿build/ii a medias?).
-2. Probar páginas Updates/About con settings-check.ps1; humo de la shell; confirmar (commit) lo pendiente.
-3. Siguiente: publish-release.ps1, F1 indicadores de privacidad, D4 conserje, C (galería de widgets), D1/D2, Plus.
+Siguiente (0.7.0): A6 auditoría nativa → H1 español → G2 CI básica. Luego 0.8.0: C1–C3/C6–C8 (galería de widgets, buscador), D1, D2, D5, D8, E16, F2/F3/F4/F14/F17/F23.
+Al final de la ronda: make-package + publish-release -DryRun + prueba del actualizador con el paquete real.
+Trampas: pantalla dormida = capturas viejas (mover el ratón 1 px); heredocs comen las barras (usar Write/Edit);
+`state` es palabra reservada en QML; upstream ya tiene services/Updates.qml.
