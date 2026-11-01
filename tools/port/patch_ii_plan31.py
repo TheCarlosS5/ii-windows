@@ -911,6 +911,90 @@ add_translations('es_MX', {
     "Main screen only": "Solo la principal",
 })
 
+# --- E16: Configuración > Atajos (overlay ShortcutsConfig.qml; its data from shared/actions.json by
+# tools/port/gen_shortcuts_data.py; ii-host reads shortcuts.ini [keys]) -------------------------------------------------
+edit(path('settings.qml'), [
+    ('''            component: "modules/settings/PerformanceConfig.qml"
+        },
+''', '''            component: "modules/settings/PerformanceConfig.qml"
+        },
+        {
+            name: Translation.tr("Shortcuts"), // ii-windows (plan 2026-10-31, E16)
+            icon: "keyboard",
+            component: "modules/settings/ShortcutsConfig.qml"
+        },
+'''),
+])
+add_translations('es_MX', {
+    "Shortcuts": "Atajos",
+    "ii's shortcuts": "Atajos de ii",
+    "What each combination does with ii. Those with \"Change\" can take another combination or none; the change works at once. Ctrl+Alt+Shift+R (restore Windows) is never changed.":
+        "Qué hace cada combinación con ii. Las que tienen \"Cambiar\" pueden tomar otra combinación o ninguna; el cambio funciona al momento. Ctrl+Alt+Mayús+R (restaurar Windows) no se cambia nunca.",
+    "Search shortcuts": "Buscar atajos",
+    "Restore all (%1)": "Restaurar todos (%1)",
+    "None": "Ninguno",
+    "Change": "Cambiar",
+    "Cancel": "Cancelar",
+    "Save": "Guardar",
+    "No shortcut": "Sin atajo",
+    "Restore": "Restaurar",
+    "Key: K, F9, Tab…": "Tecla: K, F9, Tab…",
+    "Free: %1": "Libre: %1",
+    "No shortcut matches \"%1\"": "Ningún atajo coincide con \"%1\"",
+    "Shift": "Mayús",
+    "Print Screen": "Impr Pant",
+    "Del": "Supr",
+    "Win (tap)": "Win (pulsar sola)",
+    "Space": "Espacio",
+    "Windows locks the PC with it; no program can take it": "Windows bloquea el equipo con ella; ningún programa puede tomarla",
+    "Windows' secure combination; no program can take it": "La combinación segura de Windows; ningún programa puede tomarla",
+    "Not a combination ii can take: one key, like K, F9 or Print Screen, with Win, Ctrl or Alt":
+        "No es una combinación que ii pueda tomar: una tecla, como K, F9 o Impr Pant, con Win, Ctrl o Alt",
+    "It needs Win, Ctrl or Alt: alone (or with Shift) that key is for typing": "Necesita Win, Ctrl o Alt: sola (o con Mayús) esa tecla es para escribir",
+    "ii already uses it for \"%1\"": "ii ya la usa para \"%1\"",
+    "Windows uses it for \"%1\": ii takes it while ii is on": "Windows la usa para \"%1\": ii la toma mientras ii está activo",
+    "PowerToys uses it for \"%1\" if you have it: one of the two will not get it": "PowerToys la usa para \"%1\" si lo tienes: uno de los dos no la recibirá",
+    "Windows'": "De Windows",
+    "In part": "En parte",
+    "Not yet": "Aún no",
+    "Games and full screen": "Juegos y pantalla completa",
+    "ii's shortcuts step aside": "Los atajos de ii ceden el paso",
+    "Automatic: with exclusive full screen and borderless full-screen windows (not browsers). Only exclusive: only exclusive full screen (D3D). Never: ii's shortcuts always work.":
+        "Automático: con pantalla completa exclusiva y ventanas sin borde a pantalla completa (no navegadores). Solo exclusiva: solo pantalla completa exclusiva (D3D). Nunca: los atajos de ii funcionan siempre.",
+    "Only exclusive": "Solo exclusiva",
+    "Never": "Nunca",
+    "Programs where ii's shortcuts always step aside (game.exe; other.exe)": "Programas donde los atajos de ii siempre ceden (juego.exe; otro.exe)",
+    "Programs where ii does not watch the keyboard at all (anti-cheat games)": "Programas donde ii no vigila el teclado en absoluto (juegos con antitrampas)",
+    "Valorant, League of Legends, Fortnite, Apex, Rainbow Six and Tarkov are already on ii's own list. Names separated by ;":
+        "Valorant, League of Legends, Fortnite, Apex, Rainbow Six y Tarkov ya están en la lista propia de ii. Nombres separados por ;",
+    "Volume and media keys": "Teclas de volumen y multimedia",
+    "ii handles the volume keys (its own indicator instead of Windows')": "ii maneja las teclas de volumen (su propio indicador en vez del de Windows)",
+    "ii handles play/pause, next and previous (its player and pill)": "ii maneja reproducir/pausar, siguiente y anterior (su reproductor y su píldora)",
+    # actions.json texts and reasons the cheat sheet had not needed in Spanish yet
+    "Left sidebar, detached": "Barra lateral izquierda, separada",
+    "Run (Windows): programs, commands, folders and links": "Ejecutar (Windows): programas, órdenes, carpetas y enlaces",
+    "Win+T opens the same overview as Win+Tab; moving through the dock with the keyboard needs the dock navigation of C10.":
+        "Win+T abre la misma vista de ventanas que Win+Tab; recorrer el dock con el teclado necesita la navegación del dock (C10).",
+    "Windows' own combination; it works with ii's desktops.": "Combinación propia de Windows; funciona con los escritorios de ii.",
+    "Windows' own combination.": "Combinación propia de Windows.",
+    "Win+B is the left sidebar until the tray can be reached from the keyboard (U06).":
+        "Win+B es la barra lateral izquierda hasta que la bandeja se pueda usar con el teclado (U06).",
+    "Windows' own Run box opens: it runs everything Windows can (cmd, regedit, %appdata%, paths); ii's search is the Win key.":
+        "Se abre el Ejecutar de Windows: ejecuta todo lo que Windows puede (cmd, regedit, %appdata%, rutas); la búsqueda de ii es la tecla Win.",
+    "Win+X opens ii's session menu; the system tools menu of Windows (Task Manager, Device Manager...) has no ii counterpart yet.":
+        "Win+X abre el menú de sesión de ii; el menú de herramientas de Windows (Administrador de tareas, de dispositivos...) aún no tiene equivalente en ii.",
+    "The region is chosen; there is no video encoder behind it yet (C03).": "Se elige la región; todavía no hay un codificador de video detrás (C03).",
+    "Windows' lock screen is the only secure one (R03/U08).": "La pantalla de bloqueo de Windows es la única segura (R03/U08).",
+    "Ctrl+Alt+Del never reaches a program.": "Ctrl+Alt+Supr nunca llega a un programa.",
+    "No process center in ii yet (X03).": "ii aún no tiene un centro de procesos (X03).",
+    "No file center in ii yet (X02).": "ii aún no tiene un centro de archivos (X02).",
+    "ii's display selector with rollback comes with U05.": "El selector de pantallas de ii, con vuelta atrás, llega con U05.",
+    "ii's switcher (ii-host's keyboard router, not this table); over a game or with a shell that does not answer, Windows' own.":
+        "El selector de ventanas de ii (el enrutador de teclado de ii-host, no esta tabla); sobre un juego o con la shell sin responder, el de Windows.",
+    "A system hotkey of ii-host itself: it works with shortcuts suspended and over games.":
+        "Una tecla de sistema del propio ii-host: funciona con los atajos suspendidos y sobre juegos.",
+})
+
 # --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------
 add_translations('es_MX', {
     "Style": "Estilo",
