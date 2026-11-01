@@ -1801,3 +1801,180 @@ edit(path('services', 'Performance.qml'), [
         || (SystemInfo.memoryMB > 0 && SystemInfo.memoryMB < 8192 && SystemInfo.dedicatedGpu === false) // H5
 '''),
 ])
+
+# --- H3: names for Narrator (Accessible.*) on the buttons, switches, quick toggles, dock and notifications -----------
+edit(path('modules', 'common', 'widgets', 'RippleButton.qml'), [
+    ('''import qs.modules.common.functions
+''', '''import qs.modules.common.functions
+import qs.services // ii-windows (H3): Translation, for the names Narrator reads
+'''),
+    ('''    property string buttonText
+''', '''    property string buttonText
+    // ii-windows (plan 2026-10-31, H3): what Narrator says: the text, else the tooltip's, else what its icon means.
+    // The tooltip child, found once (a binding over `data` would be re-read for every button and warn).
+    property var a11yToolTip: null
+    Component.onCompleted: {
+        for (const c of root.data) {
+            if (c && c.text !== undefined && String(c).indexOf("ToolTip") >= 0) { root.a11yToolTip = c; break; }
+        }
+    }
+    function a11yTip() {
+        return root.a11yToolTip?.text ?? "";
+    }
+    readonly property var a11yIcons: ({
+        "close": "Close", "screenshot_region": "Screenshot", "videocam": "Record the screen", "colorize": "Color picker",
+        "keyboard": "On-screen keyboard", "mic": "Microphone", "mic_off": "Microphone", "light_mode": "Light theme",
+        "dark_mode": "Dark theme", "settings": "Settings", "search": "Search", "delete": "Delete", "add": "Add",
+        "edit": "Edit", "more_vert": "More options", "expand_more": "Expand", "expand_less": "Collapse",
+        "arrow_back": "Back", "chevron_left": "Previous", "chevron_right": "Next", "content_copy": "Copy",
+        "notifications": "Notifications", "power_settings_new": "Shut down", "lock": "Lock", "refresh": "Refresh",
+        "play_arrow": "Play", "pause": "Pause", "skip_next": "Next", "skip_previous": "Previous", "push_pin": "Pin",
+        "keep": "Pin", "open_in_new": "Open"
+    })
+    function a11yIcon(item, depth) {
+        if (!item || depth > 3) return "";
+        if (item.iconSize !== undefined && typeof item.text === "string" && item.text.length > 0) return item.text;
+        for (const c of item.children ?? []) {
+            const found = root.a11yIcon(c, depth + 1);
+            if (found) return found;
+        }
+        return "";
+    }
+    Accessible.name: {
+        const named = root.text || root.buttonText || root.a11yTip();
+        if (named) return named;
+        const icon = root.a11yIcon(root.contentItem, 0);
+        return root.a11yIcons[icon] ? Translation.tr(root.a11yIcons[icon]) : icon.replace(/_/g, " ");
+    }
+'''),
+])
+edit(path('modules', 'ii', 'bar', 'BarContent.qml'), [
+    ('''                id: rightSidebarButton
+''', '''                id: rightSidebarButton
+                Accessible.name: Translation.tr("Quick settings and notifications") // ii-windows (H3)
+'''),
+])
+edit(path('modules', 'ii', 'bar', 'LeftSidebarButton.qml'), [
+    ('''    property bool showPing: false
+''', '''    property bool showPing: false
+    Accessible.name: Translation.tr("Left panel") // ii-windows (H3)
+'''),
+])
+edit(path('modules', 'ii', 'bar', 'SysTray.qml'), [
+    ('''            id: trayOverflowButton
+''', '''            id: trayOverflowButton
+            Accessible.name: Translation.tr("Hidden icons") // ii-windows (H3)
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'ConfigSwitch.qml'), [
+    ('''    onClicked: checked = !checked
+''', '''    onClicked: checked = !checked
+    Accessible.role: Accessible.CheckBox // ii-windows (H3): a switch, on or off
+    Accessible.checkable: true
+    Accessible.checked: root.checked
+'''),
+])
+edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'androidStyle', 'AndroidQuickToggleButton.qml'), [
+    ('''    property string tooltipText: toggleModel?.tooltipText ?? ""
+''', '''    property string tooltipText: toggleModel?.tooltipText ?? ""
+    Accessible.name: root.statusText ? `${root.name}, ${root.statusText}` : root.name // ii-windows (H3)
+    Accessible.description: root.tooltipText
+    Accessible.checkable: true
+    Accessible.checked: root.toggled
+'''),
+])
+edit(path('modules', 'ii', 'dock', 'DockAppButton.qml'), [
+    ('''    property var appToplevel
+    required property int slotIndex
+''', '''    property var appToplevel
+    required property int slotIndex
+    // ii-windows (plan 2026-10-31, H3): Narrator says the app and how many windows it has open.
+    Accessible.role: slot.isSeparator ? Accessible.Separator : Accessible.Button
+    Accessible.name: slot.isSeparator ? "" : slot.isLaunchpad ? Translation.tr("All apps") : slot.isStore ? Translation.tr("Store")
+        : slot.isTrash ? Translation.tr("Recycle Bin")
+        : (slot.desktopEntry?.name ?? slot.appToplevel?.appId ?? "") + (slot.windows.length > 0 ? `, ${Translation.tr("%1 open").arg(slot.windows.length)}` : "")
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'NotificationItem.qml'), [
+    ('''    property var notificationObject
+    property bool expanded: false
+''', '''    property var notificationObject
+    property bool expanded: false
+    // ii-windows (plan 2026-10-31, H3): Narrator reads the app, the title and the text.
+    Accessible.role: Accessible.AlertMessage
+    Accessible.name: `${root.notificationObject?.appName ?? ""}: ${root.notificationObject?.summary ?? ""}`
+    Accessible.description: root.notificationObject?.body ?? ""
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'ConfigSwitch.qml'), [
+    ('''        StyledSwitch {
+            id: switchWidget
+''', '''        StyledSwitch {
+            id: switchWidget
+            Accessible.ignored: true // ii-windows (H3): the row is the check box Narrator reads
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'NavigationRailButton.qml'), [
+    ('''    property string buttonText
+''', '''    property string buttonText
+    Accessible.name: root.buttonText // ii-windows (H3): the page's name for Narrator
+    Accessible.role: Accessible.PageTab
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'NavigationRailExpandButton.qml'), [
+    ('''import qs.modules.common.widgets
+
+RippleButton {
+''', '''import qs.modules.common.widgets
+import qs.services
+
+RippleButton {
+    Accessible.name: Translation.tr("Show or hide the page names") // ii-windows (H3)
+'''),
+])
+edit(path('settings.qml'), [
+    ('''                    onClicked: root.close()
+''', '''                    onClicked: root.close()
+                    Accessible.name: Translation.tr("Close") // ii-windows (H3)
+'''),
+])
+add_translations('es_MX', {
+    "Show or hide the page names": "Mostrar u ocultar los nombres de las páginas",
+})
+add_translations('es_MX', {
+    "All apps": "Todas las apps",
+    "Store": "Tienda",
+    "Recycle Bin": "Papelera de reciclaje",
+    "%1 open": "ventanas abiertas: %1",
+    "Quick settings and notifications": "Ajustes rápidos y notificaciones",
+    "Left panel": "Panel izquierdo",
+    "Hidden icons": "Iconos ocultos",
+    "Screenshot": "Captura de pantalla",
+    "Record the screen": "Grabar la pantalla",
+    "Color picker": "Selector de color",
+    "On-screen keyboard": "Teclado en pantalla",
+    "Microphone": "Micrófono",
+    "Light theme": "Tema claro",
+    "Dark theme": "Tema oscuro",
+    "Settings": "Configuración",
+    "Search": "Buscar",
+    "Delete": "Eliminar",
+    "Add": "Agregar",
+    "Edit": "Editar",
+    "More options": "Más opciones",
+    "Expand": "Expandir",
+    "Collapse": "Contraer",
+    "Back": "Atrás",
+    "Previous": "Anterior",
+    "Next": "Siguiente",
+    "Copy": "Copiar",
+    "Notifications": "Notificaciones",
+    "Shut down": "Apagar",
+    "Lock": "Bloquear",
+    "Refresh": "Actualizar",
+    "Play": "Reproducir",
+    "Pause": "Pausar",
+    "Pin": "Fijar",
+    "Open": "Abrir",
+    "Close": "Cerrar",
+})
