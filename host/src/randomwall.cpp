@@ -1,5 +1,6 @@
 // randomwall: ii's Konachan and osu! random wallpaper scripts, without bash/curl/jq.
-//   randomwall konachan|osu [--no-apply] [--out <dir>]
+//   randomwall konachan|osu|bing [--no-apply] [--out <dir>]
+// bing (plan 2026-10-31, E13): Bing's image of the day, in the PC's language (the daily wallpaper).
 
 #include <algorithm>
 #include <cstdio>
@@ -134,6 +135,17 @@ std::wstring imageExtension(const std::wstring& url) {
 	return ext;
 }
 
+// The PC's language and region as Bing's market (es-CO), en-US when it cannot be read.
+std::wstring market() {
+	wchar_t name[LOCALE_NAME_MAX_LENGTH] {};
+	if (GetUserDefaultLocaleName(name, LOCALE_NAME_MAX_LENGTH) == 0) return L"en-US";
+	std::wstring value = name;
+	for (auto c: value) {
+		if (!iswalnum(c) && c != L'-') return L"en-US";
+	}
+	return value;
+}
+
 size_t randomIndex(size_t count) {
 	std::random_device random;
 	std::mt19937 generator(random());
@@ -141,6 +153,16 @@ size_t randomIndex(size_t count) {
 }
 
 std::wstring chooseImage(const std::wstring& provider, const std::string& response) {
+	if (provider == L"bing") {
+		json::JsonObject archive;
+		require(json::JsonObject::TryParse(winrt::to_hstring(response), archive), "invalid JSON from Bing");
+		require(archive.HasKey(L"images") && archive.GetNamedValue(L"images").ValueType() == json::JsonValueType::Array, "invalid JSON images list");
+		auto images = archive.GetNamedArray(L"images");
+		require(images.Size() != 0 && images.GetAt(0).ValueType() == json::JsonValueType::Object, "Bing returned no image");
+		auto base = getString(images.GetObjectAt(0), L"urlbase");
+		require(!base.empty() && base[0] == L'/', "missing image URL");
+		return L"https://www.bing.com" + base + L"_UHD.jpg";
+	}
 	if (provider == L"konachan") {
 		json::JsonArray posts;
 		require(json::JsonArray::TryParse(winrt::to_hstring(response), posts), "invalid JSON from Konachan");
@@ -207,8 +229,8 @@ void saveImage(const std::wstring& path, const std::string& bytes) {
 
 int randomwall(const Args& args) {
 	try {
-		const char* usage = "usage: randomwall konachan|osu [--no-apply] [--out <dir>]";
-		require(!args.empty() && (args[0] == L"konachan" || args[0] == L"osu"), usage);
+		const char* usage = "usage: randomwall konachan|osu|bing [--no-apply] [--out <dir>]";
+		require(!args.empty() && (args[0] == L"konachan" || args[0] == L"osu" || args[0] == L"bing"), usage);
 		bool noApply = env(L"II_RANDOMWALL_NO_APPLY") == L"1";
 		std::wstring output;
 		for (size_t i = 1; i < args.size(); ++i) {
@@ -241,21 +263,23 @@ int randomwall(const Args& args) {
 		auto api = testEnv(L"II_RANDOMWALL_TEST_API_URL");
 		if (api.empty()) api = args[0] == L"konachan"
 		    ? L"https://konachan.net/post.json?tags=rating%3Asafe&limit=1&page=" + std::to_wstring(randomIndex(1000) + 1)
+		    : args[0] == L"bing" ? L"https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=" + market()
 		    : L"https://osu.ppy.sh/api/v2/seasonal-backgrounds";
 		auto fixture = testEnv(L"II_RANDOMWALL_TEST_RESPONSE");
 		auto response = fixture.empty() ? client.get(api, JSON_LIMIT) : readUtf8(fixture);
 		require(!response.empty(), "empty HTTP response");
 		auto url = chooseImage(args[0], response);
-		auto ext = imageExtension(url);
+		auto ext = args[0] == L"bing" ? std::wstring(L"jpg") : imageExtension(url); // Bing's URLs are /th?id=...jpg
 		progress(L"Downloading wallpaper...");
 		auto imageFixture = testEnv(L"II_RANDOMWALL_TEST_IMAGE");
 		auto bytes = imageFixture.empty() ? client.get(url, IMAGE_LIMIT) : readBytes(imageFixture, IMAGE_LIMIT);
 		require(!bytes.empty(), "empty HTTP response");
 		ext = imageFormat(bytes, ext);
-		auto path = fullPath(output + L"\\random_wallpaper." + ext);
+		const std::wstring stem = args[0] == L"bing" ? L"\\bing_wallpaper" : L"\\random_wallpaper";
+		auto path = fullPath(output + stem + L"." + ext);
 		auto current = getString(existing(config, L"background"), L"wallpaperPath");
 		if (!current.empty() && _wcsicmp(path.c_str(), fullPath(current).c_str()) == 0) {
-			path = fullPath(output + L"\\random_wallpaper-1." + ext);
+			path = fullPath(output + stem + L"-1." + ext);
 		}
 		saveImage(path, bytes);
 		progress(L"Saved: " + path);
