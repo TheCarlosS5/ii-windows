@@ -205,6 +205,22 @@ int get();                    // the last QUERY_USER_NOTIFICATION_STATE (and ask
 bool fullscreenOrPresenting(); // exclusive full screen (D3D) or presentation mode
 } // namespace notifystate
 
+// Windows' state worth a word from ii (syshealth.cpp, plan 2026-10-31 F2/F14): an update waiting for a restart, a
+// full system drive. Looked at hourly on a worker thread; also written to <data>\system-status.json for the shell.
+namespace syshealth {
+struct Status {
+	bool rebootRequired = false;
+	bool rebootKnown = false; // Windows Update answered
+	std::wstring drive;       // "C:"
+	ULONGLONG freeBytes = 0;
+	ULONGLONG totalBytes = 0;
+};
+void start(HWND window, UINT message); // `message` arrives after each look
+void checkNow();
+Status last();
+bool lowDisk(const Status& status);
+} // namespace syshealth
+
 // The shell (quickshell + ii) side receives shortcuts through WM_COPYDATA on this window.
 constexpr const wchar_t* SHELL_SINK_CLASS = L"IiShellShortcutSink";
 constexpr ULONG_PTR COPYDATA_PRESSED = 0x49490001;

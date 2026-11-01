@@ -785,6 +785,47 @@ def desktop_time():
 
 desktop_time()
 
+# --- F2/F14: Windows waiting for a restart, a full system drive (ii-host syshealth.cpp; services/SystemStatus.qml) ----
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject iiUpdates: JsonObject {''', '''            property JsonObject iiSystem: JsonObject { // ii-windows (plan 2026-10-31, F2/F14; read by ii-host)
+                property bool restartNotice: true // a notice when Windows needs a restart to finish its updates
+                property bool lowDiskNotice: true // a notice (at most daily) when the system drive is nearly full
+            }
+
+            property JsonObject iiUpdates: JsonObject {'''),
+])
+edit(path('modules', 'ii', 'sessionScreen', 'SessionScreen.qml'), [
+    ('''                        buttonIcon: "restart_alt"
+                        buttonText: Translation.tr("Reboot")
+''', '''                        // ii-windows (plan 2026-10-31, F2): a restart now also installs what Windows Update has waiting.
+                        buttonIcon: SystemStatus.rebootRequired ? "system_update_alt" : "restart_alt"
+                        buttonText: SystemStatus.rebootRequired ? Translation.tr("Update and reboot") : Translation.tr("Reboot")
+'''),
+])
+
+
+def add_section_at_end(file, line):
+    with open(file, encoding='utf-8', newline='') as f:
+        text = f.read()
+    nl = '\r\n' if '\r\n' in text else '\n'
+    body = text.rstrip()
+    if not body.endswith('}'):
+        sys.exit(f'patch_ii_plan31.py: {file} does not end with its closing brace')
+    with open(file, 'w', encoding='utf-8', newline='') as f:
+        f.write(body[:-1].rstrip() + nl + nl + line + nl + '}' + nl)
+
+
+add_section_at_end(path('modules', 'settings', 'GeneralConfig.qml'),
+                   '    WindowsNoticesSection {} // ii-windows (plan 2026-10-31, F2/F14)')
+add_translations('es_MX', {
+    "Windows notices": "Avisos de Windows",
+    "Tell me when Windows needs a restart to finish its updates": "Avisarme cuando Windows necesite reiniciar para terminar de actualizarse",
+    "Tell me when the system drive is running out of space": "Avisarme cuando quede poco espacio en el disco del sistema",
+    "Now: Windows is waiting for a restart.": "Ahora: Windows espera un reinicio.",
+    "Now: %1 has %2 GB free.": "Ahora: %1 tiene %2 GB libres.",
+    "Update and reboot": "Actualizar y reiniciar",
+})
+
 # --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------
 add_translations('es_MX', {
     "Style": "Estilo",

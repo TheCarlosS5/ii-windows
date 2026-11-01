@@ -35,10 +35,11 @@ add_executable(ii-host WIN32
 	src/minanim.cpp
 	src/crashpolicy.cpp
 	src/notifystate.cpp
+	src/syshealth.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(ii-host PRIVATE user32 shell32 ole32 dwmapi advapi32 gdi32 windowscodecs gdiplus wtsapi32 Magnification dxgi)
+target_link_libraries(ii-host PRIVATE user32 shell32 ole32 oleaut32 wuguid dwmapi advapi32 gdi32 windowscodecs gdiplus wtsapi32 Magnification dxgi)
 
 # Console multi-call binary: Windows stand-ins for small Linux commands ii calls.
 # Google's material-color-utilities (Apache-2.0), fetched by tools/dev/fetch_mcu.ps1, for the

@@ -111,6 +111,8 @@ constexpr UINT UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
 constexpr UINT UPDATE_RETRY_MS = 15 * 60 * 1000;
 // notifystate.cpp: the answer of SHQueryUserNotificationState changed (a game went exclusive full screen...).
 constexpr UINT WM_II_NOTIFY_STATE = WM_APP + 6;
+// syshealth.cpp looked at Windows' state (restart pending, disk space; plan 2026-10-31, F2/F14).
+constexpr UINT WM_II_SYSHEALTH = WM_APP + 10;
 // A command from the shell or ii-shim ("safe-mode-off", "restart-shell", ...): WM_COPYDATA with this dwData.
 constexpr ULONG_PTR COPYDATA_HOST_COMMAND = 0x49490040;
 
@@ -1092,6 +1094,7 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 		auto first = GetEnvironmentVariableW(L"II_TEST_UPDATE_FIRST_MS", testFirst, 16) > 0 ? static_cast<UINT>(_wtoi(testFirst)) : UPDATE_FIRST_MS;
 		SetTimer(hostWindow, TIMER_UPDATE, first, nullptr);
 		SetTimer(hostWindow, TIMER_JANITOR, 15 * 60 * 1000, nullptr); // looks every 15 minutes for an idle moment
+		syshealth::start(hostWindow, WM_II_SYSHEALTH); // restart pending, disk space: a minute from now, then hourly
 	}
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr); // back to the slow housekeeping tick
 	setPhase(Phase::Active, L"shell is up");
@@ -1384,6 +1387,67 @@ void notifyUpdateAvailable(const jsonlite::Value& state, bool force) {
 	                     {{L"Actualizar", L"update-install"}, {L"Novedades", L"settings-open\x1fupdates"}, {L"Más tarde", L"update-snooze"}});
 }
 
+// --- Windows' own state worth a word (plan 2026-10-31, F2/F14; syshealth.cpp looks hourly on its own thread) --------
+
+bool systemNoticeOption(const char* key) {
+	auto config = readJsonFile(configtool::paths().file);
+	const auto* section = config.find("iiSystem");
+	return section ? jbool(*section, key, true) : true;
+}
+
+std::wstring gigabytes(ULONGLONG bytes) {
+	wchar_t text[32];
+	swprintf_s(text, L"%.1f", static_cast<double>(bytes) / (1024.0 * 1024 * 1024));
+	std::wstring value = text;
+	for (auto& c: value) if (c == L'.') c = L','; // Spanish decimal comma
+	return value + L" GB";
+}
+
+void onSystemHealth() {
+	if (shuttingDown) return;
+	auto s = syshealth::last();
+	// An update waiting for a restart: once per Windows start (the boot time, to the minute, is the key).
+	if (s.rebootKnown && s.rebootRequired && systemNoticeOption("restartNotice")) {
+		auto bootMinute = std::to_wstring((GetTickCount64() > 0 ? (static_cast<ULONGLONG>(time(nullptr)) - GetTickCount64() / 1000) : 0) / 60);
+		if (state::getText(L"notices", L"restartForBoot") != bootMinute) {
+			state::setText(L"notices", L"restartForBoot", bootMinute);
+			log(L"notices: Windows wants a restart to finish its updates");
+			tellUserThroughShell(L"Windows necesita reiniciar",
+			                     L"Para terminar de instalar sus actualizaciones. Guarda lo tuyo y reinicia cuando te venga bien "
+			                     L"(Apagar > Reiniciar en el menú de sesión de ii).",
+			                     L"normal", {{L"Ver Windows Update", L"ms-settings\x1fwindowsupdate"}});
+		}
+	}
+	// A system drive running out of space: at most once a day, while it lasts.
+	if (syshealth::lowDisk(s) && systemNoticeOption("lowDiskNotice")) {
+		SYSTEMTIME t;
+		GetLocalTime(&t);
+		wchar_t today[16];
+		swprintf_s(today, L"%04d-%02d-%02d", t.wYear, t.wMonth, t.wDay);
+		if (state::getText(L"notices", L"lowDiskDay") != today) {
+			state::setText(L"notices", L"lowDiskDay", today);
+			log(L"notices: %s has %llu bytes free of %llu", s.drive.c_str(), s.freeBytes, s.totalBytes);
+			tellUserThroughShell(L"Queda poco espacio en " + s.drive + L" (" + gigabytes(s.freeBytes) + L" libres)",
+			                     L"Windows y tus programas pueden ir lentos o fallar al actualizarse. El Sensor de almacenamiento "
+			                     L"de Windows ayuda a liberar espacio.",
+			                     L"normal", {{L"Liberar espacio", L"ms-settings\x1fstoragesense"}});
+		}
+	}
+}
+
+// Windows Settings pages a notification button may open (nothing else: the argument comes from a message).
+bool openWindowsSettings(const std::wstring& page) {
+	static const wchar_t* allowed[] = {L"windowsupdate", L"storagesense", L"batterysaver", L"notifications", L"display"};
+	for (const auto* name: allowed) {
+		if (page == name) {
+			auto uri = L"ms-settings:" + page;
+			return reinterpret_cast<INT_PTR>(ShellExecuteW(nullptr, L"open", uri.c_str(), nullptr, nullptr, SW_SHOWNORMAL)) > 32; // NOLINT
+		}
+	}
+	log(L"command: ms-settings page not allowed: %s", page.c_str());
+	return false;
+}
+
 void onUpdateDone() {
 	DWORD code = 1;
 	if (updateProcess) {
@@ -1521,6 +1585,11 @@ bool hostCommand(const std::wstring& commandLine) {
 		openSettings(argument);
 		return true;
 	}
+	if (command == L"ms-settings") return openWindowsSettings(argument);
+	if (command == L"system-check") {
+		syshealth::checkNow();
+		return true;
+	}
 	return hostCommandCore(commandLine);
 }
 
@@ -1642,6 +1711,9 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 	case WM_II_NOTIFY_STATE:
 		if (options.hook && !shuttingDown) keyboard::refreshContext();
+		return 0;
+	case WM_II_SYSHEALTH:
+		onSystemHealth();
 		return 0;
 	case WM_II_HEARTBEAT:
 		if (shellProcess && static_cast<DWORD>(wParam) == shellPid) {

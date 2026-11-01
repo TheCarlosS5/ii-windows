@@ -49,6 +49,7 @@
   "crosshair",
   "dock",
   "hacks",
+  "iiSystem",
   "iiUpdates",
   "interactions",
   "interactions.deadPixelWorkaround",
@@ -342,11 +343,7 @@
    "kind": "string"
   },
   "background.widgets.clock.cookie.sides": {
-   "kind": "int",
-   "range": [
-    0,
-    40
-   ]
+   "kind": "int"
   },
   "background.widgets.clock.cookie.timeIndicators": {
    "kind": "bool"
@@ -431,11 +428,7 @@
    "kind": "bool"
   },
   "background.widgets.folder.maxItems": {
-   "kind": "int",
-   "range": [
-    3,
-    15
-   ]
+   "kind": "int"
   },
   "background.widgets.folder.path": {
    "kind": "string"
@@ -507,11 +500,7 @@
    "kind": "bool"
   },
   "background.widgets.notes.fontSize": {
-   "kind": "int",
-   "range": [
-    10,
-    40
-   ]
+   "kind": "int"
   },
   "background.widgets.notes.placementStrategy": {
    "kind": "string"
@@ -877,6 +866,12 @@
   },
   "hacks.arbitraryRaceConditionDelay": {
    "kind": "int"
+  },
+  "iiSystem.lowDiskNotice": {
+   "kind": "bool"
+  },
+  "iiSystem.restartNotice": {
+   "kind": "bool"
   },
   "iiUpdates.autoCheck": {
    "kind": "bool"
