@@ -92,5 +92,14 @@ back = L.restorePlan({ silent: true }, { silent: true }, { silent: true });
 check(Object.keys(back).length === 0, "what was already so before is not touched");
 check(Object.keys(L.restorePlan(null, applied, {})).length === 0, "nothing saved: nothing to put back");
 
+// ---- E12: what arrived during a mode with No molestar
+const notifs = [{ appName: "WhatsApp", time: 100 }, { appName: "Discord", time: 150 }, { appName: "WhatsApp", time: 200 },
+    { appName: "ii", time: 210 }, { appName: "Correo", time: 50 }, { appName: "", time: 300 }];
+const sum = L.missedSummary(notifs, 100);
+check(sum.count === 4, "4 notices since the start (ii's own and earlier ones not counted)");
+check(JSON.stringify(sum.apps.map(a => a.name + ":" + a.count)) === '["WhatsApp:2","?:1","Discord:1"]', "most first, then by name: " + JSON.stringify(sum.apps));
+check(L.missedSummary([], 0).count === 0, "nothing: zero");
+check(L.missedSummary(null, 0).count === 0, "no list: zero");
+
 console.log(`${checks} checks, ${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

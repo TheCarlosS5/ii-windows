@@ -44,6 +44,7 @@ Singleton {
     property var dismissed: ({})     // id → true: turned off by hand while its automatic reason holds
     property var before: null        // what the active mode changed, as it was
     property var applied: null       // what it set
+    property real since: 0           // when the active mode started (ms), for the summary of what arrived meanwhile
     property bool loaded: false
     property bool reapply: false
     function load() {} // shell.qml calls it at start, so the automatic triggers run without the panel being opened
@@ -171,14 +172,29 @@ Singleton {
         }
         root.reapply = false;
         const old = root.active;
+        const wasSilent = root.applied?.silent === true;
+        const since = root.since;
         if (root.activeId !== "") root.restore();
+        if (old && wasSilent) root.summarize(old, since);
         root.activeId = id;
         root.reason = reason;
         root.reasonDetail = detail;
         const mode = root.active;
+        root.since = mode ? Date.now() : 0;
         if (mode) root.apply(mode, false);
         root.save();
         root.announce(old, mode, reason, detail);
+    }
+    // E12: a mode that kept No molestar on ended: what arrived meanwhile, in one notice (nothing if nothing came).
+    function summarize(mode, since) {
+        if (!(since > 0)) return;
+        const s = Logic.missedSummary(Notifications.list.map(n => ({ appName: n.appName, time: n.time })), since);
+        if (s.count === 0) return;
+        const apps = s.apps.slice(0, 4).map(a => a.count > 1 ? `${a.name} (${a.count})` : a.name).join(", ")
+            + (s.apps.length > 4 ? "…" : "");
+        Quickshell.execDetached(["notify-send", "-a", "ii", Translation.tr("While %1 was on").arg(root.nameOf(mode)),
+            (s.count === 1 ? Translation.tr("1 notice arrived: %1. It is in the right panel.")
+                : Translation.tr("%1 notices arrived: %2. They are in the right panel.").arg(s.count)).arg(apps)]);
     }
     // A notice when a mode starts or ends by itself (by hand, you know already).
     property string lastReason: ""
@@ -220,6 +236,7 @@ Singleton {
             root.lastReason = root.reason;
             root.before = s.before ?? null;
             root.applied = s.applied ?? null;
+            root.since = s.since ?? 0;
             root.manualId = s.manualId ?? "";
             root.dismissed = s.dismissed ?? {};
             root.reapply = true; // reconcile sets again what does not survive a restart, once the config is read
@@ -231,6 +248,6 @@ Singleton {
     }
     function save() {
         stateFile.setText(JSON.stringify({ activeId: root.activeId, reason: root.reason, reasonDetail: root.reasonDetail,
-            manualId: root.manualId, before: root.before, applied: root.applied, dismissed: root.dismissed }));
+            manualId: root.manualId, before: root.before, applied: root.applied, dismissed: root.dismissed, since: root.since }));
     }
 }

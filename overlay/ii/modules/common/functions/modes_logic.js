@@ -103,4 +103,21 @@ function restorePlan(before, applied, current) {
     return out;
 }
 
-if (typeof module !== "undefined") module.exports = { minutesOf, inSchedule, exeName, appReason, wanted, stillDismissed, plan, restorePlan, BROWSERS };
+// E12: what arrived while a mode kept No molestar on. notifs: [{ appName, time }] (time in ms); ii's own notices
+// do not count. { count, apps: [{ name, count }] } with the apps that sent most first (then by name).
+function missedSummary(notifs, since) {
+    const byApp = {};
+    let count = 0;
+    for (const n of notifs || []) {
+        if (!n || !(n.time >= since)) continue;
+        const name = String(n.appName || "").trim() || "?";
+        if (name.toLowerCase() === "ii") continue;
+        byApp[name] = (byApp[name] || 0) + 1;
+        count++;
+    }
+    const apps = Object.keys(byApp).map(name => ({ name: name, count: byApp[name] }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    return { count: count, apps: apps };
+}
+
+if (typeof module !== "undefined") module.exports = { minutesOf, inSchedule, exeName, appReason, wanted, stillDismissed, plan, restorePlan, missedSummary, BROWSERS };

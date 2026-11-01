@@ -2133,3 +2133,101 @@ add_translations('es_MX', {
     "Your apps' notices show here.": "Aquí aparecen los avisos de tus apps.",
     "Do not disturb hours": "Horario de No molestar",
 })
+
+# --- E12 (rest): what arrived during a mode with No molestar (overlay Modes.summarize), search in the notifications ----
+edit(path('modules', 'common', 'widgets', 'NotificationListView.qml'), [
+    ('''    property bool popup: false
+
+    spacing: 3
+
+    model: ScriptModel {
+        values: root.popup ? Notifications.popupAppNameList : Notifications.appNameList
+    }
+''', '''    property bool popup: false
+    // ii-windows (plan 2026-10-31, E12): only the notices whose app, title or text contain this (the panel's search).
+    property string filter: ""
+    readonly property var filteredGroups: {
+        const q = root.filter.trim().toLowerCase();
+        if (q === "") return null;
+        return Notifications.groupsForList(Notifications.list.filter(n =>
+            `${n.appName}\\n${n.summary}\\n${n.body}`.toLowerCase().includes(q)));
+    }
+
+    spacing: 3
+
+    model: ScriptModel {
+        values: root.filteredGroups ? Notifications.appNameListForGroups(root.filteredGroups)
+            : root.popup ? Notifications.popupAppNameList : Notifications.appNameList
+    }
+'''),
+    ('''            Notifications.popupGroupsByAppName[modelData] :
+            Notifications.groupsByAppName[modelData]
+''', '''            (root.filteredGroups ? root.filteredGroups[modelData] : Notifications.popupGroupsByAppName[modelData]) :
+            (root.filteredGroups ? root.filteredGroups[modelData] : Notifications.groupsByAppName[modelData])
+'''),
+])
+edit(path('modules', 'ii', 'sidebarRight', 'notifications', 'NotificationList.qml'), [
+    ('''Item {
+    id: root
+
+    NotificationListView { // Scrollable window
+        id: listview
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+''', '''Item {
+    id: root
+    property bool searching: false // ii-windows (plan 2026-10-31, E12): search in the notifications kept here
+
+    ToolbarTextField {
+        id: searchField
+        visible: root.searching
+        anchors { left: parent.left; right: parent.right; top: parent.top }
+        height: visible ? 40 : 0
+        placeholderText: Translation.tr("Search the notifications")
+        Keys.onEscapePressed: { searchField.text = ""; root.searching = false; }
+    }
+
+    NotificationListView { // Scrollable window
+        id: listview
+        filter: root.searching ? searchField.text : ""
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: searchField.visible ? searchField.bottom : parent.top
+        anchors.topMargin: searchField.visible ? 6 : 0
+'''),
+    ('''        shown: Notifications.list.length === 0
+''', '''        shown: Notifications.list.length === 0 && !root.searching
+'''),
+    ('''        NotificationStatusButton {
+            Layout.fillWidth: false
+            buttonIcon: "delete_sweep"
+''', '''        NotificationStatusButton { // ii-windows (E12): search
+            Layout.fillWidth: false
+            buttonIcon: root.searching ? "search_off" : "search"
+            toggled: root.searching
+            visible: Notifications.list.length > 0 || root.searching
+            Accessible.name: Translation.tr("Search the notifications")
+            onClicked: () => {
+                root.searching = !root.searching;
+                if (root.searching) searchField.forceActiveFocus();
+                else searchField.text = "";
+            }
+        }
+        NotificationStatusButton {
+            Layout.fillWidth: false
+            buttonIcon: "delete_sweep"
+'''),
+])
+edit(path('services', 'Notifications.qml'), [
+    ('''            if (notifObject.isTransient) root.discardNotification(notificationId);
+''', '''            if (!notifObject) { destroy(); return; } // ii-windows: cleared meanwhile ("delete all" within 7 s)
+            if (notifObject.isTransient) root.discardNotification(notificationId);
+'''),
+])
+add_translations('es_MX', {
+    "Search the notifications": "Buscar en las notificaciones",
+    "While %1 was on": "Mientras %1 estuvo activo",
+    "1 notice arrived: %1. It is in the right panel.": "Llegó 1 aviso: %1. Está en el panel derecho.",
+    "%1 notices arrived: %2. They are in the right panel.": "Llegaron %1 avisos: %2. Están en el panel derecho.",
+})
