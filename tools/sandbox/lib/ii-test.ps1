@@ -6,6 +6,7 @@
 #   no exit within timeout timeout (the runner kills the test's process tree)
 # Assert-* throw on failure, so a failed check ends the script with a non-zero exit code.
 $script:IiAssertions = 0
+$script:IiTestRepo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $script:IiAssertionLog = New-Object System.Collections.Generic.List[string]
 
 function Assert-True([bool]$Condition, [string]$Message = 'condition is false') {
@@ -23,6 +24,14 @@ function Assert-Equal($Actual, $Expected, [string]$Message = '') {
         throw "ASSERT FAILED: $label (expected '$Expected', got '$Actual')"
     }
     $script:IiAssertionLog.Add("ok: $label")
+}
+
+# The newest ii-shim.exe of host\build and host\build-clang (both are clang-cl builds), or '' when neither exists.
+function Get-IiShim {
+    $repoRoot = $script:IiTestRepo
+    $found = @('host\build', 'host\build-clang') | ForEach-Object { Join-Path $repoRoot "$_\ii-shim.exe" } | Where-Object { Test-Path $_ } |
+        Sort-Object { (Get-Item $_).LastWriteTime } | Select-Object -Last 1
+    if ($found) { $found } else { '' }
 }
 
 function Assert-PathExists([string]$Path, [string]$Message = '') {

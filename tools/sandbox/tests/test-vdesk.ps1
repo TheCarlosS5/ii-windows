@@ -11,8 +11,8 @@ if (-not (Test-Path $rule)) { Skip-Test 'host\build\ii-vdesk-test.exe is not bui
 $text = & $rule | Out-String
 Assert-True ($LASTEXITCODE -eq 0 -and $text -match ' 0 failed') "the removal rule's own checks pass ($($text.Trim().Split("`n")[-1].Trim()))"
 
-$shim = Join-Path $repo 'host\build-clang\ii-shim.exe'
-if (-not (Test-Path $shim)) { Write-Output 'ii-shim.exe not built: the Explorer contract was not run'; Complete-IiTest; return }
+$shim = Get-IiShim
+if (-not ($shim -and (Test-Path $shim))) { Write-Output 'ii-shim.exe not built: the Explorer contract was not run'; Complete-IiTest; return }
 
 function Invoke-Vdesk {
     param([string[]]$Arguments)

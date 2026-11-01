@@ -31,11 +31,11 @@ if (Test-Path (Join-Path $repo 'upstream\dots\.config\quickshell\ii')) {
 }
 
 # ---- C: through ii-shim, on copies ----------------------------------------------------------------
-$shim = Join-Path $repo 'host\build-clang\ii-shim.exe'
+$shim = Get-IiShim
 $base = New-IiTestDir 'ii-config'
 $cleanup = @()
 try {
-    if (Test-Path $shim) {
+    if ($shim -and (Test-Path $shim)) {
         $cdir = Join-Path $base 'c-config'
         New-Item -ItemType Directory -Force $cdir | Out-Null
         $env:II_CONFIG_DIR = $cdir
@@ -96,7 +96,7 @@ try {
     Assert-True ($log -match 'config: config\.json was damaged .* last good one was put back') 'D1: the host logged that it restored the last good config'
     Assert-True ($log.IndexOf('config: config.json was damaged') -lt $log.IndexOf('phase: launching -> awaiting-ready')) 'D1: and did it before the shell was started'
     Assert-Equal (Get-Content (Join-Path $cfgDir 'config.json') -Raw) $goodText 'D1: config.json is the last good one'
-    Assert-True ((Get-IiHostLog $data) -match 'config: \(no UI\) ii: your settings file was checked') 'D1: the user would be told (suppressed here because tests run without UI)'
+    Assert-True ((Get-IiHostLog $data) -match 'notice: \(no UI\) ii: your settings file was checked') 'D1: the user would be told (suppressed here because tests run without UI)'
     Assert-True ((Send-IiWmClose $p.Id) -ge 1) 'D1: host window found'
     Assert-Equal (Wait-IiExit $p 20) 0 'D1: clean stop'
 

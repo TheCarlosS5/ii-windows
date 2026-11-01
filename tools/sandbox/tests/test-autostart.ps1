@@ -10,11 +10,18 @@ $user = "$env:USERDOMAIN\$env:USERNAME"
 $run = [guid]::NewGuid().ToString('N').Substring(0, 8)
 $folder = "\ii-windows-test\$run\"
 $legacyFolder = "\ii-windows-test\$run-legacy\"
+$nestParent = "\ii-windows-test\$run-c\"
+$nestFolder = "\ii-windows-test\$run-c\nest\"
 $install = "C:\Users\Prüfung ü\AppData\Local\Programs\ii-windows"      # non-ASCII profile path, never created
 $hostExe = "$install\ii-host.exe"
 $args1 = "--boot --shell `"$install\quickshell\quickshell.exe`" --config `"$install\ii`""
 
-function Get-Tasks([string]$Path) { @(Get-ScheduledTask -TaskPath $Path -ErrorAction SilentlyContinue) }
+# Through COM like ii-autostart.ps1 (Get-ScheduledTask fails for every task when one of the PC is broken).
+function Get-Tasks([string]$Path) {
+    $f = Get-IiTaskFolderObject $Path
+    if (-not $f) { return @() }
+    @($f.GetTasks(1) | ForEach-Object { [pscustomobject]@{ TaskName = $_.Name } })
+}
 function New-FakeTask([string]$Path, [string]$Name, [string]$Description, [string]$Exe, [string]$Account = $user) {
     $a = New-ScheduledTaskAction -Execute $Exe
     $t = New-ScheduledTaskTrigger -AtLogOn -User $Account
@@ -31,7 +38,7 @@ try {
     Assert-True ($null -ne $task) 'the task is named after the SID and lives in its own folder'
     Assert-True ($task.Description.Contains((Get-IiOwnerMarker $sid))) 'it says whose it is'
     Assert-Equal ([string]$task.Principal.RunLevel) 'Limited' 'it runs without elevation'
-    Assert-Equal ([string]@($task.Triggers)[0].CimClass.CimClassName) 'MSFT_TaskLogonTrigger' 'it triggers at logon'
+    Assert-Equal ([string]@($task.Triggers)[0].Kind) 'Logon' 'it triggers at logon'
     Assert-Equal @($task.Actions)[0].Execute $hostExe 'it starts ii-host from the install folder (non-ASCII path kept)'
     Assert-Equal ([string]$task.Settings.MultipleInstances) 'IgnoreNew' 'one instance at most'
 
@@ -70,6 +77,25 @@ try {
     Assert-True (-not $r.Migrated -and $r.Conflicts.Count -eq 1) 'an old task from another installation is not migrated, and the conflict is explained'
     Assert-Equal @(Get-Tasks $legacyFolder).Count 1 'it is still there'
 
+    # --- the old flat task named like the new folder (\ii-windows and \ii-windows\ on real PCs) -----------------
+    # Registering the folder first and removing the old task after broke the Task Scheduler of PCs that came from
+    # 0.1.x: the new task could not be loaded and Get-ScheduledTask failed for every task.
+    New-FakeTask $nestParent 'nest' 'old ii task' $hostExe
+    $r = Install-IiAutostart -Sid $sid -User $user -HostExe $hostExe -Arguments $args1 -InstallDir $install `
+        -TaskPath $nestFolder -LegacyTaskPath $nestParent -LegacyTaskName 'nest'
+    Assert-True ($r.Registered -and $r.Migrated -and $r.Conflicts.Count -eq 0) "an old task with the new folder's name goes first, then the new one is registered ($($r.Conflicts -join ' '))"
+    Assert-True ($null -eq (Get-IiLogonTask $nestParent 'nest')) 'the old one is gone'
+    Assert-True ($null -ne (Get-IiLogonTask $nestFolder "Logon-$sid")) 'the new one can be read'
+    & schtasks.exe /query /tn "$($nestFolder)Logon-$sid" 2>&1 | Out-Null
+    Assert-Equal $LASTEXITCODE 0 'and Windows can load it'
+    Remove-IiLogonTask $nestFolder "Logon-$sid"
+    (Get-IiTaskFolderObject $nestParent).DeleteFolder('nest', 0)
+    New-FakeTask $nestParent 'nest' 'someone elses' 'D:\other\ii-host.exe'
+    $r = Install-IiAutostart -Sid $sid -User $user -HostExe $hostExe -Arguments $args1 -InstallDir $install `
+        -TaskPath $nestFolder -LegacyTaskPath $nestParent -LegacyTaskName 'nest'
+    Assert-True (-not $r.Registered -and $r.Conflicts.Count -eq 1) "another installation's old task with the folder's name is reported, and nothing is registered over it"
+    Assert-Equal (Get-IiLogonTask $nestParent 'nest').Actions[0].Execute 'D:\other\ii-host.exe' 'it is kept as it was'
+
     # --- remove: exactly ours ---------------------------------------------------------------------
     $rm = Remove-IiAutostart -Sid $sid -InstallDir $install -TaskPath $folder -LegacyTaskPath $legacyFolder -LegacyTaskName 'ii-windows'
     Assert-True ($rm.Removed.Count -eq 1 -and $rm.Removed[0] -eq "$folder" + "Logon-$sid") 'uninstall removes only our task'
@@ -84,14 +110,15 @@ try {
     Assert-True ($folder -ne $script:IiTaskFolder -and $legacyFolder -ne '\') 'the test never pointed at the real folders'
 }
 finally {
-    foreach ($f in $folder, $legacyFolder) {
-        foreach ($t in Get-Tasks $f) { Unregister-ScheduledTask -TaskPath $f -TaskName $t.TaskName -Confirm:$false -ErrorAction SilentlyContinue }
+    foreach ($f in $folder, $legacyFolder, $nestFolder, $nestParent) {
+        foreach ($t in Get-Tasks $f) { try { Remove-IiLogonTask $f $t.TaskName } catch {} }
     }
     try {
         $svc = New-Object -ComObject 'Schedule.Service'
         $svc.Connect()
         $root = $svc.GetFolder('\ii-windows-test')
-        foreach ($name in $run, "$run-legacy") { try { $root.DeleteFolder($name, 0) } catch {} }
+        try { $svc.GetFolder("\ii-windows-test\$run-c").DeleteFolder('nest', 0) } catch {}
+        foreach ($name in $run, "$run-legacy", "$run-c") { try { $root.DeleteFolder($name, 0) } catch {} }
         try { $svc.GetFolder('\').DeleteFolder('ii-windows-test', 0) } catch {}
     } catch {}
 }

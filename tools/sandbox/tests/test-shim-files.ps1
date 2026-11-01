@@ -4,8 +4,8 @@
 # a regression in its safety rules can only ever touch that folder, never the real profile.
 . "$PSScriptRoot\..\lib\ii-test.ps1"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
-$shim = Join-Path $repo 'host\build-clang\ii-shim.exe'
-if (-not (Test-Path $shim)) { Skip-Test 'ii-shim not built with clang-cl (cmake -S host -B host\build-clang -DCMAKE_CXX_COMPILER=clang-cl ...)' }
+$shim = Get-IiShim
+if (-not ($shim -and (Test-Path $shim))) { Skip-Test 'ii-shim not built with clang-cl (cmake -S host -B host\build-clang -DCMAKE_CXX_COMPILER=clang-cl ...)' }
 
 $base = Join-Path $env:TEMP ('ii-shimfiles-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $profile = Join-Path $base 'Profile'

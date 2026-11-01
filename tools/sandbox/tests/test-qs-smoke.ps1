@@ -62,7 +62,7 @@ ShellRoot {
     $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
     $psi.EnvironmentVariables['QT_FORCE_STDERR_LOGGING'] = '1'
-    $shimDir = Join-Path $repo 'host/build-clang'
+    $shimDir = $(if (Get-IiShim) { Split-Path (Get-IiShim) } else { Join-Path $repo 'host\build-clang' })
     $haveShim = Test-Path (Join-Path $shimDir 'ii-shim.exe')
     if ($haveShim) { $psi.EnvironmentVariables['PATH'] = $shimDir + ';' + $psi.EnvironmentVariables['PATH'] }
     $lines = New-Object System.Collections.Concurrent.ConcurrentQueue[string]

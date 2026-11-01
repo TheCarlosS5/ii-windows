@@ -42,6 +42,9 @@
 #include <objectarray.h>
 #include <shobjidl_core.h>
 #include <servprov.h>
+#include <dwmapi.h>
+
+#pragma comment(lib, "dwmapi.lib")
 
 #include "vdesk_policy.h"
 
@@ -265,8 +268,10 @@ bool isAppWindow(HWND h) {
 
 // How many app windows say they live on `target`; -1 if one could not be asked (we would be
 // guessing, and a guess is never grounds to delete). With `perDesktop`, also counts the windows of
-// each desktop listed; `unknown` receives how many app windows could not be placed.
-int occupantsOf(const std::wstring& target, std::vector<std::pair<std::wstring, int>>* perDesktop = nullptr, int* unknownWindows = nullptr) {
+// each desktop listed; `unknown` receives how many app windows could not be placed (and `unknownNames` which: program,
+// window class, the HRESULT Windows gave).
+int occupantsOf(const std::wstring& target, std::vector<std::pair<std::wstring, int>>* perDesktop = nullptr, int* unknownWindows = nullptr,
+                std::vector<std::wstring>* unknownNames = nullptr) {
 	constexpr CLSID clsid {0xaa509086, 0x5ca9, 0x4c25, {0x8f, 0x95, 0x58, 0x9d, 0x3c, 0x07, 0xb4, 0x8a}};
 	Ptr<IVirtualDesktopManager> manager;
 	if (FAILED(CoCreateInstance(clsid, nullptr, CLSCTX_ALL, IID_PPV_ARGS(manager.out())))) return -1;
@@ -276,7 +281,8 @@ int occupantsOf(const std::wstring& target, std::vector<std::pair<std::wstring, 
 		int found = 0;
 		int unknown = 0;
 		std::vector<std::wstring> all;
-	} state {manager.p, target, 0, 0, {}};
+		std::vector<std::wstring> unknownNames;
+	} state {manager.p, target, 0, 0, {}, {}};
 	EnumWindows([](HWND h, LPARAM l) -> BOOL {
 		auto& s = *reinterpret_cast<State*>(l); // NOLINT
 		if (!isAppWindow(h)) return TRUE;
@@ -285,8 +291,32 @@ int occupantsOf(const std::wstring& target, std::vector<std::pair<std::wstring, 
 		// Not a window virtual desktops manage at all (Windows' own surfaces such as the "Windows Input Experience"
 		// of TextInputHost): no desktop can hold it, so it is not an app window left out.
 		if (hr == TYPE_E_ELEMENTNOTFOUND) return TRUE;
+		// On no desktop and cloaked: a UWP frame Windows keeps after the app was closed (Configuración's
+		// ApplicationFrameWindow and its CoreWindow), which Task View does not show either. Windows of other desktops
+		// are cloaked too, but they do have a desktop id, so they are still counted.
+		DWORD cloaked = 0;
+		if (SUCCEEDED(hr) && IsEqualGUID(id, GUID_NULL) &&
+		    SUCCEEDED(DwmGetWindowAttribute(h, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked)
+			return TRUE;
 		if (FAILED(hr) || IsEqualGUID(id, GUID_NULL)) {
 			++s.unknown;
+			wchar_t cls[128] {};
+			GetClassNameW(h, cls, 128);
+			DWORD pid = 0;
+			GetWindowThreadProcessId(h, &pid);
+			std::wstring exe = L"?";
+			if (auto* process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid)) {
+				wchar_t path[MAX_PATH];
+				DWORD size = MAX_PATH;
+				if (QueryFullProcessImageNameW(process, 0, path, &size)) {
+					exe = path;
+					exe = exe.substr(exe.find_last_of(L'\\') + 1);
+				}
+				CloseHandle(process);
+			}
+			wchar_t code[16];
+			swprintf_s(code, L"0x%08lx", static_cast<unsigned long>(hr));
+			s.unknownNames.push_back(exe + L" " + cls + L" " + code);
 			return TRUE;
 		}
 		auto text = guidText(id);
@@ -295,6 +325,7 @@ int occupantsOf(const std::wstring& target, std::vector<std::pair<std::wstring, 
 		return TRUE;
 	}, reinterpret_cast<LPARAM>(&state)); // NOLINT
 	if (unknownWindows) *unknownWindows = state.unknown;
+	if (unknownNames) *unknownNames = state.unknownNames;
 	if (perDesktop) {
 		for (auto& entry: *perDesktop) {
 			entry.second = static_cast<int>(std::count(state.all.begin(), state.all.end(), entry.first));
@@ -344,11 +375,13 @@ int vdesk(const std::vector<std::wstring>& args) {
 				std::vector<std::pair<std::wstring, int>> per;
 				for (auto& id: list) per.emplace_back(id, 0);
 				int unknown = 0;
-				occupantsOf(L"", &per, &unknown);
+				std::vector<std::wstring> names;
+				occupantsOf(L"", &per, &unknown, &names);
 				auto current = api.currentIndex(list);
 				for (size_t i = 0; i < list.size(); ++i) {
 					wprintf(L"desktop %zu %ls windows=%d%ls\n", i + 1, list[i].c_str(), per[i].second, static_cast<int>(i) == current ? L" current" : L"");
 				}
+				for (const auto& name: names) wprintf(L"unknown-window %ls\n", name.c_str());
 				wprintf(L"unknown-app-windows %d\nok\n", unknown);
 				code = 0;
 			} else if (cmd == L"count") {

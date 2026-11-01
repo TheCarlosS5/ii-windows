@@ -6,8 +6,8 @@
 # Talks to a throwaway HTTP server on 127.0.0.1; no real service, no real key.
 . "$PSScriptRoot\..\lib\ii-test.ps1"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
-$shim = Join-Path $repo 'host\build-clang\ii-shim.exe'
-if (-not (Test-Path $shim)) { Skip-Test 'ii-shim not built with clang-cl: cmake -S host -B host\build-clang -G Ninja -DCMAKE_CXX_COMPILER=clang-cl ...; cmake --build host\build-clang --target ii-shim' }
+$shim = Get-IiShim
+if (-not ($shim -and (Test-Path $shim))) { Skip-Test 'ii-shim not built with clang-cl: cmake -S host -B host\build-clang -G Ninja -DCMAKE_CXX_COMPILER=clang-cl ...; cmake --build host\build-clang --target ii-shim' }
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) { Skip-Test 'python not found (used as a throwaway HTTP server)' }
 
 $base = Join-Path $env:TEMP ('ii-airequest-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
