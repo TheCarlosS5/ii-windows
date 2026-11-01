@@ -5,6 +5,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Static CRT: ii-host and the rescue path must work with nothing else installed.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+# Plan 2026-10-31, A3.2: a PDB for every release build (shipped apart, in ...-symbols.zip), same optimizations;
+# /PDBALTPATH keeps the build folder's path out of the exe.
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+	add_compile_options(/Zi)
+	add_link_options(/DEBUG:FULL /OPT:REF /OPT:ICF "/PDBALTPATH:%_PDB%")
+endif()
 
 add_executable(ii-host WIN32
 	src/main.cpp

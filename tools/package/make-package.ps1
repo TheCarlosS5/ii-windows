@@ -125,5 +125,51 @@ Remove-Item $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $pkg -DestinationPath $zip -CompressionLevel Optimal
 $size = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 "package: $zip ($size MB)"
+# Plan 2026-10-31, A3.2: the debug symbols of ii-windows' own programs, apart from the package (never installed), so a
+# crash report's module+offset can be read for exactly this version (tools\dev\symbolize.ps1).
+$symbols = Join-Path $outRoot "$name-symbols"
+Remove-Item $symbols -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $symbols | Out-Null
+$qsBuild = @('quickshell\build', 'quickshell\build-r') | Where-Object { Test-Path (Join-Path $root "$_\quickshell.pdb") } | Select-Object -First 1
+$pdbs = @()
+if ($qsBuild) { $pdbs += Join-Path $root "$qsBuild\quickshell.pdb" }
+foreach ($exe in 'ii-host', 'ii-launcher', 'ii-shim') {
+    $pdb = @("$hostBuild\$exe.pdb", "host\build-clang\$exe.pdb", "host\build\$exe.pdb") | ForEach-Object { Join-Path $root $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($pdb) { $pdbs += $pdb }
+}
+foreach ($pdb in $pdbs) { Copy-Item $pdb $symbols }
+# The exes they belong to, so llvm-symbolizer can be pointed at the pair.
+foreach ($exe in 'quickshell\quickshell.exe', 'ii-host.exe', 'quickshell\bin\ii-shim.exe') {
+    $p = Join-Path $app $exe
+    if (Test-Path $p) { Copy-Item $p $symbols }
+}
+Copy-Item (Join-Path $pkg 'ii-launcher.exe') $symbols
+$symbolsZip = "$symbols.zip"
+Remove-Item $symbolsZip -ErrorAction SilentlyContinue
+Compress-Archive -Path "$symbols\*" -DestinationPath $symbolsZip -CompressionLevel Optimal
+"symbols: $symbolsZip ($($pdbs.Count) PDB)"
+
+# Plan 2026-10-31, B1: what the updater reads first. publish-release.ps1 completes it (Setup, publication date), signs
+# it (sign-release.ps1) and uploads it next to the zip.
+$notesFile = Join-Path $root "docs\RELEASE-$baseVersion.md"
+$notes = if (Test-Path $notesFile) { [IO.File]::ReadAllText($notesFile) } else { '' }
+[ordered]@{
+    schema         = 1
+    version        = $baseVersion
+    id             = $version
+    channel        = 'stable'
+    publishedAt    = $null
+    minFrom        = '0.6.0'
+    critical       = $false
+    needsInstaller = $false
+    package        = [ordered]@{ name = "$name.zip"; size = (Get-Item $zip).Length; sha256 = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() }
+    setup          = $null
+    deltas         = @()
+    fixes          = @()
+    notes          = [ordered]@{ es = $notes }
+    notesUrl       = "https://github.com/TheCarlosS5/ii-windows/releases/tag/v$baseVersion"
+} | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $outRoot "$name-release.json") -Encoding UTF8
+"release.json draft: $(Join-Path $outRoot "$name-release.json")"
+
 # Version information, packers, signatures and hashes of every program (plan 1.4): <package>\release-check.md.
-& (Join-Path $PSScriptRoot 'release-check.ps1') -Package $pkg
+& (Join-Path $PSScriptRoot 'release-check.ps1') -Package $pkg -Symbols $symbols

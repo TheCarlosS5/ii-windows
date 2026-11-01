@@ -11,7 +11,9 @@
 #     nothing is uploaded) and the detections are listed.
 # Writes <package>\release-check.md. -Strict fails (exit 1) on anything a release must not have: missing version
 # information, a packer, an unsigned own program, a VirusTotal detection.
-param([string]$Package = '', [switch]$Strict)
+#   -Symbols <folder>  (plan 2026-10-31, A3.2) each PDB there must belong to its program in the package (same GUID and
+#                      age in the exe's debug directory and in the PDB), or a crash offset could not be read later.
+param([string]$Package = '', [switch]$Strict, [string]$Symbols = '')
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot)
 if (-not $Package) {
@@ -62,6 +64,30 @@ foreach ($f in $programs) {
     $rows.Add("| ``$rel`` | $($info.FileDescription) | $($info.FileVersion) | $(if ($sig.Status -eq 'Valid') { "firmado ($signer)" } else { 'sin firma' }) | $($notes -join ', ') | [$($hash.Substring(0, 12))…](https://www.virustotal.com/gui/file/$hash) $vt |")
 }
 
+# PDBs that match their programs (llvm-readobj / llvm-pdbutil from Visual Studio's LLVM).
+$symbolRows = New-Object System.Collections.Generic.List[string]
+if ($Symbols -and (Test-Path $Symbols)) {
+    $llvm = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\Llvm\x64\bin'
+    if ((Test-Path "$llvm\llvm-readobj.exe") -and (Test-Path "$llvm\llvm-pdbutil.exe")) {
+        $map = @{ 'quickshell.pdb' = 'quickshell\quickshell.exe'; 'ii-host.pdb' = 'ii-host.exe'; 'ii-shim.pdb' = 'quickshell\bin\ii-shim.exe'; 'ii-launcher.pdb' = '..\ii-launcher.exe' }
+        foreach ($pdb in Get-ChildItem $Symbols -Filter *.pdb) {
+            $exe = if ($map.ContainsKey($pdb.Name)) { Join-Path (Join-Path $Package 'app') $map[$pdb.Name] } else { $null }
+            if (-not $exe -or -not (Test-Path $exe)) { $symbolRows.Add("| ``$($pdb.Name)`` | sin programa |"); continue }
+            $dbg = (& "$llvm\llvm-readobj.exe" --coff-debug-directory $exe) -join "`n"
+            $sum = (& "$llvm\llvm-pdbutil.exe" dump --summary $pdb.FullName) -join "`n"
+            $exeGuid = if ($dbg -match 'PDBGUID: \{?([0-9A-Fa-f-]+)\}?') { $matches[1].ToUpperInvariant() } else { '' }
+            $exeAge = if ($dbg -match 'PDBAge: (\d+)') { [int]$matches[1] } else { -1 }
+            $pdbGuid = if ($sum -match '(?m)^\s*GUID: \{?([0-9A-Fa-f-]+)\}?') { $matches[1].ToUpperInvariant() } else { '' }
+            $pdbAge = if ($sum -match 'Age: (\d+)') { [int]$matches[1] } else { -2 }
+            $same = $exeGuid -and $exeGuid -eq $pdbGuid -and $exeAge -eq $pdbAge
+            if (-not $same) { $problems.Add("$($pdb.Name): does not match $($map[$pdb.Name])") }
+            $symbolRows.Add("| ``$($pdb.Name)`` | $(if ($same) { 'coincide' } else { 'NO coincide' }) |")
+        }
+    } else {
+        $symbolRows.Add('| (LLVM no encontrado) | sin comprobar |')
+    }
+}
+
 $report = @"
 # Comprobación de publicación
 
@@ -70,6 +96,12 @@ Paquete: ``$(Split-Path $Package -Leaf)``, $((Get-Date).ToString('yyyy-MM-dd HH:
 | Archivo | Descripción | Versión | Firma | Notas | VirusTotal |
 |---|---|---|---|---|---|
 $($rows -join "`n")
+
+## Símbolos (PDB)
+
+| PDB | Programa |
+|---|---|
+$(if ($symbolRows.Count) { $symbolRows -join "`n" } else { '| (sin carpeta de símbolos) | — |' })
 
 ## Problemas para una publicación
 
