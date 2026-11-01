@@ -590,6 +590,14 @@ import qs.modules.settings // ii-windows: the settings search
             for (let p = it; p; p = p.parent) if (p.title === section) return true;
             return false;
         };
+        // In a tab not shown (the clock's settings, C2.4): show that tab, look again once it is laid out.
+        const hidden = found.find(i => (!entry.s || inSection(i)) && !i.visible);
+        for (let p = hidden; p && !shown.some(i => !entry.s || inSection(i)); p = p.parent) {
+            if (p.settingsTab !== undefined && p.tabBar && p.tabBar.currentIndex !== p.settingsTab) {
+                p.tabBar.currentIndex = p.settingsTab;
+                return false;
+            }
+        }
         // In its own section ("Activar" is in every widget's); any match only when there is nothing better.
         const item = shown.find(i => !entry.s || inSection(i)) ?? (lastTry ? shown[0] : null);
         if (!item) return false;
@@ -709,4 +717,12 @@ add_translations('es_MX', {
     "Search settings (Ctrl+F)": "Buscar ajustes (Ctrl+F)",
     "Nothing found for \"%1\"": "No se encontró nada para «%1»",
     "%1 results": "%1 resultados",
+})
+
+# --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------
+add_translations('es_MX', {
+    "Style": "Estilo",
+    "Dial": "Esfera",
+    "Hands": "Manecillas",
+    "These options are for the Cookie style": "Estas opciones son del estilo Cookie",
 })
