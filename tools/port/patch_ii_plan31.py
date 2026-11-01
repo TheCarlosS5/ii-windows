@@ -1610,12 +1610,16 @@ edit(path('modules', 'common', 'Config.qml'), [
                     property bool enable: false
                     property string lightAt: "07:00"
                     property string darkAt: "19:00"
+                    property string mode: "hours" // "hours" | "sun" (sunrise/sunset of the weather's location)
                 }
 '''),
     ('''            property JsonObject background: JsonObject {
                 property string externalProvider: "auto"''', '''            property JsonObject background: JsonObject {
-                property JsonObject daily: JsonObject { // ii-windows (plan 2026-10-31, E13): Bing's image of the day
+                property JsonObject daily: JsonObject { // ii-windows (plan 2026-10-31, E13): a wallpaper that changes by itself
                     property bool enable: false
+                    property string source: "bing" // "bing" (the image of the day) | "folder" (its next image every N min)
+                    property string folder: ""
+                    property int minutes: 30
                 }
                 property string externalProvider: "auto"'''),
 ])
@@ -1637,6 +1641,16 @@ add_translations('es_MX', {
     "A new wallpaper every day (Bing's image of the day)": "Un fondo nuevo cada día (la imagen del día de Bing)",
     "Downloaded once a day into Pictures\\Wallpapers; the colors follow it.": "Se descarga una vez al día en Imágenes\\Wallpapers; los colores lo siguen.",
     "Light theme by day, dark by night": "Tema claro de día, oscuro de noche",
+    "A wallpaper that changes by itself": "Un fondo que cambia solo",
+    "The colors follow it, as with any wallpaper.": "Los colores lo siguen, como con cualquier fondo.",
+    "Bing's image of the day": "La imagen del día de Bing",
+    "A folder of mine": "Una carpeta mía",
+    "Folder with your images (C:\\Users\\you\\Pictures\\Wallpapers)": "Carpeta con tus imágenes (C:\\Users\\tú\\Pictures\\Wallpapers)",
+    "Next image every (minutes)": "Siguiente imagen cada (minutos)",
+    "At these hours": "En este horario",
+    "With the sun": "Con el sol",
+    "Today: light from %1, dark from %2 (the weather's location).": "Hoy: claro desde las %1, oscuro desde las %2 (la ubicación del clima).",
+    "Sunrise and sunset come from the weather (Servicios > Clima); until then, the hours below.": "El amanecer y el atardecer vienen del clima (Servicios > Clima); mientras tanto, el horario de abajo.",
     "Light from": "Claro desde",
     "dark from": "oscuro desde",
 })

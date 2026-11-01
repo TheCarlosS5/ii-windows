@@ -139,6 +139,9 @@
   "appearance.autoDark.lightAt": {
    "kind": "string"
   },
+  "appearance.autoDark.mode": {
+   "kind": "string"
+  },
   "appearance.extraBackgroundTint": {
    "kind": "bool"
   },
@@ -294,6 +297,19 @@
   },
   "background.daily.enable": {
    "kind": "bool"
+  },
+  "background.daily.folder": {
+   "kind": "string"
+  },
+  "background.daily.minutes": {
+   "kind": "int",
+   "range": [
+    1,
+    1440
+   ]
+  },
+  "background.daily.source": {
+   "kind": "string"
   },
   "background.externalProvider": {
    "kind": "string"
