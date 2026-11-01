@@ -1,0 +1,97 @@
+# Plan 2026-10-31, G2: build and check every push and pull request on Windows.
+# Builds the Quickshell fork and the host with clang-cl + Qt 6.12, runs the host's unit tests and the checks that need
+# no desktop (patches apply to the pinned upstream, config schema, line endings, WinRT null checks, Spanish texts).
+# The tests that drive a real shell or desktop stay local (tools\sandbox\run-local-suite.ps1).
+# Written without a run on GitHub yet: the first run may need small fixes.
+name: build
+
+on:
+  push:
+    branches: [main, 'impl/**', 'fix/**', 'feat/**']
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      QTDIR: ${{ github.workspace }}\qt\6.12.0-msvc2022_64
+      UPSTREAM_COMMIT: 33f31a08caddd41422a2d97670adeeb52b4f1e7c
+    steps:
+      - uses: actions/checkout@v4
+      - name: Quickshell fork
+        uses: actions/checkout@v4
+        with:
+          repository: TheCarlosS5/quickshell-windows
+          path: quickshell
+          # The fork's branch with the same name, if it exists; else its main.
+          ref: ${{ github.head_ref || github.ref_name }}
+        continue-on-error: true
+        id: fork
+      - name: Quickshell fork (main)
+        if: steps.fork.outcome == 'failure'
+        uses: actions/checkout@v4
+        with:
+          repository: TheCarlosS5/quickshell-windows
+          path: quickshell
+      - name: Upstream ii (pinned)
+        shell: pwsh
+        run: |
+          git clone --filter=blob:none https://github.com/end-4/dots-hyprland upstream
+          git -C upstream checkout $env:UPSTREAM_COMMIT
+          git -C upstream submodule update --init --depth 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Qt 6.12 (cache)
+        id: qtcache
+        uses: actions/cache@v4
+        with:
+          path: qt
+          key: qt-6.12.0-msvc2022_64-v1
+      - name: Qt 6.12 (download, checked against Qt's published SHA1)
+        if: steps.qtcache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          python -m pip install py7zr
+          python -I tools/dev/fetch_qt.py "$env:RUNNER_TEMP\qt-dl" "$env:QTDIR"
+      - name: material-color-utilities
+        shell: pwsh
+        run: ./tools/dev/fetch_mcu.ps1
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build the Quickshell fork
+        shell: pwsh
+        run: |
+          $env:CMAKE_PREFIX_PATH = $env:QTDIR
+          cmake --preset windows-release -S quickshell
+          cmake --build quickshell/build
+      - name: Build the host
+        shell: pwsh
+        run: |
+          cmake -S host -B host/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+          cmake --build host/build
+      - name: Host unit tests
+        shell: pwsh
+        run: |
+          $failed = 0
+          foreach ($t in 'ii-keyrouter-test', 'ii-config-test', 'ii-vdesk-test', 'ii-sidebar-test', 'ii-crashpolicy-test', 'ii-lockstate-test') {
+            $exe = "host/build/$t.exe"
+            if (-not (Test-Path $exe)) { Write-Host "skip $t"; continue }
+            & $exe; if ($LASTEXITCODE -ne 0) { $failed++; Write-Host "FAILED $t" }
+          }
+          if ($failed) { exit 1 }
+      - name: Stage ii (the patches apply to the pinned upstream)
+        shell: pwsh
+        run: ./tools/dev/stage-ii.ps1
+      - name: Checks
+        shell: pwsh
+        run: |
+          python -I tools/dev/gen-config-schema.py --stage build/ii --check
+          python -I tools/dev/check-eol.py
+          python -I tools/dev/check-winrt-null.py
+          python -I tools/dev/find-untranslated.py
+          python -I tools/dev/check-qml-imports.py build/ii
+          ./tools/dev/check-ps-syntax.ps1 (Get-ChildItem tools -Recurse -Filter *.ps1).FullName
+      - name: Updater against a fake GitHub
+        shell: pwsh
+        run: ./tools/sandbox/tests/test-updater.ps1
