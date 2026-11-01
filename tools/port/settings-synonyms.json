@@ -1,0 +1,45 @@
+{
+  "_": "Plan 2026-10-31, C3: words that find each other in Configuración's search (gen_settings_index.py). An entry whose text has one word of a group also answers to the others. Lower case, no accents.",
+  "groups": [
+    ["oscuro", "claro", "dark", "light", "tema", "modo"],
+    ["fondo", "fondo de pantalla", "wallpaper", "imagen", "background"],
+    ["transparente", "transparencia", "transparency", "opacidad", "opacity", "difuminado", "blur", "desenfocar", "desenfoque"],
+    ["barra de tareas", "taskbar", "barra", "bar"],
+    ["inicio", "lanzador", "launcher", "menu", "start", "buscar apps"],
+    ["volumen", "sonido", "audio", "volume", "sound", "parlante", "altavoz"],
+    ["bateria", "battery", "energia", "power", "carga", "cargador"],
+    ["notificacion", "notificaciones", "notification", "aviso", "avisos", "no molestar", "do not disturb"],
+    ["reloj", "hora", "clock", "time", "fecha", "date"],
+    ["clima", "tiempo", "weather", "temperatura"],
+    ["idioma", "language", "lengua", "traduccion", "translation"],
+    ["fuente", "letra", "font", "tipografia", "texto"],
+    ["animacion", "animaciones", "animation", "movimiento", "motion"],
+    ["rendimiento", "performance", "lento", "rapido", "ligero", "fps", "gpu", "cpu"],
+    ["bloqueo", "lock", "pantalla de bloqueo", "lockscreen", "contrasena"],
+    ["dock", "muelle", "apps fijadas", "pinned"],
+    ["escritorio", "desktop", "widgets", "iconos"],
+    ["atajo", "atajos", "shortcut", "tecla", "teclado", "keyboard"],
+    ["ia", "ai", "inteligencia artificial", "gemini", "chat", "modelo"],
+    ["actualizacion", "actualizaciones", "update", "updates", "version", "canal", "beta", "estable", "stable", "channel"],
+    ["color", "colores", "material you", "acento", "esquema", "scheme", "paleta"],
+    ["esquinas", "redondeo", "rounding", "corner"],
+    ["panel", "barra lateral", "sidebar", "ajustes rapidos", "quick settings"],
+    ["red", "wifi", "internet", "network", "ethernet", "wi fi"],
+    ["bluetooth", "auriculares", "audifonos", "headphones"],
+    ["captura", "screenshot", "pantallazo", "recorte"],
+    ["musica", "media", "reproductor", "spotify", "cancion", "letra de la cancion", "lyrics"],
+    ["privacidad", "privacy", "microfono", "camara", "ubicacion"],
+    ["diagnostico", "crash", "errores", "logs", "modo seguro", "safe mode", "problemas"],
+    ["grabar", "grabacion", "video", "record", "recording", "grabadora"]
+  ],
+  "entries": [
+    {
+      "p": "quickconfig",
+      "s": "",
+      "l": "Dark",
+      "also": ["Light"],
+      "i": "dark_mode",
+      "words": "modo oscuro modo claro tema dark mode light mode noche"
+    }
+  ]
+}

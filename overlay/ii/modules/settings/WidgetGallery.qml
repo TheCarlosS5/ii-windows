@@ -15,19 +15,17 @@ ContentSection {
     icon: "widgets"
     title: Translation.tr("Widgets")
 
-    property string openKey: root.requestedKey()
+    property string openKey: ""
     property string filter: ""
-    function requestedKey() {
-        const key = SettingsRequest.subFor("backgroundconfig");
+    function openRequested() { // a widget asked for (II_SETTINGS_PAGE, its gear on the desktop, the settings search)
+        const key = SettingsRequest.take("backgroundconfig");
         const widget = Registry.widgets.find(w => w.key.toLowerCase() === key);
-        return widget ? widget.key : "";
+        if (widget) root.openKey = widget.key;
     }
-    Connections { // the open window asked again for a widget (its gear in the desktop's edit mode)
+    Component.onCompleted: root.openRequested()
+    Connections { // asked while this page is already open
         target: SettingsRequest
-        function onSerialChanged() {
-            const key = root.requestedKey();
-            if (key !== "") root.openKey = key;
-        }
+        function onSerialChanged() { root.openRequested(); }
     }
     readonly property var openWidget: Registry.widgets.find(w => w.key === root.openKey) ?? null
 

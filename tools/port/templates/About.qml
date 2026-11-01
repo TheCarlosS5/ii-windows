@@ -21,6 +21,7 @@ ContentPage {
 
     FileView {
         path: Quickshell.shellPath("../build-info.json")
+        printErrors: false // a development build has none
         onLoaded: {
             try {
                 const info = JSON.parse(text().replace(/^﻿/, ""));

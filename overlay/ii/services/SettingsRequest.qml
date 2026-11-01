@@ -23,4 +23,11 @@ Singleton {
         const wanted = page.toLowerCase();
         return parts[0] === wanted || parts[0] + "config" === wanted ? parts[1] : "";
     }
+
+    // subFor(), and the request is done: coming back to the page later shows it as usual.
+    function take(page) {
+        const sub = root.subFor(page);
+        if (sub !== "") root.argument = "";
+        return sub;
+    }
 }

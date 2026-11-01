@@ -527,3 +527,174 @@ import qs
 add_translations('es_MX', {
     "Widget settings": "Ajustes del widget",
 })
+
+# --- C3: the settings search (overlay SettingsSearchBar.qml / SettingsSearchResults.qml; the index is made by
+# tools/port/gen_settings_index.py after this). A result opens its page, scrolls to the setting and lights it up.
+edit(path('settings.qml'), [
+    ('''import qs.modules.common.widgets
+import qs.modules.common.functions as CF
+''', '''import qs.modules.common.widgets
+import qs.modules.common.functions as CF
+import qs.modules.settings // ii-windows: the settings search
+'''),
+    ('''            if (file === wanted || file === wanted + "config") return i;
+        }
+        return -1;
+    }
+''', '''            if (file === wanted || file === wanted + "config") return i;
+        }
+        return -1;
+    }
+
+    // ii-windows (plan 2026-10-31, C3): the settings search. A result opens its page (and the widget's settings in
+    // the gallery), then scrolls to the setting and lights it up for a moment.
+    property var searchTarget: null
+    function openSearchResult(entry) {
+        if (!entry) return;
+        searchBar.clear();
+        const index = root.pageIndex(entry.p);
+        if (entry.sub) SettingsRequest.request(entry.p + "/" + entry.sub);
+        if (index >= 0 && index !== root.currentPage) root.currentPage = index;
+        root.searchTarget = entry;
+        locateTimer.tries = 0;
+        locateTimer.restart();
+    }
+    function findSetting(item, text, found) {
+        if (!item || found.length > 40) return;
+        if (item.title === text || item.text === text || item.mainText === text || item.placeholderText === text)
+            found.push(item);
+        const kids = item.children || [];
+        for (let i = 0; i < kids.length; ++i) root.findSetting(kids[i], text, found);
+    }
+    function locateSetting(lastTry) { // true once found (or given up on)
+        const entry = root.searchTarget;
+        const page = pageLoader.item;
+        if (!entry || !page || switchAnim.running || pageLoader.status !== Loader.Ready) return false;
+        const found = [];
+        root.findSetting(page, Translation.tr(entry.l), found);
+        const shown = found.filter(i => i.visible && i.width > 0);
+        const section = Translation.tr(entry.s);
+        const inSection = it => {
+            for (let p = it; p; p = p.parent) if (p.title === section) return true;
+            return false;
+        };
+        // In its own section ("Activar" is in every widget's); any match only when there is nothing better.
+        const item = shown.find(i => !entry.s || inSection(i)) ?? (lastTry ? shown[0] : null);
+        if (!item) return false;
+        let flick = item.parent;
+        while (flick && flick.flickableDirection === undefined) flick = flick.parent;
+        const p = item.mapToItem(contentContainer, 0, 0);
+        let y = p.y;
+        if (flick) { // scrolled with an animation (StyledFlickable): light up where the setting ends up
+            const inContent = item.mapToItem(flick.contentItem, 0, 0).y;
+            const target = Math.max(0, Math.min(inContent - 60, flick.contentHeight - flick.height));
+            if (flick.scrollTargetY !== undefined) flick.scrollTargetY = target;
+            flick.contentY = target;
+            y = flick.mapToItem(contentContainer, 0, 0).y + inContent - target;
+        }
+        searchHighlight.x = p.x - 8;
+        searchHighlight.y = y - 4;
+        searchHighlight.width = item.width + 16;
+        searchHighlight.height = item.height + 8;
+        searchHighlight.flash();
+        return true;
+    }
+    Timer {
+        id: locateTimer
+        property int tries: 0
+        interval: 120
+        repeat: true
+        onTriggered: {
+            locateTimer.tries += 1;
+            if (root.locateSetting(locateTimer.tries >= 20) || locateTimer.tries >= 25) locateTimer.stop();
+        }
+    }
+    Shortcut {
+        sequences: [StandardKey.Find]
+        onActivated: searchBar.focusField()
+    }
+'''),
+    ('''                                onPressed: root.currentPage = index;
+''', '''                                onPressed: { searchBar.clear(); root.currentPage = index; } // ii-windows: leave the search
+'''),
+    ('''            Rectangle { // Content container
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: Appearance.m3colors.m3surfaceContainerLow
+                radius: Appearance.rounding.windowRounding - root.contentPadding
+''', '''            Rectangle { // Content container
+                id: contentContainer
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: Appearance.m3colors.m3surfaceContainerLow
+                radius: Appearance.rounding.windowRounding - root.contentPadding
+
+                // ii-windows (plan 2026-10-31, C3): the settings search, its results over the page while it has text.
+                SettingsSearchBar {
+                    id: searchBar
+                    z: 2
+                    anchors { top: parent.top; topMargin: 12; horizontalCenter: parent.horizontalCenter }
+                    width: Math.min(600, parent.width - 40)
+                    onAccepted: root.openSearchResult(searchResults.results[searchResults.currentIndex] ?? searchResults.results[0])
+                    onMoved: step => searchResults.currentIndex = Math.max(0, Math.min(searchResults.results.length - 1, searchResults.currentIndex + step))
+                    onQueryChanged: searchResults.currentIndex = 0
+                }
+                SettingsSearchResults {
+                    id: searchResults
+                    z: 2
+                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; top: searchBar.bottom; topMargin: 4 }
+                    visible: searchBar.query !== ""
+                    pages: root.pages
+                    query: searchBar.query
+                    onChosen: entry => root.openSearchResult(entry)
+                }
+                Rectangle { // the setting a search result led to, lit up for a moment
+                    id: searchHighlight
+                    z: 3
+                    visible: opacity > 0
+                    opacity: 0
+                    color: "transparent"
+                    radius: Appearance.rounding.normal
+                    border.width: 2
+                    border.color: Appearance.colors.colPrimary
+                    function flash() { flashAnim.restart(); }
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: parent.radius
+                        color: Appearance.colors.colPrimary
+                        opacity: 0.12
+                    }
+                    SequentialAnimation {
+                        id: flashAnim
+                        NumberAnimation { target: searchHighlight; property: "opacity"; to: 1; duration: 150 }
+                        PauseAnimation { duration: 1600 }
+                        NumberAnimation { target: searchHighlight; property: "opacity"; to: 0; duration: 500 }
+                    }
+                }
+'''),
+    ('''                    anchors.fill: parent
+                    opacity: 1.0
+''', '''                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom; top: searchBar.bottom }
+                    visible: searchBar.query === "" // ii-windows (C3): the search results show instead
+                    opacity: 1.0
+'''),
+])
+def fix_translations(code, strings):
+    """Replace upstream translations that are wrong (add_translations never overwrites)."""
+    file = path('translations', code + '.json')
+    with open(file, encoding='utf-8') as f:
+        data = json.load(f)
+    data.update(strings)
+    with open(file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write('\n')
+
+
+fix_translations('es_MX', {
+    "Earbang protection": "Protección contra subidas bruscas de volumen",  # was "destellos" (flashes)
+})
+add_translations('es_MX', {
+    "Search settings (Ctrl+F)": "Buscar ajustes (Ctrl+F)",
+    "Nothing found for \"%1\"": "No se encontró nada para «%1»",
+    "%1 results": "%1 resultados",
+})
