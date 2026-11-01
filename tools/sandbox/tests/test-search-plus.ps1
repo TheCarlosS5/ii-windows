@@ -53,6 +53,8 @@ try {
     $psi = New-Object System.Diagnostics.ProcessStartInfo $Quickshell, "-p `"$probeQml`""
     $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
     $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true
+    # Qt writes UTF-8; without this a run with no console (the local suite) decodes "Acción" with the ANSI code page.
+    $psi.StandardOutputEncoding = [Text.Encoding]::UTF8; $psi.StandardErrorEncoding = [Text.Encoding]::UTF8
     $psi.Environment['QT_FORCE_STDERR_LOGGING'] = '1'
     $psi.Environment['PATH'] = (Join-Path (Split-Path $Quickshell) 'bin') + ';' + $psi.Environment['PATH']
     $psi.Environment['E1_QUERIES'] = ($expect.Keys -join '|')

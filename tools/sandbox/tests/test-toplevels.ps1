@@ -113,6 +113,7 @@ Assert-True ($run.Log -match 'probe added') 'the probe window appeared in the li
 Assert-True ($run.Log -match 'probe title=ii-toplevels-probe final') 'its last title arrived'
 Assert-True ($run.Log -match 'probe minimized=true') 'minimizing it was seen'
 Assert-True ($run.Log -match 'probe urgent=true') 'its asking for attention (taskbar flash) was seen'
+$run.Log -split "`r?`n" | Where-Object { $_ -match 'probe (urgent|minimized|added|removed)' } | ForEach-Object { "  order: $($_.Trim())" }
 $urgentAt = $run.Log.IndexOf('probe urgent=true'); $minimizedAt = $run.Log.IndexOf('probe minimized=true')
 Assert-True ($urgentAt -gt $minimizedAt) 'only the flash made it urgent (not the title changes before it)'
 Assert-True ($run.Log -match 'probe removed') 'closing it removed it'
