@@ -4,6 +4,7 @@
   "ai",
   "appearance",
   "appearance.autoDark",
+  "appearance.followWindows",
   "appearance.fonts",
   "appearance.palette",
   "appearance.transparency",
@@ -148,6 +149,15 @@
     1,
     2
    ]
+  },
+  "appearance.followWindows.animations": {
+   "kind": "bool"
+  },
+  "appearance.followWindows.highContrast": {
+   "kind": "bool"
+  },
+  "appearance.followWindows.textSize": {
+   "kind": "bool"
   },
   "appearance.fonts.expressive": {
    "kind": "string"

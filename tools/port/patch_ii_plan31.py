@@ -1686,3 +1686,85 @@ add_translations('es_MX', {
     "Refresh rate": "Frecuencia de pantalla",
     "The screen between %1 Hz and %2 Hz (until the next restart)": "La pantalla entre %1 Hz y %2 Hz (hasta el próximo reinicio)",
 })
+
+# --- F19/F20/H3: Windows' contrast theme, text size and animation effects (overlay modules/common/WindowsAccessibility) --
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject appearance: JsonObject {
+                property bool extraBackgroundTint: true
+''', '''            property JsonObject appearance: JsonObject {
+                property bool extraBackgroundTint: true
+                property JsonObject followWindows: JsonObject { // ii-windows (plan 2026-10-31, F19/F20/H3)
+                    property bool highContrast: true // Windows' contrast theme → ii in its colors
+                    property bool textSize: true // Accesibilidad > Tamaño del texto → ii's text (up to 150 %)
+                    property bool animations: true // Efectos de animación off → ii without animations
+                }
+'''),
+])
+edit(path('modules', 'common', 'Appearance.qml'), [
+    ('''    property real backgroundTransparency: Config?.options.appearance.transparency.enable ?''',
+     '''    property real backgroundTransparency: WindowsAccessibility.highContrast ? 0 : Config?.options.appearance.transparency.enable ?'''),
+    ('''    property real contentTransparency: Config?.options.appearance.transparency.automatic ?''',
+     '''    property real contentTransparency: WindowsAccessibility.highContrast ? 0 : Config?.options.appearance.transparency.automatic ?'''),
+    ('''    readonly property real motionFactor: (Config?.options?.appearance?.reduceMotion ?? false) ? 0 : 1''',
+     '''    readonly property real motionFactor: ((Config?.options?.appearance?.reduceMotion ?? false) || WindowsAccessibility.reduceMotion) ? 0 : 1'''),
+    ('''        property QtObject pixelSize: QtObject {
+            property int smallest: 10
+            property int smaller: 12
+            property int smallie: 13
+            property int small: 15
+            property int normal: 16
+            property int large: 17
+            property int larger: 19
+            property int huge: 22
+            property int hugeass: 23
+''', '''        property QtObject pixelSize: QtObject { // ii-windows (F20): times Windows' text size
+            readonly property real scale: WindowsAccessibility.textScale
+            property int smallest: Math.round(10 * scale)
+            property int smaller: Math.round(12 * scale)
+            property int smallie: Math.round(13 * scale)
+            property int small: Math.round(15 * scale)
+            property int normal: Math.round(16 * scale)
+            property int large: Math.round(17 * scale)
+            property int larger: Math.round(19 * scale)
+            property int huge: Math.round(22 * scale)
+            property int hugeass: Math.round(23 * scale)
+'''),
+])
+edit(path('services', 'MaterialThemeLoader.qml'), [
+    ('''        Appearance.m3colors.darkmode = (Appearance.m3colors.m3background.hslLightness < 0.5)
+    }
+''', '''        // ii-windows (plan 2026-10-31, F19): a contrast theme of Windows wins over the wallpaper's colors.
+        if (WindowsAccessibility.highContrast) {
+            const contrast = WindowsAccessibility.contrastPalette();
+            for (const k in contrast) Appearance.m3colors[k] = contrast[k];
+        }
+        Appearance.m3colors.darkmode = (Appearance.m3colors.m3background.hslLightness < 0.5)
+    }
+    Connections { // ii-windows (F19): the contrast theme turned on/off or changed: the colors again
+        target: WindowsAccessibility
+        function onHighContrastChanged() { if (themeFileView.loaded) root.applyColors(themeFileView.text()); }
+        function onColorsChanged() { if (WindowsAccessibility.highContrast && themeFileView.loaded) root.applyColors(themeFileView.text()); }
+    }
+'''),
+])
+edit(path('modules', 'settings', 'AppearanceConfig.qml'), [
+    ('''    DailyLookSection {} // ii-windows (plan 2026-10-31, E13)
+''', '''    DailyLookSection {} // ii-windows (plan 2026-10-31, E13)
+
+    WindowsAccessibilitySection {} // ii-windows (plan 2026-10-31, F19/F20/H3)
+'''),
+])
+add_translations('es_MX', {
+    "Windows accessibility": "Accesibilidad de Windows",
+    "Use Windows' contrast theme": "Usar el tema de contraste de Windows",
+    "When a contrast theme is on (Accessibility > Contrast themes), ii takes its colors and drops the transparency.":
+        "Con un tema de contraste activado (Accesibilidad > Temas de contraste), ii toma sus colores y quita la transparencia.",
+    "Follow Windows' text size": "Seguir el tamaño del texto de Windows",
+    "Accessibility > Text size; ii's text grows with it up to 150 %.": "Accesibilidad > Tamaño del texto; el texto de ii crece con él hasta el 150 %.",
+    "No animations when Windows has them off": "Sin animaciones cuando Windows las tiene apagadas",
+    "Accessibility > Visual effects > Animation effects. The transparency stays.":
+        "Accesibilidad > Efectos visuales > Efectos de animación. La transparencia se mantiene.",
+    "Now: contrast theme %1, text %2 %, animations %3.": "Ahora: tema de contraste %1, texto al %2 %, animaciones %3.",
+    "on": "activado",
+    "off": "desactivado",
+})

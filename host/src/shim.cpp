@@ -24,6 +24,7 @@
 //   ii-shim config <command> ...           config.json: check, guard, keep-good, export, import (configtool.cpp)
 //   ii-shim top [count]                   programs using the most CPU and memory, as JSON (top.cpp)
 //   ii-shim compat <compat.json>         which customization apps ii knows are on this PC, as JSON (compat.cpp)
+//   ii-shim a11y                         Windows' contrast theme, text size and animations, as JSON (a11y.cpp, F19/F20)
 //   ii-shim display [hdr on|off | hz <n>]  HDR and the main screen's refresh rate (display.cpp, plan F6/F7)
 //   ii-shim timezones                    every Windows time zone, its offset now and local names, as JSON (timezones.cpp)
 
@@ -591,6 +592,7 @@ int top(const std::vector<std::wstring>& args); // top.cpp
 int timezones(const std::vector<std::wstring>& args); // timezones.cpp
 int compat(const std::vector<std::wstring>& args); // compat.cpp
 int display(const std::vector<std::wstring>& args); // display.cpp
+int a11y(const std::vector<std::wstring>& args); // a11y.cpp
 int magick(const std::vector<std::wstring>& args);
 int blurwall(const std::vector<std::wstring>& args); // capture.cpp
 int vdesk(const std::vector<std::wstring>& args);
@@ -646,6 +648,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"timezones") return timezones(args);
 	if (command == L"compat") return compat(args);
 	if (command == L"display") return display(args);
+	if (command == L"a11y") return a11y(args);
 	if (command == L"system-sound") return systemSoundCommand(args);
 	if (command == L"notify-state") { // plan 2026-10-31, F24: what SHQueryUserNotificationState says now
 		QUERY_USER_NOTIFICATION_STATE state {};

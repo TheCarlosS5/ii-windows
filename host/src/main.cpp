@@ -106,6 +106,8 @@ constexpr UINT STABLE_MS = 10 * 60 * 1000;
 constexpr UINT_PTR TIMER_UPDATE = 11;
 // Plan 2026-10-31, D4: once a day, with the PC idle, ii-shim janitor trims ii's caches.
 constexpr UINT_PTR TIMER_JANITOR = 12;
+// Windows' settings changed (WM_SETTINGCHANGE): the shell re-reads the accessibility ones a moment later (F19/F20).
+constexpr UINT_PTR TIMER_A11Y = 13;
 constexpr UINT UPDATE_FIRST_MS = 2 * 60 * 1000;
 constexpr UINT UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
 constexpr UINT UPDATE_RETRY_MS = 15 * 60 * 1000;
@@ -1753,6 +1755,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			busyLogged = false;
 		}
 		return 0;
+	case WM_SETTINGCHANGE:
+		// Plan 2026-10-31, F19/F20/H3: contrast theme, text size, animations. Settings changes come in bursts; one
+		// re-read by the shell (ii-shim a11y) half a second after the last.
+		if (!shuttingDown) SetTimer(hostWindow, TIMER_A11Y, 500, nullptr);
+		return DefWindowProcW(hwnd, msg, wParam, lParam);
 	case WM_POWERBROADCAST:
 		// Asleep, nothing beats; awake, the shell needs a moment before its timers run again.
 		if (wParam == PBT_APMSUSPEND) heartbeatGraceUntil = ~0ULL;
@@ -1785,6 +1792,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		return 0;
 	case WM_TIMER:
+		if (wParam == TIMER_A11Y) {
+			KillTimer(hostWindow, TIMER_A11Y);
+			sendToShell(L"windowsAccessibility", true);
+			sendToShell(L"windowsAccessibility", false);
+			return 0;
+		}
 		if (wParam == TIMER_REAPPLY) {
 			if (guardReady && guardProcess && WaitForSingleObject(guardProcess, 0) == WAIT_OBJECT_0) {
 				guardReady = false;
