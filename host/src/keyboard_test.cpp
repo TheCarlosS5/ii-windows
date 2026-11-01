@@ -260,10 +260,11 @@ int main() {
 	// 13. Every shortcut of the table matches itself and only itself.
 	{
 		int n = 0;
-		for (size_t i = 0; i < SHORTCUT_COUNT; ++i) {
+		auto table = shortcuts();
+		for (size_t i = 0; i < table.count; ++i) {
 			resetKeys();
 			Keyboard k;
-			const auto& s = SHORTCUTS[i];
+			const auto& s = table[i];
 			if (s.win) k.press(VK_LWIN);
 			if (s.ctrl) k.press(VK_LCONTROL);
 			if (s.alt) k.press(VK_LMENU);
@@ -272,7 +273,49 @@ int main() {
 			if (r.swallow && posted(r, static_cast<Index>(i), true)) ++n;
 			else std::printf("  table entry %zu (%ls) did not match itself\n", i, s.name);
 		}
-		check(n == static_cast<int>(SHORTCUT_COUNT), "every entry of the generated table is reachable");
+		check(n == static_cast<int>(table.count), "every entry of the generated table is reachable");
+	}
+
+	// 13b. shortcuts.ini [keys] (plan 2026-10-31, E16): another combination for an action, or none.
+	{
+		Shortcut parsed {};
+		check(parseCombo(L"Win+Shift+K", parsed) && parsed.win && parsed.shift && !parsed.ctrl && parsed.vk == 'K', "parseCombo reads win+shift+k");
+		check(parseCombo(L"ctrl + alt + f9", parsed) && parsed.ctrl && parsed.alt && parsed.vk == VK_F9, "spaces and function keys");
+		check(parseCombo(L"print", parsed) && parsed.vk == VK_SNAPSHOT && !parsed.win, "a special key may stand alone");
+		check(!parseCombo(L"k", parsed) && !parsed.win, "a plain letter is refused (it would take typing)");
+		check(!parseCombo(L"shift+k", parsed), "Shift alone is not enough either");
+		check(!parseCombo(L"win+k+j", parsed), "one key only");
+		check(!parseCombo(L"win+hyper", parsed), "unknown keys are refused");
+		check(parseCombo(L"ctrl++", parsed) && parsed.vk == VK_OEM_PLUS, "the plus key itself");
+
+		std::vector<std::wstring> problems;
+		auto applied = applyOverrides({{L"settings", L"win+shift+i"}, {L"bar", L"off"}, {L"search", L"win+v"},
+		                               {L"no-such", L"win+y"}, {L"media", L"k"}}, &problems);
+		check(applied == 2, "two of the five overrides apply");
+		check(problems.size() == 3, "and the other three are explained");
+		auto now = shortcuts();
+		auto find = [&](const wchar_t* id) -> const Shortcut* {
+			for (size_t i = 0; i < now.count; ++i)
+				if (std::wstring(now[i].id) == id) return &now[i];
+			return nullptr;
+		};
+		const auto* settings = find(L"settings");
+		check(settings && settings->win && settings->shift && settings->vk == 'I', "settings moved to Win+Shift+I");
+		check(find(L"bar") == nullptr, "the bar's combination is off");
+		check(find(L"search") && find(L"search")->vk == 'S', "a combination taken by another action is refused (search stays Win+S)");
+
+		resetKeys();
+		Keyboard k;
+		k.press(VK_LWIN);
+		auto plainI = k.press('I');
+		check(!postedName(plainI, L"settingsOpen"), "Win+I no longer opens ii's settings");
+		k.release('I');
+		k.press(VK_LSHIFT);
+		auto shiftI = k.press('I');
+		check(shiftI.swallow && postedName(shiftI, L"settingsOpen"), "Win+Shift+I does");
+
+		applyOverrides({});
+		check(shortcuts().count == DEFAULT_SHORTCUT_COUNT, "no overrides: the generated table again");
 	}
 
 	// 14. Reset forgets everything.

@@ -3,8 +3,166 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <atomic>
+#include <cwctype>
+#include <memory>
+#include <mutex>
 
 namespace ii::keyboard {
+
+// --- the table in use (plan 2026-10-31, E16) ------------------------------------------------------------------------
+namespace {
+
+std::atomic<const std::vector<Shortcut>*> currentTable {nullptr};
+
+const std::vector<Shortcut>& defaultTable() {
+	static const std::vector<Shortcut> table(std::begin(DEFAULT_SHORTCUTS), std::end(DEFAULT_SHORTCUTS));
+	return table;
+}
+
+std::wstring lower(std::wstring text) {
+	for (auto& c: text) c = static_cast<wchar_t>(std::towlower(c));
+	return text;
+}
+
+std::wstring trim(const std::wstring& text) {
+	auto begin = text.find_first_not_of(L" \t");
+	if (begin == std::wstring::npos) return {};
+	auto end = text.find_last_not_of(L" \t");
+	return text.substr(begin, end - begin + 1);
+}
+
+// Keys that may stand without Ctrl/Alt/Win: typing never produces them.
+bool specialKey(unsigned vk) {
+	return (vk >= VK_F1 && vk <= VK_F24) || vk == VK_SNAPSHOT || vk == VK_PAUSE || vk == VK_SCROLL;
+}
+
+unsigned keyCode(const std::wstring& name) {
+	if (name.size() == 1) {
+		auto c = static_cast<wchar_t>(std::towupper(name[0]));
+		if ((c >= L'A' && c <= L'Z') || (c >= L'0' && c <= L'9')) return c;
+		switch (c) {
+		case L'.': return VK_OEM_PERIOD;
+		case L',': return VK_OEM_COMMA;
+		case L'/': return VK_OEM_2;
+		case L'-': return VK_OEM_MINUS;
+		case L'=': return VK_OEM_PLUS;
+		case L';': return VK_OEM_1;
+		case L'\'': return VK_OEM_7;
+		case L'`': return VK_OEM_3;
+		case L'[': return VK_OEM_4;
+		case L']': return VK_OEM_6;
+		case L'\\': return VK_OEM_5;
+		default: return 0;
+		}
+	}
+	if (name.size() >= 2 && name.size() <= 3 && name[0] == L'f') {
+		auto n = _wtoi(name.c_str() + 1);
+		if (n >= 1 && n <= 24) return VK_F1 + static_cast<unsigned>(n) - 1;
+	}
+	static const std::pair<const wchar_t*, unsigned> named[] = {
+	    {L"tab", VK_TAB}, {L"space", VK_SPACE}, {L"enter", VK_RETURN}, {L"escape", VK_ESCAPE}, {L"esc", VK_ESCAPE},
+	    {L"delete", VK_DELETE}, {L"del", VK_DELETE}, {L"insert", VK_INSERT}, {L"home", VK_HOME}, {L"end", VK_END},
+	    {L"pageup", VK_PRIOR}, {L"pagedown", VK_NEXT}, {L"up", VK_UP}, {L"down", VK_DOWN}, {L"left", VK_LEFT},
+	    {L"right", VK_RIGHT}, {L"print", VK_SNAPSHOT}, {L"printscreen", VK_SNAPSHOT}, {L"pause", VK_PAUSE},
+	    {L"scrolllock", VK_SCROLL}, {L"period", VK_OEM_PERIOD}, {L"comma", VK_OEM_COMMA}, {L"slash", VK_OEM_2},
+	    {L"minus", VK_OEM_MINUS}, {L"plus", VK_OEM_PLUS}, {L"backspace", VK_BACK},
+	};
+	for (const auto& [n, vk]: named)
+		if (name == n) return vk;
+	return 0;
+}
+
+} // namespace
+
+ShortcutTable shortcuts() {
+	const auto* table = currentTable.load(std::memory_order_acquire);
+	if (!table) table = &defaultTable();
+	return {table->data(), table->size()};
+}
+
+bool parseCombo(const std::wstring& text, Shortcut& out) {
+	auto value = lower(trim(text));
+	if (value.empty()) return false;
+	bool win = false, ctrl = false, alt = false, shift = false;
+	unsigned vk = 0;
+	size_t start = 0;
+	while (start <= value.size()) {
+		auto plus = value.find(L'+', start);
+		// "ctrl++" (the plus key itself): a '+' right after a separator is the key.
+		if (plus == start && plus != std::wstring::npos) plus = value.find(L'+', start + 1);
+		auto part = trim(value.substr(start, plus == std::wstring::npos ? std::wstring::npos : plus - start));
+		if (part == L"win" || part == L"super" || part == L"meta") win = true;
+		else if (part == L"ctrl" || part == L"control") ctrl = true;
+		else if (part == L"alt") alt = true;
+		else if (part == L"shift") shift = true;
+		else {
+			auto code = part == L"+" ? static_cast<unsigned>(VK_OEM_PLUS) : keyCode(part);
+			if (code == 0 || vk != 0) return false; // unknown, or a second key
+			vk = code;
+		}
+		if (plus == std::wstring::npos) break;
+		start = plus + 1;
+	}
+	if (vk == 0) return false;
+	if (!win && !ctrl && !alt && !specialKey(vk)) return false; // it would take normal typing
+	out.win = win;
+	out.ctrl = ctrl;
+	out.alt = alt;
+	out.shift = shift;
+	out.vk = vk;
+	return true;
+}
+
+size_t applyOverrides(const std::vector<std::pair<std::wstring, std::wstring>>& overrides, std::vector<std::wstring>* problems) {
+	auto table = std::make_unique<std::vector<Shortcut>>(defaultTable());
+	size_t applied = 0;
+	auto problem = [&](const std::wstring& text) {
+		if (problems) problems->push_back(text);
+	};
+	for (const auto& [rawId, rawCombo]: overrides) {
+		auto id = lower(trim(rawId));
+		auto combo = lower(trim(rawCombo));
+		auto first = std::find_if(table->begin(), table->end(), [&](const Shortcut& s) { return id == s.id; });
+		if (first == table->end()) {
+			problem(id + L": no such action (or it cannot be changed)");
+			continue;
+		}
+		if (combo == L"off" || combo == L"none") {
+			table->erase(std::remove_if(table->begin(), table->end(), [&](const Shortcut& s) { return id == s.id; }), table->end());
+			++applied;
+			continue;
+		}
+		Shortcut keys {};
+		if (!parseCombo(combo, keys)) {
+			problem(id + L": \"" + combo + L"\" is not a combination ii can take");
+			continue;
+		}
+		auto taken = std::find_if(table->begin(), table->end(), [&](const Shortcut& s) {
+			return id != s.id && s.win == keys.win && s.ctrl == keys.ctrl && s.alt == keys.alt && s.shift == keys.shift && s.vk == keys.vk;
+		});
+		if (taken != table->end()) {
+			problem(id + L": \"" + combo + L"\" is already " + taken->id);
+			continue;
+		}
+		first->win = keys.win;
+		first->ctrl = keys.ctrl;
+		first->alt = keys.alt;
+		first->shift = keys.shift;
+		first->vk = keys.vk;
+		// The action's other combinations go: it now has the one chosen.
+		auto keep = &*first;
+		table->erase(std::remove_if(table->begin(), table->end(), [&](const Shortcut& s) { return &s != keep && id == s.id; }), table->end());
+		++applied;
+	}
+	// Old tables stay alive: the hook thread may be reading one right now (a few hundred bytes per change).
+	static std::mutex lock;
+	static std::vector<std::unique_ptr<std::vector<Shortcut>>> kept;
+	std::lock_guard guard(lock);
+	currentTable.store(table.get(), std::memory_order_release);
+	kept.push_back(std::move(table));
+	return applied;
+}
 
 const wchar_t* nameOf(Index index) {
 	switch (index) {
@@ -37,7 +195,8 @@ const wchar_t* nameOf(Index index) {
 			};
 			return moves[index - IDX_MOVE];
 		}
-		if (index >= 0 && static_cast<size_t>(index) < SHORTCUT_COUNT) return SHORTCUTS[static_cast<size_t>(index)].name;
+		auto table = shortcuts();
+		if (index >= 0 && static_cast<size_t>(index) < table.count) return table[static_cast<size_t>(index)].name;
 		return nullptr;
 	}
 }
@@ -76,8 +235,9 @@ void Router::healModifiers() {
 }
 
 Index Router::match(unsigned vk, bool win) const {
-	for (size_t i = 0; i < SHORTCUT_COUNT; ++i) {
-		const auto& s = SHORTCUTS[i];
+	auto table = shortcuts();
+	for (size_t i = 0; i < table.count; ++i) {
+		const auto& s = table[i];
 		if (s.vk == vk && s.win == win && s.ctrl == ctrl() && s.alt == alt() && s.shift == shift()) return static_cast<Index>(i);
 	}
 	return -1;

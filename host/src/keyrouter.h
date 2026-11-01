@@ -19,6 +19,8 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace ii::keyboard {
 
@@ -28,13 +30,29 @@ struct Shortcut {
 	bool win, ctrl, alt, shift;
 	unsigned vk;
 	const wchar_t* name;
+	const wchar_t* id; // the action's id in shared/actions.json
 };
 
 // Generated from shared/actions.json by tools/dev/gen-actions.py (see docs/ATAJOS.md).
-inline constexpr Shortcut SHORTCUTS[] = {
+inline constexpr Shortcut DEFAULT_SHORTCUTS[] = {
 #include "shortcuts_table.inc"
 };
-inline constexpr size_t SHORTCUT_COUNT = sizeof(SHORTCUTS) / sizeof(SHORTCUTS[0]);
+inline constexpr size_t DEFAULT_SHORTCUT_COUNT = sizeof(DEFAULT_SHORTCUTS) / sizeof(DEFAULT_SHORTCUTS[0]);
+
+// The table in use (plan 2026-10-31, E16): the defaults with shortcuts.ini [keys] applied. Read by the hook thread
+// without a lock: a new table replaces the old one whole, and old ones are kept alive.
+struct ShortcutTable {
+	const Shortcut* entries;
+	size_t count;
+	const Shortcut& operator[](size_t i) const { return entries[i]; }
+};
+ShortcutTable shortcuts();
+// "win+shift+k", "ctrl+alt+f9", "print": false if it is not a key ii can take (one key, and a modifier other than
+// Shift unless it is a function or special key, so that typing is never taken).
+bool parseCombo(const std::wstring& text, Shortcut& out);
+// [keys] of shortcuts.ini, as (action id, combination or "off"). Starts again from the defaults; what cannot be
+// applied (an unknown id, a bad combination, one already taken) is left as it was and explained in `problems`.
+size_t applyOverrides(const std::vector<std::pair<std::wstring, std::wstring>>& overrides, std::vector<std::wstring>* problems = nullptr);
 
 // Pseudo shortcuts driven by the Win key itself and by specific keys.
 inline constexpr Index IDX_SEARCH = 1000;      // searchToggleRelease: press on Win down, release on up

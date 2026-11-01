@@ -85,6 +85,7 @@ ForegroundRules loadRules() {
 		if (loaded && (stamp.dwLowDateTime || stamp.dwHighDateTime)) {
 			rules = {};
 			stamp = {};
+			applyOverrides({}); // the file went: the generated combinations again
 		}
 		loaded = true;
 		return rules;
@@ -109,6 +110,20 @@ ForegroundRules loadRules() {
 	rules.windowsVolumeKeys = read(L"audio", L"volumekeys") == L"windows";
 	rules.iiMediaKeys = read(L"audio", L"mediakeys") == L"ii";
 	log(L"keyboard: shortcuts.ini loaded (fullscreen=%s)", policy.empty() ? L"auto" : policy.c_str());
+
+	// [keys] action-id = win+shift+k | off (plan 2026-10-31, E16; Configuración > Atajos writes it).
+	std::vector<std::pair<std::wstring, std::wstring>> overrides;
+	std::vector<wchar_t> section(16384);
+	GetPrivateProfileSectionW(L"keys", section.data(), static_cast<DWORD>(section.size()), path.c_str());
+	for (const wchar_t* p = section.data(); *p; p += wcslen(p) + 1) {
+		std::wstring line = p;
+		auto eq = line.find(L'=');
+		if (eq != std::wstring::npos && line[0] != L';' && line[0] != L'#') overrides.emplace_back(line.substr(0, eq), line.substr(eq + 1));
+	}
+	std::vector<std::wstring> problems;
+	auto applied = applyOverrides(overrides, &problems);
+	if (!overrides.empty()) log(L"keyboard: shortcuts.ini [keys]: %zu of %zu applied", applied, overrides.size());
+	for (const auto& problem: problems) log(L"keyboard: shortcuts.ini [keys] %s", problem.c_str());
 	return rules;
 }
 
