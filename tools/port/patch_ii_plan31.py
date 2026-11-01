@@ -362,3 +362,67 @@ add_translations('es_MX', {
     "Using the camera: %1": "Usando la cámara: %1",
     "Using your location: %1": "Usando tu ubicación: %1",
 })
+
+
+# --- C5: one Configuración window (Quickshell.Windows SingleInstance): a second Win+I brings the open one forward, on
+# the page asked for, instead of opening another process and window.
+edit(path('settings.qml'), [
+    ('''import Quickshell
+''', '''import Quickshell
+import Quickshell.Windows // ii-windows: SingleInstance
+''', 1),
+    ('''    visible: true
+    onClosing: Qt.quit()
+''', '''    // ii-windows (plan 2026-10-31, C5): shown only once it is clear this is the one settings window.
+    visible: false
+    onClosing: Qt.quit()
+    Connections {
+        target: SingleInstance
+        function onActivated(argument) {
+            const index = root.pageIndex(argument);
+            if (index >= 0) root.currentPage = index;
+            if (root.visibility === Window.Minimized) root.showNormal();
+            root.raise();
+            root.requestActivate();
+        }
+    }
+'''),
+    ('''    function initialPage() { // ii-windows: II_SETTINGS_PAGE (plan 2026-10-31, C5)
+        const wanted = (Quickshell.env("II_SETTINGS_PAGE") || "").toLowerCase().split("/")[0];
+        if (!wanted) return 0;
+''', '''    function initialPage() { // ii-windows: II_SETTINGS_PAGE (plan 2026-10-31, C5)
+        return Math.max(0, root.pageIndex(Quickshell.env("II_SETTINGS_PAGE") || ""));
+    }
+    function pageIndex(name) { // -1: not a page
+        const wanted = (name || "").toLowerCase().split("/")[0];
+        if (!wanted) return -1;
+'''),
+    ('''            if (file === wanted || file === wanted + "config") return i;
+        }
+        return 0;
+    }
+''', '''            if (file === wanted || file === wanted + "config") return i;
+        }
+        return -1;
+    }
+'''),
+    ('''    Component.onCompleted: {
+        MaterialThemeLoader.reapplyTheme()
+''', '''    Component.onCompleted: {
+        if (!SingleInstance.claim("ii-settings", Quickshell.env("II_SETTINGS_PAGE") || "")) {
+            Qt.callLater(() => Qt.exit(0)); // the open settings window came forward instead (after the event loop starts)
+            return;
+        }
+        root.visible = true;
+        MaterialThemeLoader.reapplyTheme()
+'''),
+])
+
+
+# --- C4.2: a slider does not rewrite config.json (and make the shell reload all of it) on every step ----------------
+# Config's write timer restarts on every change: with 300 ms instead of 0, dragging writes once, when it stops.
+edit(path('settings.qml'), [
+    ('''        Config.readWriteDelay = 0 // Settings app always only sets one var at a time so delay isn't needed
+''', '''        Config.readWriteDelay = 300 // ii-windows (plan 2026-10-31, C4.2): sliders write once they stop, not on every step
+'''),
+])
