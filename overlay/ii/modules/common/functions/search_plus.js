@@ -352,6 +352,7 @@ var COMMANDS = [
     { id: "dndHour", icon: "notifications_paused", es: ["No molestar durante 1 hora", "no molestar 1 hora", "no molestar una hora", "silenciar 1 hora"], en: ["Do not disturb for 1 hour", "dnd 1 hour", "dnd 1h"] },
     { id: "dndTomorrow", icon: "bedtime_off", es: ["No molestar hasta mañana", "no molestar hasta manana"], en: ["Do not disturb until tomorrow", "dnd until tomorrow"] },
     { id: "screenshot", icon: "screenshot_region", es: ["Captura de pantalla", "captura", "recorte", "pantallazo"], en: ["Screenshot", "screen capture", "snip"] },
+    { id: "pinCapture", icon: "push_pin", es: ["Fijar una captura en pantalla", "fijar captura", "anclar captura", "captura fija"], en: ["Pin a capture on screen", "pin capture", "pin screenshot"] },
     { id: "colorPicker", icon: "colorize", es: ["Selector de color", "cuentagotas", "color de pantalla"], en: ["Color picker", "eyedropper"] },
     { id: "wallpaper", icon: "wallpaper", es: ["Cambiar el fondo de pantalla", "fondo de pantalla", "cambiar fondo"], en: ["Change wallpaper", "wallpaper"] },
     { id: "wallpaperRandom", icon: "shuffle", es: ["Fondo de pantalla aleatorio", "fondo aleatorio"], en: ["Random wallpaper"] },

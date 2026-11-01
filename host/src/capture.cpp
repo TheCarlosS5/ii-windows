@@ -324,6 +324,15 @@ int crop(const Args& args) {
 		}
 		return 0;
 	}
+	if (action == L"pin") {
+		// Plan 2026-10-31, E7: the crop goes to the file the shell gave (it shows it pinned on screen), and to the
+		// clipboard like a copy.
+		if (saveDir.empty()) return 2;
+		makeParentDirs(saveDir);
+		if (!CopyFileW(cropped.c_str(), saveDir.c_str(), FALSE)) return 1;
+		copyImage(image.Get(), cropped);
+		return 0;
+	}
 	if (action == L"edit") {
 		auto target = tempPng(timestampName().c_str());
 		CopyFileW(cropped.c_str(), target.c_str(), FALSE);

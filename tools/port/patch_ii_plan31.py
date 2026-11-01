@@ -1397,3 +1397,49 @@ add_translations('es_MX', {
     "These apps also change Windows. ii works with them; this is what to expect.": "Estas apps también cambian Windows. ii funciona con ellas; esto es lo que puedes esperar.",
     "Look again": "Buscar de nuevo",
 })
+
+# --- E7: pin a capture on screen (overlay services/PinnedCaptures.qml; ii-shim crop ... pin <file>) -----------------
+# The middle click in the region selector pins (left copies, right edits in Paint); also the shortcut regionPin and the
+# search's quick action "Fijar una captura".
+edit(path('modules', 'ii', 'regionSelector', 'RegionSelection.qml'), [
+    ('''    enum SnipAction { Copy, Edit, Search, CharRecognition, Record, RecordWithSound } ''',
+     '''    enum SnipAction { Copy, Edit, Search, CharRecognition, Record, RecordWithSound, Pin } // ii-windows (E7): Pin'''),
+    ('''            root.action = root.mouseButton === Qt.RightButton ? RegionSelection.SnipAction.Edit : RegionSelection.SnipAction.Copy;''',
+     '''            root.action = root.mouseButton === Qt.RightButton ? RegionSelection.SnipAction.Edit
+                : root.mouseButton === Qt.MiddleButton ? RegionSelection.SnipAction.Pin : RegionSelection.SnipAction.Copy; // ii-windows (E7)'''),
+    ('''        const screenshotDir = Config.options.screenSnip.savePath !== "" ? //''',
+     '''        if (root.action === RegionSelection.SnipAction.Pin) { // ii-windows (plan 2026-10-31, E7): stays on screen
+            PinnedCaptures.pinRegion(root.screenshotPath, root.regionX * root.monitorScale, root.regionY * root.monitorScale,
+                root.regionWidth * root.monitorScale, root.regionHeight * root.monitorScale, root.screen,
+                { x: root.regionX, y: root.regionY, width: root.regionWidth, height: root.regionHeight });
+            root.dismiss();
+            return;
+        }
+        const screenshotDir = Config.options.screenSnip.savePath !== "" ? //'''),
+    ('''        acceptedButtons: Qt.LeftButton | Qt.RightButton
+''', '''        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton // ii-windows (E7): middle pins
+'''),
+])
+edit(path('modules', 'ii', 'regionSelector', 'RegionSelector.qml'), [
+    ('''    function ocr() {
+        root.action = RegionSelection.SnipAction.CharRecognition''', '''    function pin() { // ii-windows (plan 2026-10-31, E7)
+        root.action = RegionSelection.SnipAction.Pin
+        root.selectionMode = RegionSelection.SelectionMode.RectCorners
+        GlobalStates.regionSelectorOpen = true
+    }
+
+    function ocr() {
+        root.action = RegionSelection.SnipAction.CharRecognition'''),
+    ('''    GlobalShortcut {
+        name: "regionOcr"''', '''    GlobalShortcut { // ii-windows (plan 2026-10-31, E7)
+        name: "regionPin"
+        description: "Pins the selected region on screen"
+        onPressed: root.pin()
+    }
+
+    GlobalShortcut {
+        name: "regionOcr"'''),
+])
+add_translations('es_MX', {
+    "Pin a capture on screen": "Fijar una captura en pantalla",
+})

@@ -273,6 +273,7 @@ Singleton {
         case "dndHour": Notifications.silenceFor("hour"); break;
         case "dndTomorrow": Notifications.silenceFor("tomorrow"); break;
         case "screenshot": root.later(() => root.global("regionScreenshot")); break;
+        case "pinCapture": root.later(() => root.global("regionPin")); break;
         case "colorPicker": root.later(() => Quickshell.execDetached(["ii-shim", "hyprpicker", "-a"])); break;
         case "wallpaper": root.later(() => root.global("wallpaperSelectorToggle")); break;
         case "wallpaperRandom": root.global("wallpaperSelectorRandom"); break;
