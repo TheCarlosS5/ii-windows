@@ -855,6 +855,62 @@ add_translations('es_MX', {
     "%1 apps can be updated in the store": "%1 apps se pueden actualizar en la tienda",
 })
 
+# --- F23: with several screens, the bar and the dock on all of them or only on the main one (Windows' main screen is
+# the one at 0,0). The bar's screenList (screen names) still narrows it further.
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property list<string> screenList: [] // List of names, like "eDP-1", find out with 'hyprctl monitors' command
+''', '''                property list<string> screenList: [] // List of names, like "eDP-1", find out with 'hyprctl monitors' command
+                property string screens: "all" // ii-windows (F23): "all" | "primary" (only the main screen)
+'''),
+    ('''                property bool showStore: true // ii-windows: the app store as a tile next to the overview button
+''', '''                property bool showStore: true // ii-windows: the app store as a tile next to the overview button
+                property string screens: "all" // ii-windows (F23): "all" | "primary" (only the main screen)
+'''),
+])
+edit(path('modules', 'ii', 'bar', 'Bar.qml'), [
+    ('''            const screens = Quickshell.screens;
+            const list = Config.options.bar.screenList;''', '''            // ii-windows (plan 2026-10-31, F23): only the main screen (at 0,0) when asked.
+            const screens = Quickshell.screens.filter(s => (Config.options.bar.screens ?? "all") !== "primary" || (s.x === 0 && s.y === 0));
+            const list = Config.options.bar.screenList;'''),
+])
+edit(path('modules', 'ii', 'dock', 'Dock.qml'), [
+    ('''        // For each monitor
+        model: Quickshell.screens
+''', '''        // For each monitor (ii-windows, F23: or only the main one, at 0,0)
+        model: Quickshell.screens.filter(s => (Config.options?.dock.screens ?? "all") !== "primary" || (s.x === 0 && s.y === 0))
+'''),
+])
+SCREENS_CHOICE = '''{indent}ContentSubsection {{ // ii-windows (plan 2026-10-31, F23)
+{indent}    title: Translation.tr("Screens")
+{indent}    tooltip: Translation.tr("With more than one screen: on all of them, or only on the main one (Windows' Settings > Display decides which is the main one)")
+{indent}    ConfigSelectionArray {{
+{indent}        currentValue: Config.options.{key}.screens ?? "all"
+{indent}        onSelected: newValue => Config.options.{key}.screens = newValue
+{indent}        options: [
+{indent}            {{ displayName: Translation.tr("All screens"), icon: "desktop_windows", value: "all" }},
+{indent}            {{ displayName: Translation.tr("Main screen only"), icon: "monitor", value: "primary" }}
+{indent}        ]
+{indent}    }}
+{indent}}}
+'''
+edit(path('modules', 'settings', 'BarConfig.qml'), [
+    ('''            ContentSubsection {
+                title: Translation.tr("Automatically hide")''', SCREENS_CHOICE.format(indent='            ', key='bar') + '''            ContentSubsection {
+                title: Translation.tr("Automatically hide")'''),
+])
+edit(path('modules', 'settings', 'DockConfig.qml'), [
+    ('''        ContentSubsection {
+            title: Translation.tr("Position")''', SCREENS_CHOICE.format(indent='        ', key='dock') + '''        ContentSubsection {
+            title: Translation.tr("Position")'''),
+])
+add_translations('es_MX', {
+    "Screens": "Pantallas",
+    "With more than one screen: on all of them, or only on the main one (Windows' Settings > Display decides which is the main one)":
+        "Con más de una pantalla: en todas o solo en la principal (la principal se elige en Configuración de Windows > Pantalla)",
+    "All screens": "Todas las pantallas",
+    "Main screen only": "Solo la principal",
+})
+
 # --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------
 add_translations('es_MX', {
     "Style": "Estilo",

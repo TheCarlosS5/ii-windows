@@ -654,6 +654,9 @@
   "bar.screenList": {
    "kind": "strings"
   },
+  "bar.screens": {
+   "kind": "string"
+  },
   "bar.showBackground": {
    "kind": "bool"
   },
@@ -856,6 +859,9 @@
    "kind": "bool"
   },
   "dock.position": {
+   "kind": "string"
+  },
+  "dock.screens": {
    "kind": "string"
   },
   "dock.showLabels": {
