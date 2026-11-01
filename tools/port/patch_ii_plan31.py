@@ -852,6 +852,7 @@ add_translations('es_MX', {
         "Ahorro de energía de Windows: menos tareas en segundo plano y la pantalla más tenue. Abre su configuración",
     "On": "Activado",
     "Off": "Desactivado",
+    "%1 apps can be updated in the store": "%1 apps se pueden actualizar en la tienda",
 })
 
 # --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------

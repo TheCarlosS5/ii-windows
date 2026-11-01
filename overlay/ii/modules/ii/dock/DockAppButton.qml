@@ -154,6 +154,28 @@ Item {
                 iconSize: slot.vis * 0.58
                 color: Appearance.m3colors.m3onPrimaryContainer
             }
+            // ii-windows (plan 2026-10-31, F3): apps with an update in winget (services/AppUpdates.qml).
+            Rectangle {
+                visible: slot.isStore && AppUpdates.count > 0
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: -slot.vis * 0.06
+                height: Math.max(16, slot.vis * 0.34)
+                width: Math.max(height, badgeText.implicitWidth + height * 0.5)
+                radius: height / 2
+                color: Appearance.m3colors.m3tertiary
+                StyledText {
+                    id: badgeText
+                    anchors.centerIn: parent
+                    text: AppUpdates.count > 99 ? "99+" : String(AppUpdates.count)
+                    color: Appearance.m3colors.m3onTertiary
+                    font.pixelSize: parent.height * 0.62
+                    font.weight: Font.DemiBold
+                }
+                StyledToolTip {
+                    text: Translation.tr("%1 apps can be updated in the store").arg(AppUpdates.count)
+                }
+            }
         }
 
         MouseArea {
@@ -246,6 +268,7 @@ Item {
             if (Date.now() - slot.appListRoot.storeLaunchedAt < 4000)
                 return;
             slot.appListRoot.storeLaunchedAt = Date.now();
+            AppUpdates.storeOpened(); // look again later: updates may be installed there
             Quickshell.execDetached(["qs", "-p", Quickshell.shellPath("store.qml")]);
             return;
         }
