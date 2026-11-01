@@ -1000,6 +1000,9 @@
   "networking.userAgent": {
    "kind": "string"
   },
+  "notifications.dnd": {
+   "kind": "any"
+  },
   "notifications.monitor.enable": {
    "kind": "bool"
   },
@@ -1012,6 +1015,9 @@
     1000,
     60000
    ]
+  },
+  "notifications.vipApps": {
+   "kind": "strings"
   },
   "osd.charger": {
    "kind": "bool"

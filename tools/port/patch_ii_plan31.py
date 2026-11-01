@@ -1556,3 +1556,46 @@ add_translations('es_MX', {
     "No screen time today yet: once ii has counted a while, today's apps show here to choose from.":
         "Aún no hay tiempo de pantalla de hoy: cuando ii lleve un rato contando, aquí salen las apps de hoy para elegir.",
 })
+
+# --- E12: No molestar at its hours (overlay services/DndSchedule.qml) and VIP apps that get through it ---------------
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject notifications: JsonObject {
+                property int timeout: 7000
+''', '''            property JsonObject notifications: JsonObject {
+                property int timeout: 7000
+                property list<string> vipApps: [] // ii-windows (plan 2026-10-31, E12): they pop up with No molestar on
+                property var dnd: ({ "enable": false, "from": "22:00", "to": "07:00", "days": [0, 1, 2, 3, 4, 5, 6] }) // ii-windows (E12)
+'''),
+])
+edit(path('services', 'Notifications.qml'), [
+    ('''    property bool silent: false
+''', '''    property bool silent: false
+    // ii-windows (plan 2026-10-31, E12): apps whose notices pop up even with No molestar on.
+    function isVip(appName) {
+        const name = (appName ?? "").toLowerCase();
+        return name !== "" && (Config.options?.notifications?.vipApps ?? []).some(a => a.toLowerCase() === name);
+    }
+'''),
+    ('''            if (!root.popupInhibited) {''',
+     '''            if (!root.popupInhibited || (root.silent && !(GlobalStates?.sidebarRightOpen ?? false) && root.isVip(notification.appName))) {'''),
+])
+edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
+    ('''    ContentSection {
+        icon: "side_navigation"''', '''    DoNotDisturbSection {} // ii-windows (plan 2026-10-31, E12)
+
+    ContentSection {
+        icon: "side_navigation"'''),
+])
+edit(path('shell.qml'), [
+    ('''        Wellbeing.load() // ii-windows (plan 2026-10-31, E11): daily limits, eye breaks, the weekly summary
+''', '''        Wellbeing.load() // ii-windows (plan 2026-10-31, E11): daily limits, eye breaks, the weekly summary
+        DndSchedule.load() // ii-windows (plan 2026-10-31, E12): No molestar at its hours
+'''),
+])
+add_translations('es_MX', {
+    "Turn it on by itself at these hours": "Activarlo solo en este horario",
+    "Apps that get through": "Apps que pasan igual",
+    "Their notices still pop up with Do not disturb on. The app's name as its notices show it (WhatsApp, Discord), one per line.":
+        "Sus avisos salen aunque No molestar esté activado. El nombre de la app como lo muestran sus avisos (WhatsApp, Discord), uno por línea.",
+    "For example: WhatsApp": "Por ejemplo: WhatsApp",
+})
