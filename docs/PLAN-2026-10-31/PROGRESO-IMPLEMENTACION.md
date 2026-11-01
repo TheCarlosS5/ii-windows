@@ -67,8 +67,9 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, prueba parcial · ⏳ pendiente
 
 
 ## Retomar aquí
-0.9.0 hecha (ver filas). Pendiente del autor: borrar la tarea fantasma como administrador (`schtasks /delete /tn \ii-windows /f`),
-respaldar `%USERPROFILE%\.ii-release-key`. La tarea fantasma: `tools\devix-ghost-task.ps1` como administrador (la borra como SYSTEM).
+0.9.0 hecha y publicada. Pendiente del autor: respaldar `%USERPROFILE%\.ii-release-key` y borrar la tarea fantasma
+con `tools\dev\fix-ghost-task.ps1` desde un PowerShell de administrador (`schtasks /delete` da "Acceso denegado":
+sus claves del registro son de SYSTEM; el script la borra con una tarea de un solo uso como SYSTEM).
 Trampas: pantalla dormida = capturas viejas (mover el ratón 1 px); heredocs y cadenas de Python comen las barras (usar Write/Edit);
 `state` es palabra reservada en QML; upstream ya tiene services/Updates.qml; las pruebas QML que cambian la configuración
 escriben el config.json real (respaldarlo y devolverlo, como test-modes); Qt.quit() en Component.onCompleted no cierra (usar un Timer);
