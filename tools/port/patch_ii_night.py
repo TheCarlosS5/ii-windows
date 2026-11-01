@@ -179,8 +179,8 @@ edit(path('modules', 'common', 'Persistent.qml'), [
 ])
 add_translations('es_MX', {
     "A lighter ii for this PC": "Un ii más ligero para este PC",
-    "Settings > Appearance > Performance > Lightweight: no animations or transparencies, more room for your programs.":
-        "Configuración > Apariencia > Rendimiento > Ligero: sin animaciones ni transparencias, más recursos para tus programas.",
+    "Settings > Performance > Lightweight: no animations or transparencies, more room for your programs.":
+        "Configuración > Rendimiento > Ligero: sin animaciones ni transparencias, más recursos para tus programas.",
 })
 
 

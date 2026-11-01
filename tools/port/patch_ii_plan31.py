@@ -719,6 +719,47 @@ add_translations('es_MX', {
     "%1 results": "%1 resultados",
 })
 
+# --- C1/C7: a new page, Rendimiento, made by tools/port/compose_settings_pages.py from sections of the others (which also
+# moves window animations and live wallpapers to Apariencia, the bar's notifications to Paneles); General becomes
+# Sistema (audio, battery, language, time, sounds).
+edit(path('settings.qml'), [
+    ('''        {
+            name: Translation.tr("General"),
+            icon: "browse",
+            component: "modules/settings/GeneralConfig.qml"
+        },
+''', '''        {
+            name: Translation.tr("System"), // ii-windows (C1): was "General"
+            icon: "computer",
+            component: "modules/settings/GeneralConfig.qml"
+        },
+'''),
+    ('''        {
+            name: Translation.tr("Services"),
+            icon: "settings",
+            component: "modules/settings/ServicesConfig.qml"
+        },
+''', '''        {
+            name: Translation.tr("Services"),
+            icon: "settings",
+            component: "modules/settings/ServicesConfig.qml"
+        },
+        {
+            name: Translation.tr("Performance"), // ii-windows (plan 2026-10-31, C1): light mode, drawing, other windows
+            icon: "speed",
+            component: "modules/settings/PerformanceConfig.qml"
+        },
+'''),
+])
+add_translations('es_MX', {
+    "System": "Sistema",
+    "Effects": "Efectos",
+    "Performance": "Rendimiento",
+})
+fix_translations('es_MX', {  # too long beside its number box
+    "Timeout duration (if not defined by notification) (ms)": "Tiempo en pantalla (ms) si la app no lo indica",
+})
+
 # --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------
 add_translations('es_MX', {
     "Style": "Estilo",

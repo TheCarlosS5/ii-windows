@@ -57,12 +57,16 @@ def main():
                 continue
             label = norm(tr(e['l']))
             score = 0
+            in_label = sum(1 for w in words if w in label)
             for w in words:
                 if label.startswith(w): score += 6
                 elif ' ' + w in label: score += 4
                 elif w in label: score += 3
+                elif len(w) >= 8 and w[:-3] in label: score += 2
                 elif ' ' + w in hays[i]: score += 1
-            if e['l'] != e['s'] and e['l'] != e['ss']: score += 0.5
+            section = e['l'] == e['s'] or e['l'] == e['ss']
+            if not section: score += 0.5
+            elif in_label == 0: score += 1
             found.append((-score, i))
         found.sort()
         return [entries[i] for _, i in found[:60]]

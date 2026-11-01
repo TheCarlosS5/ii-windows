@@ -340,8 +340,8 @@ add_translations('es_MX', {
     "%1 processor threads": "%1 hilos de procesador",
     "%1 GB of memory": "%1 GB de memoria",
     "A lighter ii for this PC?": "¿Un ii más ligero para este PC?",
-    "This PC has %1. The light mode turns off animations and transparencies so ii answers faster and leaves more for your programs. You can change it any time in Settings > Appearance > Performance.":
-        "Este PC tiene %1. El modo ligero apaga animaciones y transparencias para que ii responda más rápido y deje más recursos a tus programas. Lo puedes cambiar cuando quieras en Configuración > Apariencia > Rendimiento.",
+    "This PC has %1. The light mode turns off animations and transparencies so ii answers faster and leaves more for your programs. You can change it any time in Settings > Performance.":
+        "Este PC tiene %1. El modo ligero apaga animaciones y transparencias para que ii responda más rápido y deje más recursos a tus programas. Lo puedes cambiar cuando quieras en Configuración > Rendimiento.",
     "Use light mode": "Usar el modo ligero",
     "Lightweight": "Ligero",
     "Light mode on": "Modo ligero activado",

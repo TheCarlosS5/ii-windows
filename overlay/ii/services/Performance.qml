@@ -39,7 +39,7 @@ Singleton {
                 return;
             Persistent.states.performance.lightOffered = true;
             Quickshell.execDetached(["notify-send", Translation.tr("A lighter ii for this PC"),
-                Translation.tr("Settings > Appearance > Performance > Lightweight: no animations or transparencies, more room for your programs."),
+                Translation.tr("Settings > Performance > Lightweight: no animations or transparencies, more room for your programs."),
                 "-a", "ii"]);
         }
     }

@@ -70,13 +70,18 @@ Item {
             const entry = Index.entries[i];
             const label = root.norm(Translation.tr(entry.l));
             let score = 0;
+            let inLabel = 0;
             for (const w of words) {
+                if (label.includes(w)) inLabel += 1;
                 if (label.startsWith(w)) score += 6;
                 else if (label.includes(" " + w)) score += 4;
                 else if (label.includes(w)) score += 3;
+                else if (w.length >= 8 && label.includes(w.slice(0, w.length - 3))) score += 2; // desenfoque ~ desenfocar
                 else if (hay.includes(" " + w)) score += 1;
             }
-            if (entry.l !== entry.s && entry.l !== entry.ss) score += 0.5; // a control before the section that holds it
+            const section = entry.l === entry.s || entry.l === entry.ss;
+            if (!section) score += 0.5; // a control before the section that holds it...
+            else if (inLabel === 0) score += 1; // ...unless only other words found it: then the section is the answer
             found.push({ entry: entry, score: score, index: i });
         }
         found.sort((a, b) => b.score - a.score || a.index - b.index);

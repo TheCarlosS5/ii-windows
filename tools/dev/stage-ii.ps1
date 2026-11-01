@@ -81,6 +81,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\patch_ii_plan31.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_plan31.py failed" }
 # Configuración > Escritorio as a widget gallery: each widget's section in its own file, loaded on demand (C2).
 & python -I "$root\tools\port\gen_widget_pages.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "gen_widget_pages.py failed" }
+# Configuración's sections where people look for them: Notificaciones, Rendimiento (C1/C7).
+& python -I "$root\tools\port\compose_settings_pages.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "compose_settings_pages.py failed" }
 # Configuración's search index, from the pages as staged (C3).
 & python -I "$root\tools\port\gen_settings_index.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "gen_settings_index.py failed" }
 # The long settings pages make each section's controls when it comes into view (C4.1), after the index read them.

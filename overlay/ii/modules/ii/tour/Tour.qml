@@ -48,7 +48,7 @@ Scope {
             icon: "speed",
             spot: "none",
             title: Translation.tr("A lighter ii for this PC?"),
-            text: Translation.tr("This PC has %1. The light mode turns off animations and transparencies so ii answers faster and leaves more for your programs. You can change it any time in Settings > Appearance > Performance.").arg(Performance.hardwareText),
+            text: Translation.tr("This PC has %1. The light mode turns off animations and transparencies so ii answers faster and leaves more for your programs. You can change it any time in Settings > Performance.").arg(Performance.hardwareText),
             keys: [],
             action: "light"
         })
