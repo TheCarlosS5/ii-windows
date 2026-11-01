@@ -94,10 +94,30 @@ std::wstring header(HINTERNET request, DWORD name) {
 	return value;
 }
 
+std::wstring customHeader(HINTERNET request, const wchar_t* name) {
+	DWORD size = 0;
+	if (!WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM, name, nullptr, &size, WINHTTP_NO_HEADER_INDEX)) {
+		if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) return {};
+	}
+	std::wstring value(size / sizeof(wchar_t), L'\0');
+	if (!WinHttpQueryHeaders(request, WINHTTP_QUERY_CUSTOM, name, value.data(), &size, WINHTTP_NO_HEADER_INDEX)) return {};
+	while (!value.empty() && value.back() == L'\0') value.pop_back();
+	return value;
+}
+
+std::wstring lowerHost(std::wstring host) {
+	std::transform(host.begin(), host.end(), host.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+	return host;
+}
+
 struct Response {
 	DWORD status = 0;
 	std::wstring location;
 	std::wstring length;
+	std::wstring etag;
+	std::wstring retryAfter;
+	std::wstring rateReset;
+	std::wstring contentRange;
 	Internet connection;
 	Internet request;
 	File fixture;
@@ -212,6 +232,13 @@ struct Client::State {
 	Internet session;
 	json::JsonObject responses {nullptr};
 	std::wstring agent;
+	std::vector<std::wstring> hosts; // lower case; empty = any
+
+	void checkHost(const Url& parts) const {
+		if (hosts.empty()) return;
+		auto host = lowerHost(parts.host);
+		require(std::find(hosts.begin(), hosts.end(), host) != hosts.end(), "host not allowed for this request");
+	}
 
 	State(const std::wstring& userAgent, bool testing): agent(userAgent) {
 		require(!hasControl(agent), "invalid User-Agent");
@@ -227,17 +254,27 @@ struct Client::State {
 		}
 	}
 
-	Response request(const std::wstring& url, const Url& parts) {
+	Response request(const std::wstring& url, const Url& parts, const std::wstring& extraHeaders = L"") {
+		checkHost(parts);
 		Response response;
 		if (responses) {
 			require(responses.HasKey(url), "URL missing from HTTP fixture map");
 			auto entry = responses.GetNamedObject(url);
+			// A conditional request whose ETag matches gets the fixture's "notModified" answer (304).
+			auto etag = std::wstring(entry.GetNamedString(L"etag", L""));
+			if (!etag.empty() && extraHeaders.find(L"If-None-Match: " + etag) != std::wstring::npos) {
+				response.status = 304;
+				response.etag = etag;
+				return response;
+			}
 			auto status = entry.GetNamedNumber(L"status");
 			require(std::isfinite(status) && status >= 100 && status <= 599 && status == std::floor(status),
 			        "invalid fixture HTTP status");
 			response.status = static_cast<DWORD>(status);
 			response.location = entry.GetNamedString(L"location", L"");
 			response.length = entry.GetNamedString(L"contentLength", L"");
+			response.etag = etag;
+			response.retryAfter = entry.GetNamedString(L"retryAfter", L"");
 			if (entry.HasKey(L"agent")) require(std::wstring(entry.GetNamedString(L"agent")) == agent, "incorrect fixture User-Agent");
 			auto body = entry.GetNamedString(L"bodyFile", L"");
 			if (!body.empty()) response.fixture = openRead(std::wstring(body));
@@ -252,7 +289,8 @@ struct Client::State {
 		DWORD policy = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
 		require(WinHttpSetOption(response.request.get(), WINHTTP_OPTION_REDIRECT_POLICY, &policy, sizeof(policy)) != 0,
 		        "cannot set redirect policy");
-		httpRequire(WinHttpSendRequest(response.request.get(), WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != 0
+		httpRequire(WinHttpSendRequest(response.request.get(), extraHeaders.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : extraHeaders.c_str(),
+		                               extraHeaders.empty() ? 0 : static_cast<DWORD>(-1L), WINHTTP_NO_REQUEST_DATA, 0, 0, 0) != 0
 		        && WinHttpReceiveResponse(response.request.get(), nullptr) != 0, "HTTP request failed");
 		DWORD size = sizeof(response.status);
 		require(WinHttpQueryHeaders(response.request.get(), WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
@@ -260,9 +298,102 @@ struct Client::State {
 		        "cannot read HTTP status");
 		response.location = header(response.request.get(), WINHTTP_QUERY_LOCATION);
 		response.length = header(response.request.get(), WINHTTP_QUERY_CONTENT_LENGTH);
+		response.etag = header(response.request.get(), WINHTTP_QUERY_ETAG);
+		response.retryAfter = header(response.request.get(), WINHTTP_QUERY_RETRY_AFTER);
+		response.rateReset = customHeader(response.request.get(), L"X-RateLimit-Reset");
+		response.contentRange = customHeader(response.request.get(), L"Content-Range");
 		return response;
 	}
+
+	// Follows redirects (validated like get()); the final response, its body not read yet.
+	Response follow(std::wstring& url, const std::wstring& extraHeaders, ULONGLONG started) {
+		for (int redirects = 0; redirects <= 5; ++redirects) {
+			auto parts = parseUrl(url);
+			auto response = request(url, parts, extraHeaders);
+			if (response.status == 301 || response.status == 302 || response.status == 303 || response.status == 307 || response.status == 308) {
+				require(!response.location.empty(), "HTTP redirect has no location");
+				require(!hasControl(response.location) && response.location.find(L'\\') == std::wstring::npos, "invalid HTTPS redirect URL");
+				url = winrt::Windows::Foundation::Uri(url).CombineUri(response.location).AbsoluteUri();
+				parseUrl(url);
+				require(GetTickCount64() - started < 60000, "HTTP request timed out");
+				continue;
+			}
+			return response;
+		}
+		throw std::runtime_error("too many HTTP redirects");
+	}
 };
+
+void Client::allowHosts(std::vector<std::wstring> hosts) {
+	for (auto& h: hosts) h = lowerHost(h);
+	state_->hosts = std::move(hosts);
+}
+
+Reply Client::request(std::wstring url, const std::vector<std::wstring>& headers, size_t cap) {
+	std::wstring extra;
+	for (const auto& h: headers) {
+		require(!hasControl(h) && h.find(L':') != std::wstring::npos, "invalid HTTP header");
+		extra += h + L"\r\n";
+	}
+	auto started = GetTickCount64();
+	auto response = state_->follow(url, extra, started);
+	Reply reply;
+	reply.status = response.status;
+	reply.etag = response.etag;
+	reply.retryAfter = response.retryAfter;
+	reply.rateReset = response.rateReset;
+	if (response.status == 304) return reply;
+	char buffer[16 * 1024];
+	for (;;) {
+		require(GetTickCount64() - started < 60000, "HTTP request timed out");
+		auto read = response.read(buffer, sizeof(buffer));
+		if (!read) break;
+		require(read <= cap - std::min(cap, reply.body.size()), "download exceeds size limit");
+		reply.body.append(buffer, read);
+	}
+	return reply;
+}
+
+unsigned long long Client::download(std::wstring url, const std::wstring& part, unsigned long long expected,
+                                    const std::function<bool(unsigned long long, unsigned long long)>& progress) {
+	WIN32_FILE_ATTRIBUTE_DATA info {};
+	unsigned long long have = 0;
+	if (GetFileAttributesExW(part.c_str(), GetFileExInfoStandard, &info)) have = (static_cast<unsigned long long>(info.nFileSizeHigh) << 32) | info.nFileSizeLow;
+	if (expected && have > expected) have = 0; // not this file: start again
+	if (expected && have == expected) return have;
+	std::wstring extra;
+	if (have) extra = L"Range: bytes=" + std::to_wstring(have) + L"-\r\n";
+	auto started = GetTickCount64();
+	auto response = state_->follow(url, extra, started);
+	require(response.status == 200 || response.status == 206, ("HTTP status " + std::to_string(response.status)).c_str());
+	if (response.status == 200) have = 0; // the server sent the whole file: the part is replaced
+	auto handle = CreateFileW(part.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, have ? OPEN_ALWAYS : CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	require(handle != INVALID_HANDLE_VALUE, "cannot write the download");
+	File file(handle);
+	LARGE_INTEGER end {};
+	end.QuadPart = static_cast<LONGLONG>(have);
+	require(SetFilePointerEx(file.get(), end, nullptr, FILE_BEGIN) != 0 && SetEndOfFile(file.get()) != 0, "cannot write the download");
+	auto total = expected;
+	if (!total && !response.length.empty()) total = have + byteCount(response.length, "invalid HTTP content length");
+	std::vector<char> buffer(256 * 1024);
+	auto lastReport = GetTickCount64();
+	if (progress && !progress(have, total)) return have;
+	for (;;) {
+		auto read = response.read(buffer.data(), static_cast<DWORD>(buffer.size()));
+		if (!read) break;
+		DWORD written = 0;
+		require(WriteFile(file.get(), buffer.data(), read, &written, nullptr) != 0 && written == read, "cannot write the download");
+		have += read;
+		require(!expected || have <= expected, "download larger than expected");
+		if (GetTickCount64() - lastReport >= 1000) {
+			lastReport = GetTickCount64();
+			if (progress && !progress(have, total)) return have;
+		}
+	}
+	FlushFileBuffers(file.get());
+	if (progress) progress(have, total);
+	return have;
+}
 
 Client::Client(const std::wstring& agent, bool testing): state_(std::make_unique<State>(agent, testing)) {}
 Client::~Client() = default;

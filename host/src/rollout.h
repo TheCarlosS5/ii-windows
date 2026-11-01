@@ -35,8 +35,13 @@ std::wstring versionDir(const std::wstring& root, const std::wstring& id);
 // If exeDir is <root>\versions\<id>, fills root and id and returns true.
 bool locate(const std::wstring& exeDir, std::wstring& root, std::wstring& id);
 
-// Called by ii-host when its shell is up: if this host belongs to the pending version, mark it
-// verified. Returns true if it changed the state.
+// Plan 2026-10-31, A7. Called by ii-host when its shell is up: a pending version of this host becomes "ready" (the
+// launcher stops watching). Returns true if it changed the state.
+bool markReady(const std::wstring& exeDir);
+// Called by ii-host after the shell has run 10 minutes without a crash: a pending or ready version becomes
+// "verified" (older versions may then be removed). Returns true if it changed the state.
 bool markVerified(const std::wstring& exeDir);
+// The active version and the previous one swap (state rolled-back). False if there is no previous version on disk.
+bool rollBack(const std::wstring& exeDir, std::wstring* now = nullptr);
 
 } // namespace ii::rollout

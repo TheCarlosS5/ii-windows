@@ -169,6 +169,11 @@ LRESULT CALLBACK proc(int code, WPARAM wParam, LPARAM lParam) {
 	if (coverUp.load()) {
 		auto vk = key->vkCode;
 		if (vk == VK_LWIN || vk == VK_RWIN || (vk == VK_ESCAPE && (GetAsyncKeyState(VK_CONTROL) & 0x8000))) return 1;
+		// Esc alone: "let me use Windows now" (plan 2026-10-31, A9); the cover has no keyboard focus of its own.
+		if (vk == VK_ESCAPE && wParam == WM_KEYDOWN) {
+			if (notify) PostMessageW(notify, WM_II_COVER, 0, 0);
+			return 1;
+		}
 	}
 
 	auto down = wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN;

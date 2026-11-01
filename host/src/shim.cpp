@@ -65,6 +65,9 @@ int powerCommand(const std::vector<std::wstring>& args);
 int systemInfoCommand(const std::vector<std::wstring>& args);
 int systemSoundCommand(const std::vector<std::wstring>& args);
 
+// updater.cpp (plan 2026-10-31, block B)
+int update(const std::vector<std::wstring>& args);
+
 namespace {
 
 using Args = std::vector<std::wstring>;
@@ -633,6 +636,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"notify-send") return notifySend(args);
 	if (command == L"playerctl") return playerctl(args);
 	if (command == L"host") return hostCommand(args);
+	if (command == L"update") return update(args);
 	if (command == L"wpctl") return wpctl(args);
 	if (command == L"pidof") return pidof(args);
 	if (command == L"keystate") return keystate(args);

@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cctype>
 #include <cmath>
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include <objbase.h>
+#include <windowsx.h>
 #include <sddl.h>
 #include <shlobj.h>
 #include <wincodec.h>
@@ -118,6 +120,14 @@ uint32_t colPrimary = 0xFFA6C8FF;
 uint32_t colPrimaryContainer = 0xFF234776;
 uint32_t colOnPrimaryContainer = 0xFFD5E3FF;
 Gdiplus::PrivateFontCollection* privateFonts = nullptr;
+// Plan 2026-10-31, A9: the cover never traps the user. After HINT_MS it says how to get to Windows now (a click
+// anywhere or Esc: ii-host gives Windows' taskbar back until the shell is up). After a session that ended with crashes
+// or the panic key, it offers three choices for this start for TROUBLE_MS.
+constexpr ULONGLONG HINT_MS = 6000;
+constexpr ULONGLONG TROUBLE_MS = 9000;
+HWND hostNotify = nullptr;
+bool trouble = false;       // state.ini lastSessionTrouble=1 when the cover was shown
+bool troubleChosen = false; // a choice was made (or the time ran out)
 Gdiplus::FontFamily* brandFamily = nullptr;
 Gdiplus::FontFamily* textFamily = nullptr; // brandFamily, or a copy of Windows' own face
 // The faces at one screen's scale (each screen can have its own).
@@ -734,7 +744,7 @@ Layout layoutFor(HWND hwnd, const RECT& client) {
 	l.face = 184.0F * s;
 	l.ring = l.face / 2 + 30.0F * s;
 	auto top = l.cy - l.ring - 14 * s;
-	auto bottom = l.cy + l.ring + 150 * s;
+	auto bottom = l.cy + l.ring + 260 * s; // ii-windows: room for the hint and the three choices (A9)
 	l.centre = {static_cast<LONG>(l.cx - 380 * s), static_cast<LONG>(top), static_cast<LONG>(l.cx + 380 * s), static_cast<LONG>(bottom)};
 	l.clock = {static_cast<LONG>(40 * s), static_cast<LONG>(28 * s), static_cast<LONG>(720 * s), static_cast<LONG>(190 * s)};
 	return l;
@@ -752,6 +762,39 @@ std::wstring dateText() {
 	std::wstring out = text;
 	if (!out.empty()) out[0] = static_cast<wchar_t>(towupper(out[0]));
 	return out;
+}
+
+bool troubleChoicesShown(ULONGLONG now) { return trouble && !troubleChosen && now - shownAt < TROUBLE_MS; }
+
+// The three choices' boxes, in the cover's client coordinates (the status line is at cy + ring + 90).
+std::array<Gdiplus::RectF, 3> choiceBoxes(const Layout& l) {
+	auto s = l.s;
+	auto w = 190.0F * s, h = 42.0F * s, gap = 14.0F * s;
+	auto y = l.cy + l.ring + 34.0F * s + 56.0F * s + 104.0F * s;
+	auto x = l.cx - (3 * w + 2 * gap) / 2;
+	return {Gdiplus::RectF(x, y, w, h), Gdiplus::RectF(x + w + gap, y, w, h), Gdiplus::RectF(x + 2 * (w + gap), y, w, h)};
+}
+
+// A click on the cover: one of the three choices, or (anywhere else) "let me use Windows now".
+void onCoverClick(HWND hwnd, LPARAM lParam) {
+	auto now = GetTickCount64();
+	if (troubleChoicesShown(now)) {
+		RECT client;
+		GetClientRect(hwnd, &client);
+		auto boxes = choiceBoxes(layoutFor(hwnd, client));
+		auto px = static_cast<Gdiplus::REAL>(GET_X_LPARAM(lParam));
+		auto py = static_cast<Gdiplus::REAL>(GET_Y_LPARAM(lParam));
+		for (int i = 0; i < 3; ++i) {
+			if (!boxes[static_cast<size_t>(i)].Contains(px, py)) continue;
+			troubleChosen = true;
+			log(L"splash: the user chose %s", i == 0 ? L"to start normally" : i == 1 ? L"safe mode for this start" : L"not to start ii today");
+			for (auto& c: covers) if (c.hwnd) InvalidateRect(c.hwnd, nullptr, FALSE);
+			if (i > 0 && hostNotify) PostMessageW(hostNotify, WM_II_COVER, static_cast<WPARAM>(i), 0);
+			return;
+		}
+	}
+	log(L"splash: dismissed by the user after %llu ms", now - shownAt);
+	if (hostNotify) PostMessageW(hostNotify, WM_II_COVER, 0, 0);
 }
 
 void drawCentre(Gdiplus::Graphics& g, const Layout& l, ULONGLONG now) {
@@ -887,6 +930,34 @@ void drawCentre(Gdiplus::Graphics& g, const Layout& l, ULONGLONG now) {
 		SolidBrush soft(withAlpha(0xFFFFFFFF, 0.55 * textIn));
 		g.DrawString(note, -1, fonts.note, RectF(l.cx - 370 * s, y + 34 * s, 740 * s, 24 * s), &centre, &soft);
 	}
+
+	// A9: the three choices after a session with trouble, then (or else) the way out to Windows.
+	if (troubleChoicesShown(now)) {
+		const wchar_t* question = spanish ? L"La última vez ii tuvo problemas." : L"Last time ii had trouble.";
+		SolidBrush ink(withAlpha(0xFFFFFFFF, 0.9 * textIn));
+		g.DrawString(question, -1, fonts.note, RectF(l.cx - 370 * s, y + 66 * s, 740 * s, 24 * s), &centre, &ink);
+		const wchar_t* labels[3] = {spanish ? L"Iniciar normal" : L"Start normally", spanish ? L"Modo seguro" : L"Safe mode",
+		                            spanish ? L"Hoy no" : L"Not today"};
+		auto boxes = choiceBoxes(l);
+		for (int i = 0; i < 3; ++i) {
+			const auto& b = boxes[static_cast<size_t>(i)];
+			GraphicsPath pill;
+			auto r = b.Height / 2;
+			pill.AddArc(b.X, b.Y, r * 2, b.Height, 90, 180);
+			pill.AddArc(b.X + b.Width - r * 2, b.Y, r * 2, b.Height, 270, 180);
+			pill.CloseFigure();
+			SolidBrush fill(withAlpha(i == 0 ? colPrimary : 0xFFFFFFFF, i == 0 ? 0.95 * textIn : 0.22 * textIn));
+			g.FillPath(&fill, &pill);
+			SolidBrush text(withAlpha(i == 0 ? 0xFF10131A : 0xFFFFFFFF, textIn));
+			g.DrawString(labels[i], -1, fonts.note, RectF(b.X, b.Y + (b.Height - 22 * s) / 2, b.Width, 24 * s), &centre, &text);
+		}
+	} else if (now - shownAt > HINT_MS && stage != Stage::Ready) {
+		const wchar_t* hint = spanish ? L"Haz clic o pulsa Esc para usar Windows mientras ii termina de cargar"
+		                              : L"Click or press Esc to use Windows while ii finishes loading";
+		auto fade = std::clamp(static_cast<double>(now - shownAt - HINT_MS) / 600.0, 0.0, 1.0);
+		SolidBrush soft(withAlpha(0xFFFFFFFF, 0.5 * fade * textIn));
+		g.DrawString(hint, -1, fonts.note, RectF(l.cx - 370 * s, y + 66 * s, 740 * s, 24 * s), &centre, &soft);
+	}
 }
 
 void drawClock(Gdiplus::Graphics& g, const Layout& l, ULONGLONG now) {
@@ -975,6 +1046,7 @@ LRESULT CALLBACK coverProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	}
 	case WM_ERASEBKGND: return 1;
 	case WM_MOUSEACTIVATE: return MA_NOACTIVATE;
+	case WM_LBUTTONUP: onCoverClick(hwnd, lParam); return 0;
 	case WM_SETCURSOR:
 		SetCursor(LoadCursorW(nullptr, IDC_APPSTARTING)); // "working in the background", as Windows shows
 		return TRUE;
@@ -1104,9 +1176,14 @@ void startFading(Cover& c) {
 
 // The cover windows: a plain colour at once (the average of the cached picture when there is one),
 // the blurred wallpaper and the welcome text a moment later.
+void setHost(HWND host) { hostNotify = host; }
+
 void show() {
 	if (!covers.empty()) return;
 	shownAt = GetTickCount64();
+	trouble = state::get(L"lastSessionTrouble", 0) == 1;
+	troubleChosen = false;
+	if (trouble) log(L"splash: the last session had trouble: offering normal, safe mode or not today");
 	spanish = PRIMARYLANGID(GetUserDefaultUILanguage()) == LANG_SPANISH;
 	{
 		// No compiled QML yet (quickshell/cache/by-shell): the first start takes longer.

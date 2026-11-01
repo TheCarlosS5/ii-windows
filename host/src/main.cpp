@@ -99,6 +99,10 @@ constexpr ULONGLONG SHELL_FROZEN_SPAN_MS = 5 * 60 * 1000;
 constexpr ULONGLONG SHELL_WINDOWS_LOST_MS = 20000;
 constexpr UINT_PTR TIMER_NOTICE_END = 8;
 constexpr UINT_PTR TIMER_LONE_WIN = 9;
+// Plan 2026-10-31, A7/A9: the shell has run this long without a crash: the version is verified and the next logon
+// no longer asks about "last time".
+constexpr UINT_PTR TIMER_STABLE = 10;
+constexpr UINT STABLE_MS = 10 * 60 * 1000;
 // notifystate.cpp: the answer of SHQueryUserNotificationState changed (a game went exclusive full screen...).
 constexpr UINT WM_II_NOTIFY_STATE = WM_APP + 6;
 // A command from the shell or ii-shim ("safe-mode-off", "restart-shell", ...): WM_COPYDATA with this dwData.
@@ -186,6 +190,7 @@ struct ShellNotice {
 	std::wstring urgency;
 };
 std::vector<ShellNotice> shellNotices; // told to the user by the shell once it is up
+std::wstring relaunchRoot;             // ii-launcher of this folder is started once this host has ended (rollback)
 
 struct MonitorCover {
 	RECT rect {};
@@ -1064,8 +1069,10 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 	stuckRestarts = 0;
 	lastHeartbeat = 0; // judged from the first heartbeat after this: the load before it may have kept the GUI thread busy
 	bench(covered < total ? L"ready-partial" : L"ready");
-	// A freshly installed version is "pending" until its host says it works; tell the launcher.
-	if (rollout::markVerified(selfDir())) log(L"runtime: this version is now verified");
+	// A freshly installed version is "pending" until its shell comes up ("ready": the launcher stops watching), and
+	// verified after STABLE_MS without a crash (plan 2026-10-31, A7).
+	if (rollout::markReady(selfDir())) log(L"runtime: this version came up (ready)");
+	SetTimer(hostWindow, TIMER_STABLE, STABLE_MS, nullptr);
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr); // back to the slow housekeeping tick
 	setPhase(Phase::Active, L"shell is up");
 	rememberGoodConfig(); // once per start, after it came up: not on every change
@@ -1259,6 +1266,29 @@ bool hostCommand(const std::wstring& command) {
 		if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
 		return true;
 	}
+	if (command == L"pause-today") {
+		SYSTEMTIME t;
+		GetLocalTime(&t);
+		wchar_t today[16];
+		swprintf_s(today, L"%04d-%02d-%02d", t.wYear, t.wMonth, t.wDay);
+		state::setText(L"pause", L"until", today);
+		state::set(L"lastSessionTrouble", 0);
+		log(L"pause: ii is paused for today (%s) at the user's request; it starts again at the next logon after today", today);
+		shutdown(0);
+		return true;
+	}
+	if (command == L"rollback") {
+		std::wstring now;
+		if (!rollout::rollBack(selfDir(), &now)) {
+			log(L"runtime: no previous version to go back to");
+			return false;
+		}
+		log(L"runtime: back to %s at the user's request; starting it", now.c_str());
+		std::wstring root, id;
+		if (rollout::locate(selfDir(), root, id)) relaunchRoot = root; // started by runHost once this host has let go
+		shutdown(0);
+		return true;
+	}
 	if (command == L"restart-shell") {
 		stopShell();
 		if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
@@ -1356,9 +1386,26 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			windowsLostSince = 0;
 		}
 		return TRUE;
+	case WM_II_COVER:
+		if (shuttingDown) return 0;
+		if (wParam == 0) {
+			exposeExplorer(L"the user wants Windows while ii loads");
+			splash::close();
+		} else if (wParam == 1) {
+			log(L"safety: safe mode for this start (the user's choice on the welcome cover)");
+			safeMode = true; // not saved: only this start
+			if (shellProcess && !shellReady) {
+				stopShell();
+				if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
+			}
+		} else if (wParam == 2) {
+			hostCommand(L"pause-today");
+		}
+		return 0;
 	case WM_HOTKEY:
 		if (wParam == HOTKEY_PANIC) {
 			log(L"panic hotkey");
+			state::set(L"lastSessionTrouble", 1); // the next logon offers safe mode / not today (A9)
 			shutdown(3);
 		}
 		return 0;
@@ -1410,6 +1457,13 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		} else if (wParam == TIMER_NOTICE_END) {
 			KillTimer(hwnd, TIMER_NOTICE_END);
 			removeNotice();
+		} else if (wParam == TIMER_STABLE) {
+			KillTimer(hwnd, TIMER_STABLE);
+			if (shellReady && !shuttingDown) {
+				if (rollout::markVerified(selfDir())) log(L"runtime: this version is now verified (10 minutes without a crash)");
+				if (state::get(L"lastSessionTrouble", 0) != 0) log(L"safety: 10 minutes without trouble");
+				state::set(L"lastSessionTrouble", 0);
+			}
 		} else if (wParam == TIMER_AFTER_EXPLORER) {
 			KillTimer(hwnd, TIMER_AFTER_EXPLORER);
 			watchExplorer();
@@ -1490,6 +1544,19 @@ int runHost() {
 
 	// The welcome cover first of all (at logon every millisecond the desktop shows unfinished counts);
 	// it is only windows, and it goes as soon as anything below fails (exposeExplorer, restoreAndStop).
+	// "Not today" (plan 2026-10-31, A9): a logon start on the day the user paused ii does nothing at all.
+	if (options.boot) {
+		SYSTEMTIME t;
+		GetLocalTime(&t);
+		wchar_t today[16];
+		swprintf_s(today, L"%04d-%02d-%02d", t.wYear, t.wMonth, t.wDay);
+		if (state::getText(L"pause", L"until") == today) {
+			log(L"pause: ii was paused for today by the user; not starting (Start menu > Iniciar ii starts it anyway)");
+			ReleaseMutex(mutex);
+			return 0;
+		}
+	}
+
 	if (options.splash) splash::show();
 
 	auto className = L"IiHostWindow" + tag;
@@ -1503,6 +1570,7 @@ int runHost() {
 	taskbarCreatedMsg = RegisterWindowMessageW(L"TaskbarCreated");
 	ChangeWindowMessageFilterEx(hostWindow, taskbarCreatedMsg, MSGFLT_ALLOW, nullptr);
 	notifystate::setListener(hostWindow, WM_II_NOTIFY_STATE);
+	splash::setHost(hostWindow);
 	// The taskbar that is there already: the shell's own tray broadcasts TaskbarCreated as it starts, and that
 	// was taken for an Explorer restart (everything applied a second time a second after start).
 	knownExplorerTray = explorerTray();
@@ -1562,6 +1630,19 @@ int runHost() {
 
 	if (!shuttingDown) shutdown(code);
 	ReleaseMutex(mutex);
+	if (!relaunchRoot.empty()) {
+		// After a rollback: the version now active starts through the stable entry point, with this host gone.
+		auto launcher = L"\"" + relaunchRoot + L"\\ii-launcher.exe\"";
+		STARTUPINFOW si {};
+		si.cb = sizeof(si);
+		PROCESS_INFORMATION pi {};
+		if (CreateProcessW(nullptr, launcher.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB, nullptr, relaunchRoot.c_str(), &si, &pi)
+		    || CreateProcessW(nullptr, launcher.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, relaunchRoot.c_str(), &si, &pi)) {
+			CloseHandle(pi.hThread);
+			CloseHandle(pi.hProcess);
+			log(L"runtime: ii-launcher started for the version now active");
+		}
+	}
 	log(L"host exit %d", code);
 	return code;
 }

@@ -181,8 +181,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 		auto waited = WaitForSingleObject(pi.hProcess, 300);
 		rollout::Current now;
 		auto known = rollout::read(root, now);
-		if (known && now.active == current.active && now.state == L"verified") {
-			log(L"version %s verified after %llu ms", current.active.c_str(), GetTickCount64() - started);
+		// "ready": the shell came up (ii-host verifies it later, after 10 minutes without a crash).
+		if (known && now.active == current.active && (now.state == L"verified" || now.state == L"ready")) {
+			log(L"version %s %s after %llu ms", current.active.c_str(), now.state.c_str(), GetTickCount64() - started);
 			CloseHandle(pi.hProcess);
 			return 0;
 		}

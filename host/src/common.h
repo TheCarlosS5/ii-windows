@@ -121,7 +121,13 @@ void refreshCache();       // re-cache the small blurred wallpaper for the next 
 void setShellPid(DWORD pid);
 void watch();              // fades out once the shell says its desktop is complete (own timer)
 void close();
+// The host window told about the user's choices on the cover (WM_II_COVER).
+void setHost(HWND host);
 } // namespace splash
+
+// The welcome cover (and the hook's Esc while it is up) to the host, plan 2026-10-31 A9. wParam: 0 = "let me use
+// Windows now" (dismissed), 1 = safe mode for this start, 2 = not today.
+constexpr UINT WM_II_COVER = WM_APP + 8;
 
 // Host <-> shell health channel (see health.cpp). The shell reports what its services really do;
 // the host acts on it, e.g. Windows' notification banners are only switched off while the shell's

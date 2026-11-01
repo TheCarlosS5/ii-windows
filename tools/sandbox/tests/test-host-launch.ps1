@@ -46,7 +46,9 @@ try {
     Assert-Equal $code 2 'a shell that keeps exiting with 5 ends the host with 2'
     $log = Get-IiHostLog $data
     Assert-True (([regex]::Matches($log, 'shell: exited with code 5')).Count -ge 3) 'three early exits were seen'
-    Assert-True ($log -match 'giving up: .*varias veces') 'and the host stops trying'
+    # Plan 2026-10-31 (A4): restarts, safe mode at the 3rd crash in the same part, gives up when it goes on.
+    Assert-True ($log -match 'crash: .* in 30 minutes: safe mode') 'it tries safe mode before giving up'
+    Assert-True ($log -match 'giving up: the shell crashed \d+ times') 'and the host stops trying'
     Assert-True ($log -match 'restoreAll') 'rollback ran'
 
     # ---- R02-d: the shell starts but never shows anything ------------------------------------

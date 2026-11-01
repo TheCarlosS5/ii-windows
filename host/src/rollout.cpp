@@ -110,15 +110,43 @@ bool locate(const std::wstring& exeDir, std::wstring& root, std::wstring& id) {
 	return validId(id);
 }
 
-bool markVerified(const std::wstring& exeDir) {
+bool markReady(const std::wstring& exeDir) {
 	std::wstring root;
 	std::wstring id;
 	if (!locate(exeDir, root, id)) return false;
 	Current current;
 	if (!read(root, current) || current.active != id || current.state != L"pending") return false;
+	current.state = L"ready";
+	return write(root, current);
+}
+
+bool markVerified(const std::wstring& exeDir) {
+	std::wstring root;
+	std::wstring id;
+	if (!locate(exeDir, root, id)) return false;
+	Current current;
+	if (!read(root, current) || current.active != id || (current.state != L"pending" && current.state != L"ready")) return false;
 	current.state = L"verified";
 	current.attempts = 0;
 	return write(root, current);
+}
+
+bool rollBack(const std::wstring& exeDir, std::wstring* now) {
+	std::wstring root;
+	std::wstring id;
+	if (!locate(exeDir, root, id)) return false;
+	Current current;
+	if (!read(root, current) || current.previous.empty() || current.previous == L"none" || current.previous == current.active) return false;
+	auto dir = versionDir(root, current.previous);
+	if (dir.empty() || GetFileAttributesW((dir + L"\\ii-host.exe").c_str()) == INVALID_FILE_ATTRIBUTES) return false;
+	Current back = current;
+	back.active = current.previous;
+	back.previous = current.active;
+	back.state = L"rolled-back";
+	back.attempts = 0;
+	if (!write(root, back)) return false;
+	if (now) *now = back.active;
+	return true;
 }
 
 } // namespace ii::rollout
