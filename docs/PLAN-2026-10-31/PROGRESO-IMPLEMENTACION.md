@@ -40,10 +40,15 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, prueba parcial · ⏳ pendiente
 | F23 multi-monitor | 🟡 | Barra y dock: todas las pantallas o solo la principal. Sin segundo monitor aquí para verlo. |
 | E16 atajos | ✅ | Host: `[keys]` en shortcuts.ini (tabla en tiempo de ejecución, 102 pruebas). Configuración > Atajos: lista, cambiar con conflictos, juegos y teclas de audio. Probado a mano. |
 | G6 winget | ✅ | `make-winget-manifest.ps1` (validado con `winget validate`). El PR a winget-pkgs lo hace el autor. |
+| Cierre 0.8.0 | ✅ | Paquete `ii-windows-0.8.0-20261101-8410070` + Setup, `publish-release -DryRun` firmado con la clave real, `test-updater-real` 13/13. Suite local: 32 ok; test-config (línea de log vieja), los tests que buscaban ii-shim solo en build-clang (`Get-IiShim`) y test-vdesk (marcos UWP ocultos) arreglados. **Hay que rehacer el paquete**: ver la fila siguiente. |
+| Tarea de inicio (R06) | ✅ | Error real: la tarea vieja `\ii-windows` y la carpeta nueva `\ii-windows\` tienen el mismo nombre; registrar la nueva antes de borrar la vieja dejaba una tarea que Windows no carga (sin inicio automático y `Get-ScheduledTask` roto en todo el PC; **este PC lo tiene**: arreglo de una vez como administrador `schtasks /delete /tn \ii-windows /f`). Ahora la vieja se va primero, se lee por COM y "registrada" = Windows la carga (si no, entra la clave Run). test-autostart 31/31 con el caso de colisión. |
+| E1 Buscar todo (MVP) | ✅ | `SearchPlus.qml` + `search_plus.js`: ventanas abiertas, ajustes de ii (índice de C3, abre y resalta con `locate:`), 61 páginas de Configuración de Windows, 31 acciones rápidas, conversiones (unidades, %, monedas open.er-api.com con caché diaria, hora en otra ciudad con `ii-shim timezones`). Un solo ranking con las apps. Node 76/76, test-search-plus 14/14 (incluye una ventana real). Archivos (índice de Windows/Everything) quedan para la 1.0 como dice el plan. |
+| E2 Modos (MVP) | ✅ | `Modes.qml` + `modes_logic.js`: Clase/Trabajo, Juego, Presentación, Noche; manual (chips del panel derecho, búsqueda), horario (también de noche a mañana), apps abiertas (Juego: lista de juegos; opcional pantalla completa). Devuelve solo lo que sigue como lo dejó. Configuración > Modos. Node 40/40, `test-modes -EndToEnd` 10/10 (config.json respaldado y devuelto idéntico). Wi-Fi/monitor/cargador/presentación: 1.0. |
 
 
 ## Retomar aquí
-Siguiente: cierre de la ronda (make-package, publish-release -DryRun, prueba del actualizador con el paquete real, suite local, docs) y luego 0.9.0 (E1…).
-Al final de la ronda: make-package + publish-release -DryRun + prueba del actualizador con el paquete real.
-Trampas: pantalla dormida = capturas viejas (mover el ratón 1 px); heredocs comen las barras (usar Write/Edit);
-`state` es palabra reservada en QML; upstream ya tiene services/Updates.qml.
+Hecho de la 0.9.0: E1 y E2 (MVP). Siguiente: E3 (panel Hoy + horario de clases), luego E5–E9, E11–E13, F*, H2–H5 (ver 09-hoja-de-ruta.md).
+Al cerrar: stage-ii, deploy, make-package (versión base 0.9.0), make-setup, publish-release -DryRun, test-updater-real, suite local.
+Trampas: pantalla dormida = capturas viejas (mover el ratón 1 px); heredocs y cadenas de Python comen las barras (usar Write/Edit);
+`state` es palabra reservada en QML; upstream ya tiene services/Updates.qml; las pruebas QML que cambian la configuración
+escriben el config.json real (respaldarlo y devolverlo, como test-modes); Qt.quit() en Component.onCompleted no cierra (usar un Timer).
