@@ -1596,6 +1596,10 @@ bool hostCommand(const std::wstring& commandLine) {
 		CloseHandle(pi.hProcess);
 		return true;
 	}
+	if (command == L"whats-new") { // "Ver novedades" on the notice after an update (plan 2026-10-31, B3.6)
+		openSettings(L"updatesconfig");
+		return true;
+	}
 	if (command == L"settings-open") {
 		openSettings(argument);
 		return true;

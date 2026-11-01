@@ -79,7 +79,8 @@ Scope {
             spot: "overview",
             open: "overview",
             title: Translation.tr("Search and open apps"),
-            text: Translation.tr("Press the Windows key: type to find apps, files or do maths, then Enter. Press Win+Tab for the windows of this desktop, and the button at the bottom for all the apps."),
+            // ii-windows (plan 2026-10-31, H5): "Buscar todo" (E1)
+            text: Translation.tr("Press the Windows key and type: apps, open windows, ii's and Windows' settings, actions like \"empty the recycle bin\", maths, units, money and the time in other cities, then Enter. Win+Tab shows the windows of this desktop."),
             keys: [["Win"], ["Win", "Tab"]]
         },
         {
@@ -98,12 +99,20 @@ Scope {
             text: Translation.tr("Wi-Fi, Bluetooth, volume, night light, notifications and the calendar. The switches act right there; open it from the top-right corner."),
             keys: [["Win", "N"]]
         },
+        { // ii-windows (plan 2026-10-31, H5): the modes (E2)
+            icon: "routine",
+            spot: "right",
+            open: "sidebarRight",
+            title: Translation.tr("Modes"),
+            text: Translation.tr("Class, Game, Presentation and Night change several things at once (Do not disturb, the theme, night light, the screen staying on) and put them back when they end. Turn one on with its chip here, or let it start by its hours or when an app opens (Settings > Modes)."),
+            keys: []
+        },
         {
             icon: "smart_toy",
             spot: "left",
             open: "sidebarLeft",
             title: Translation.tr("AI assistant and tools"),
-            text: Translation.tr("Chat with an AI model (add your free Gemini key with /key), translate text and more. Open it from the top-left button."),
+            text: Translation.tr("The Today tab: your day at a glance, with the weather, your next class and your tasks. Also chat with an AI model (add your free Gemini key with /key), translate text and more. Open it from the top-left button."),
             keys: [["Win", "A"]]
         },
         {

@@ -140,6 +140,20 @@ ContentPage {
         }
     }
 
+    ContentSection { // B3.6: the notes of the version in use, to read again after the notice
+        visible: !(IiUpdates.attention && IiUpdates.notes.length > 0) && IiUpdates.installedNotes.length > 0
+        icon: "auto_awesome"
+        title: Translation.tr("What's new in this version (%1)").arg(IiUpdates.installedVersion)
+        StyledText {
+            Layout.fillWidth: true
+            wrapMode: Text.Wrap
+            textFormat: Text.MarkdownText
+            text: IiUpdates.installedNotes
+            color: Appearance.colors.colOnLayer1
+            onLinkActivated: link => Qt.openUrlExternally(link)
+        }
+    }
+
     ContentSection {
         icon: "tune"
         title: Translation.tr("Options")

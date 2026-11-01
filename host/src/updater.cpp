@@ -6,6 +6,7 @@
 //                                        (the launcher starts it at the next start of ii and goes back if it fails) -> "ready"
 //   ii-shim update status                prints the state
 //   ii-shim update skip <version>        never offer that version again
+//   ii-shim update whatsnew              the installed version and its release notes, as JSON (shown after an update)
 //
 // State: <data>\update\state.json (written atomically; the shell's Updates service and ii-host read it).
 // ii-host runs these hidden, never during a game, a locked session or (for download) on a metered connection; "--force"
@@ -738,6 +739,29 @@ int install() {
 	return 0;
 }
 
+// --- what's new (B3.6) ---------------------------------------------------------------------------------------------
+
+// The installed version and the notes of its release, kept from when it was downloaded (update\<id>\release.json,
+// signature checked then): {"current":"0.9.0-...","version":"0.9.0","notes":"## Novedades ..."}. Empty notes when this
+// version came from the setup rather than the updater.
+int whatsNew() {
+	auto current = installed();
+	auto out = jsonlite::Value::makeObject();
+	out.set("current", jsonlite::Value::makeString(utf8(current.id)));
+	std::string version, notes;
+	if (ii::rollout::validId(current.id)) {
+		auto info = jsonlite::parse(readFile(updateDir() + L"\\" + current.id + L"\\release.json", 512 * 1024));
+		if (info.ok && info.value.isObject()) {
+			version = text(member(info.value, "version"));
+			if (const auto* n = member(info.value, "notes")) notes = text(member(*n, "es"));
+		}
+	}
+	out.set("version", jsonlite::Value::makeString(version));
+	out.set("notes", jsonlite::Value::makeString(notes));
+	std::puts(jsonlite::stringify(out, false).c_str());
+	return 0;
+}
+
 } // namespace
 
 int update(const std::vector<std::wstring>& argsIn) {
@@ -745,7 +769,7 @@ int update(const std::vector<std::wstring>& argsIn) {
 	testing = std::find(args.begin(), args.end(), L"--test") != args.end();
 	auto force = std::find(args.begin(), args.end(), L"--force") != args.end();
 	if (args.empty()) {
-		std::fputs("usage: update check|download|install|status|skip <version> [--force] [--test]\n", stderr);
+		std::fputs("usage: update check|download|install|status|whatsnew|skip <version> [--force] [--test]\n", stderr);
 		return 2;
 	}
 	winrt::init_apartment(winrt::apartment_type::single_threaded);
@@ -753,6 +777,7 @@ int update(const std::vector<std::wstring>& argsIn) {
 		if (args[0] == L"check") return check(force);
 		if (args[0] == L"download") return download(force);
 		if (args[0] == L"install") return install();
+		if (args[0] == L"whatsnew") return whatsNew();
 		if (args[0] == L"status") {
 			auto state = loadState();
 			std::puts(jsonlite::stringify(state, true).c_str());

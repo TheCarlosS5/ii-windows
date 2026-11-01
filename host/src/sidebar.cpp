@@ -4,6 +4,7 @@
 #include <powrprof.h>
 #include <shellapi.h>
 #include <objbase.h>
+#include <dxgi.h>
 #include <algorithm>
 #include <cstdio>
 
@@ -128,6 +129,24 @@ int powerCommand(const std::vector<std::wstring>& args) {
         json(present[i]->id).c_str(), json(guidString(present[i]->guid)).c_str(), json(friendly(present[i]->guid)).c_str());
     std::puts("]}"); return error ? 1 : 0;
 }
+// A graphics card of its own (plan 2026-10-31, H5: the light mode is offered to < 8 GB PCs without one): NVIDIA, or
+// any hardware adapter with 2 GB or more of its own memory (integrated graphics borrow from RAM: 128 MB-512 MB here).
+// "unknown" when DXGI cannot be asked.
+const char* dedicatedGpu() {
+    IDXGIFactory1* factory = nullptr;
+    if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), reinterpret_cast<void**>(&factory)))) return "null";
+    bool found = false;
+    IDXGIAdapter1* adapter = nullptr;
+    for (UINT i = 0; !found && factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+        DXGI_ADAPTER_DESC1 desc {};
+        if (SUCCEEDED(adapter->GetDesc1(&desc)) && !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE))
+            found = desc.VendorId == 0x10DE || desc.DedicatedVideoMemory >= 2ULL * 1024 * 1024 * 1024;
+        adapter->Release();
+    }
+    factory->Release();
+    return found ? "true" : "false";
+}
+
 int systemInfoCommand(const std::vector<std::wstring>& args) {
     if (!args.empty()) return 2;
     auto name = registryText(L"ProductName"), edition = registryText(L"EditionID");
@@ -142,8 +161,8 @@ int systemInfoCommand(const std::vector<std::wstring>& args) {
     ULONGLONG installedKB = 0;
     auto memoryMB = GetPhysicallyInstalledSystemMemory(&installedKB) ? installedKB / 1024
         : GlobalMemoryStatusEx(&memory) ? static_cast<unsigned long long>(memory.ullTotalPhys / (1024 * 1024)) : 0ULL;
-    std::printf("{\"name\":%s,\"edition\":%s,\"build\":%d,\"threads\":%lu,\"memoryMB\":%llu}\n", json(name).c_str(),
-                json(edition).c_str(), build, GetActiveProcessorCount(ALL_PROCESSOR_GROUPS), memoryMB);
+    std::printf("{\"name\":%s,\"edition\":%s,\"build\":%d,\"threads\":%lu,\"memoryMB\":%llu,\"dedicatedGpu\":%s}\n", json(name).c_str(),
+                json(edition).c_str(), build, GetActiveProcessorCount(ALL_PROCESSOR_GROUPS), memoryMB, dedicatedGpu());
     return 0;
 }
 int systemSoundCommand(const std::vector<std::wstring>& args) {

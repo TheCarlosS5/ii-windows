@@ -4,6 +4,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.modules.common
+import qs.modules.common.functions
 
 /**
  * ii-windows (plan 2026-10-31, block B): what the updater knows, for the bar's dot, the right sidebar and
@@ -81,6 +83,50 @@ Singleton {
         repeat: true
         onTriggered: stateFile.reload()
     }
+    // ---- what's new after an update (B3.6) ------------------------------------------------------------------------------
+    // The installed version's notes (kept from its signed release.json when the updater brought it; none after a setup).
+    // At the first start of a version that came by the updater: a notice "ii se actualizó a 0.9.0" with "Ver novedades",
+    // which opens Configuración > Actualizaciones, where the notes stay to be read again.
+    property string installedId: ""
+    property string installedVersion: ""
+    property string installedNotes: ""
+    Process {
+        running: true
+        command: ["ii-shim", "update", "whatsnew"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const d = JSON.parse(text);
+                    root.installedId = d.current ?? "";
+                    root.installedVersion = d.version ?? "";
+                    root.installedNotes = d.notes ?? "";
+                    root.announceIfNew();
+                } catch (e) {}
+            }
+        }
+    }
+    FileView {
+        id: seenFile
+        path: FileUtils.trimFileProtocol(`${Directories.state}/whats-new.json`)
+        printErrors: false
+        blockLoading: true
+    }
+    function announceIfNew() {
+        if (root.installedId === "" || root.installedId === "dev") return;
+        let seen = "";
+        try { seen = JSON.parse(seenFile.text()).seen ?? ""; } catch (e) {}
+        if (seen === root.installedId) return;
+        seenFile.setText(JSON.stringify({ seen: root.installedId }));
+        if (root.installedNotes.length === 0) return; // installed by the setup: nothing to tell
+        Quickshell.execDetached(["notify-send", "-a", "ii", "--ii-button", `${Translation.tr("See what's new")}=whats-new`,
+            Translation.tr("ii was updated to %1").arg(root.installedVersion || root.installedId), root.notesSummary()]);
+    }
+    // The first points of the notes, as plain text, for the notice.
+    function notesSummary() {
+        const lines = root.installedNotes.split("\n").map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith("#"));
+        return lines.slice(0, 3).map(l => l.replace(/^[-*]\s*/, "• ").replace(/[*_`]/g, "")).join("\n");
+    }
+
     Timer {
         id: refreshSoon
         interval: 900

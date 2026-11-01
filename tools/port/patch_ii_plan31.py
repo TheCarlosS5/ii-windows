@@ -1682,6 +1682,7 @@ edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'androidStyle', 'Andr
 ])
 add_translations('es_MX', {
     "Not supported": "No compatible",
+    "HDR": "HDR",
     "HDR on the screens that support it (the same switch as Windows Settings)": "HDR en las pantallas que lo admiten (el mismo interruptor de la Configuración de Windows)",
     "Refresh rate": "Frecuencia de pantalla",
     "The screen between %1 Hz and %2 Hz (until the next restart)": "La pantalla entre %1 Hz y %2 Hz (hasta el próximo reinicio)",
@@ -1768,3 +1769,35 @@ add_translations('es_MX', {
     "on": "activado",
     "off": "desactivado",
 })
+
+# --- H5: the tour with Buscar todo, Modos and Hoy; "Novedades" after an update (B3.6, overlay IiUpdates) ------------
+add_translations('es_MX', {
+    "Press the Windows key and type: apps, open windows, ii's and Windows' settings, actions like \"empty the recycle bin\", maths, units, money and the time in other cities, then Enter. Win+Tab shows the windows of this desktop.":
+        "Pulsa la tecla Windows y escribe: apps, ventanas abiertas, ajustes de ii y de Windows, acciones como \"vaciar la papelera\", cuentas, unidades, dinero y la hora en otras ciudades, y luego Enter. Win+Tab muestra las ventanas de este escritorio.",
+    "The Today tab: your day at a glance, with the weather, your next class and your tasks. Also chat with an AI model (add your free Gemini key with /key), translate text and more. Open it from the top-left button.":
+        "La pestaña Hoy: tu día de un vistazo, con el clima, tu próxima clase y tus tareas. También puedes chatear con un modelo de IA (agrega tu clave gratis de Gemini con /key), traducir texto y más. Ábrelo con el botón de arriba a la izquierda.",
+    "Class, Game, Presentation and Night change several things at once (Do not disturb, the theme, night light, the screen staying on) and put them back when they end. Turn one on with its chip here, or let it start by its hours or when an app opens (Settings > Modes).":
+        "Clase, Juego, Presentación y Noche cambian varias cosas a la vez (No molestar, el tema, la luz nocturna, que la pantalla no se apague) y las dejan como estaban al terminar. Activa uno con su botón aquí, o deja que empiece por su horario o al abrir una app (Configuración > Modos).",
+    "Modes": "Modos",
+    "See what's new": "Ver novedades",
+    "ii was updated to %1": "ii se actualizó a la %1",
+    "What's new in this version (%1)": "Novedades de esta versión (%1)",
+})
+
+# --- H5: the light mode is also offered to PCs with less than 8 GB and no graphics card of their own --------------
+edit(path('services', 'SystemInfo.qml'), [
+    ('''    property int memoryMB: 0 // ii-windows: installed memory
+''', '''    property int memoryMB: 0 // ii-windows: installed memory
+    property var dedicatedGpu: null // ii-windows (plan 2026-10-31, H5): true/false, null = not known
+'''),
+    ('''                    root.memoryMB = info.memoryMB ?? 0;
+''', '''                    root.memoryMB = info.memoryMB ?? 0;
+                    root.dedicatedGpu = info.dedicatedGpu ?? null;
+'''),
+])
+edit(path('services', 'Performance.qml'), [
+    ('''        || (SystemInfo.memoryMB > 0 && SystemInfo.memoryMB < 7000)
+''', '''        || (SystemInfo.memoryMB > 0 && SystemInfo.memoryMB < 7000)
+        || (SystemInfo.memoryMB > 0 && SystemInfo.memoryMB < 8192 && SystemInfo.dedicatedGpu === false) // H5
+'''),
+])
