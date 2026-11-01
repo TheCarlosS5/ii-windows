@@ -36,7 +36,9 @@
 
 #include <shellapi.h>
 
+#include <cstdio>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "rollout.h"
@@ -230,6 +232,35 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 	}
 	if (mode.rfind(L"slow:", 0) == 0) {
 		Sleep(static_cast<DWORD>(_wtoi(mode.c_str() + 5)));
+		showWindowsAndWait();
+		return 0;
+	}
+	// crash:<ms>:<subsystem>  (plan 2026-10-31, A4) shows its windows, and after <ms> leaves a crash report like
+	// quickshell-windows' crash handler does (<data>\crashes\*.json with its pid) and exits with 0xC0000005. Before
+	// that it writes what it was started with (II_DISABLE, II_SAFE_MODE, QSG_RENDER_LOOP) to <data>\fake-env-<pid>.txt.
+	if (mode.rfind(L"crash:", 0) == 0) {
+		auto rest = mode.substr(6);
+		auto colon = rest.find(L':');
+		auto after = static_cast<DWORD>(_wtoi(rest.substr(0, colon).c_str()));
+		auto subsystem = colon == std::wstring::npos ? std::wstring(L"mpris") : rest.substr(colon + 1);
+		auto data = env(L"II_DATA_DIR");
+		auto pid = GetCurrentProcessId();
+		if (auto* f = _wfopen((data + L"\\fake-env-" + std::to_wstring(pid) + L".txt").c_str(), L"wb")) {
+			auto line = L"disable=" + env(L"II_DISABLE") + L"\nsafe=" + env(L"II_SAFE_MODE") + L"\nrender=" + env(L"QSG_RENDER_LOOP") + L"\nversion=" + env(L"II_VERSION") + L"\n";
+			fwrite(line.c_str(), sizeof(wchar_t), line.size(), f);
+			fclose(f);
+		}
+		std::thread([after, subsystem, data, pid]() {
+			Sleep(after);
+			CreateDirectoryW((data + L"\\crashes").c_str(), nullptr);
+			auto name = data + L"\\crashes\\quickshell-fake-" + std::to_wstring(pid) + L".json";
+			if (auto* f = _wfopen(name.c_str(), L"wb")) {
+				std::string sub(subsystem.begin(), subsystem.end());
+				std::fprintf(f, "{\"schema\":1,\"app\":\"quickshell\",\"kind\":\"exception\",\"code\":\"0xC0000005\",\"where\":\"quickshell.exe+0x19ed74\",\"subsystem\":\"%s\",\"uptimeSeconds\":%lu,\"pid\":%lu,\"dump\":null}\n", sub.c_str(), after / 1000, pid);
+				fclose(f);
+			}
+			TerminateProcess(GetCurrentProcess(), 0xC0000005);
+		}).detach();
 		showWindowsAndWait();
 		return 0;
 	}

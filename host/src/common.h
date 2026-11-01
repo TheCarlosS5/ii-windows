@@ -191,6 +191,14 @@ void sessionChanged(WPARAM event); // WM_WTSSESSION_CHANGE: nothing is counted w
 void write();                      // now (at exit)
 } // namespace screentime
 
+// SHQueryUserNotificationState, asked on a worker thread (notifystate.cpp): callers never wait on Explorer.
+namespace notifystate {
+// The window told (with `message`) when the answer changes; also starts the worker.
+void setListener(HWND window, UINT message);
+int get();                    // the last QUERY_USER_NOTIFICATION_STATE (and asks again in the background)
+bool fullscreenOrPresenting(); // exclusive full screen (D3D) or presentation mode
+} // namespace notifystate
+
 // The shell (quickshell + ii) side receives shortcuts through WM_COPYDATA on this window.
 constexpr const wchar_t* SHELL_SINK_CLASS = L"IiShellShortcutSink";
 constexpr ULONG_PTR COPYDATA_PRESSED = 0x49490001;

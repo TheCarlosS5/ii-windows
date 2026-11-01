@@ -27,6 +27,8 @@ add_executable(ii-host WIN32
 	src/configtool.cpp
 	src/screentime.cpp
 	src/minanim.cpp
+	src/crashpolicy.cpp
+	src/notifystate.cpp
 )
 
 target_compile_definitions(ii-host PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
@@ -77,6 +79,10 @@ target_link_libraries(ii-launcher PRIVATE user32 shell32)
 add_executable(ii-keyrouter-test src/keyboard_test.cpp src/keyrouter.cpp)
 target_compile_options(ii-keyrouter-test PRIVATE /EHsc)
 target_link_libraries(ii-keyrouter-test PRIVATE user32)
+
+# Plan 2026-10-31, A4: what ii-host does when the shell crashes, tested without a shell.
+add_executable(ii-crashpolicy-test src/crashpolicy_test.cpp src/crashpolicy.cpp src/jsonlite.cpp)
+target_compile_definitions(ii-crashpolicy-test PRIVATE UNICODE _UNICODE)
 
 # R09: the rule for removing an empty virtual desktop, tested without Explorer.
 add_executable(ii-vdesk-test src/vdesk_test.cpp)

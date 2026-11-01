@@ -10,6 +10,7 @@
 // Panic shortcut while running: Ctrl+Alt+Shift+R (restores Windows UI, stops the shell, exits).
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include "configtool.h"
 #include "nightlight.h"
 #include "rollout.h"
+#include "crashpolicy.h"
 
 #include <objbase.h>
 #include <shellapi.h>
@@ -97,6 +99,10 @@ constexpr ULONGLONG SHELL_FROZEN_SPAN_MS = 5 * 60 * 1000;
 constexpr ULONGLONG SHELL_WINDOWS_LOST_MS = 20000;
 constexpr UINT_PTR TIMER_NOTICE_END = 8;
 constexpr UINT_PTR TIMER_LONE_WIN = 9;
+// notifystate.cpp: the answer of SHQueryUserNotificationState changed (a game went exclusive full screen...).
+constexpr UINT WM_II_NOTIFY_STATE = WM_APP + 6;
+// A command from the shell or ii-shim ("safe-mode-off", "restart-shell", ...): WM_COPYDATA with this dwData.
+constexpr ULONG_PTR COPYDATA_HOST_COMMAND = 0x49490040;
 
 struct Options {
 	std::wstring shell;
@@ -124,7 +130,6 @@ bool shuttingDown = false;
 bool guardReady = false;
 bool booting = false;
 HANDLE guardProcess = nullptr;
-ULONGLONG crashTimes[3] = {};
 // Watchdog: a shell that never shows its wallpaper, or stops responding, is restarted; with the
 // taskbar and icons hidden, a stuck shell would leave the user in front of a black screen.
 DWORD shellPid = 0;
@@ -132,7 +137,6 @@ ULONGLONG shellStartedAt = 0;
 bool shellReady = false;
 ULONGLONG shellHungSince = 0;
 int stuckRestarts = 0;
-int crashIndex = 0;
 int launchFailures = 0;
 // The Windows UI (taskbar, icons) is hidden by us right now. Everything that re-hides it (timers,
 // the Explorer hook) is gated by this, so a failed start can give the desktop back and stay out
@@ -170,6 +174,18 @@ DWORD waitingGamePid = 0;
 ULONGLONG waitingGameCreated = 0; // its creation time, so a reused pid is not taken for the game
 ULONGLONG gameAwaySince = 0;
 bool noticeShown = false;
+// Plan 2026-10-31, A4: the shell's crashes in a sliding window, and what the next shell starts without. Kept in
+// state.ini [safety] for this version only (a new version starts with everything on again).
+crashpolicy::Policy crashPolicy;
+std::vector<std::wstring> disabledParts; // II_DISABLE of the next shell
+bool safeMode = false;                   // II_SAFE_MODE of the next shell
+std::wstring versionId = L"dev";        // this version (first line of VERSION next to ii-host.exe)
+struct ShellNotice {
+	std::wstring summary;
+	std::wstring body;
+	std::wstring urgency;
+};
+std::vector<ShellNotice> shellNotices; // told to the user by the shell once it is up
 
 struct MonitorCover {
 	RECT rect {};
@@ -377,7 +393,7 @@ void rememberGoodConfig() {
 }
 
 // The shell's notification sink is a window of the shell itself; the same message ii-shim notify-send uses.
-void tellUserThroughShell(const std::wstring& summary, const std::wstring& body) {
+void tellUserThroughShell(const std::wstring& summary, const std::wstring& body, const std::wstring& urgency = L"critical") {
 	if (noUi()) {
 		log(L"config: (no UI) %s", summary.c_str());
 		return;
@@ -385,7 +401,7 @@ void tellUserThroughShell(const std::wstring& summary, const std::wstring& body)
 	auto* sink = FindWindowW(L"IiShellNotificationSink", nullptr);
 	if (!sink) return;
 	const wchar_t sep = 0x1f; // the field separator ii-shim notify-send uses
-	std::wstring payload = std::wstring(L"ii-windows") + sep + summary + sep + body + sep + sep + L"critical" + sep + sep + L"0";
+	std::wstring payload = std::wstring(L"ii-windows") + sep + summary + sep + body + sep + sep + urgency + sep + sep + L"0";
 	COPYDATASTRUCT data {};
 	data.dwData = 0x49490010;
 	data.cbData = static_cast<DWORD>((payload.size() + 1) * sizeof(wchar_t));
@@ -397,6 +413,66 @@ void tellUserThroughShell(const std::wstring& summary, const std::wstring& body)
 void deliverConfigNotices() {
 	for (const auto& notice: configNotices) tellUserThroughShell(L"ii: your settings file was checked", notice);
 	configNotices.clear();
+	for (const auto& notice: shellNotices) tellUserThroughShell(notice.summary, notice.body, notice.urgency);
+	shellNotices.clear();
+}
+
+// --- safety: what the shell starts without after crashes (plan 2026-10-31, A4) ----------------------------------
+
+std::wstring readVersionId() {
+	std::wstring id;
+	if (auto* f = _wfopen((selfDir() + L"\\VERSION").c_str(), L"rb")) {
+		char line[128] {};
+		if (fgets(line, sizeof(line), f)) {
+			for (const char* c = line; *c && *c != '\r' && *c != '\n' && *c != ' '; ++c) id += static_cast<wchar_t>(*c);
+		}
+		fclose(f);
+	}
+	return id.empty() ? L"dev" : id;
+}
+
+std::wstring joined(const std::vector<std::wstring>& parts) {
+	std::wstring out;
+	for (const auto& p: parts) out += (out.empty() ? L"" : L",") + p;
+	return out;
+}
+
+void saveSafety() {
+	state::setText(L"safety", L"version", versionId);
+	state::setText(L"safety", L"disabled", joined(disabledParts));
+	state::setText(L"safety", L"safe", safeMode ? L"1" : L"");
+}
+
+void loadSafety() {
+	disabledParts.clear();
+	safeMode = false;
+	if (state::getText(L"safety", L"version") != versionId) {
+		// Another version wrote it (or nothing did): a new version starts with every part on.
+		if (!state::getText(L"safety", L"disabled").empty() || !state::getText(L"safety", L"safe").empty()) log(L"safety: new version %s, every part on again", versionId.c_str());
+		saveSafety();
+		return;
+	}
+	auto list = state::getText(L"safety", L"disabled");
+	for (size_t start = 0; start < list.size();) {
+		auto end = list.find(L',', start);
+		auto part = list.substr(start, end == std::wstring::npos ? std::wstring::npos : end - start);
+		if (!part.empty()) disabledParts.push_back(part);
+		if (end == std::wstring::npos) break;
+		start = end + 1;
+	}
+	safeMode = state::getText(L"safety", L"safe") == L"1";
+	if (safeMode || !disabledParts.empty()) log(L"safety: this version starts with %s%s off", safeMode ? L"safe mode, " : L"", joined(disabledParts).c_str());
+}
+
+// Before CreateProcess: the shell inherits these (quickshell-windows crash.hpp disabled()).
+void applySafetyEnvironment() {
+	auto list = joined(disabledParts);
+	SetEnvironmentVariableW(L"II_DISABLE", list.empty() ? nullptr : list.c_str());
+	SetEnvironmentVariableW(L"II_SAFE_MODE", safeMode ? L"1" : nullptr);
+	SetEnvironmentVariableW(L"II_VERSION", versionId.c_str());
+	auto basic = safeMode || std::find(disabledParts.begin(), disabledParts.end(), L"render") != disabledParts.end();
+	if (basic) SetEnvironmentVariableW(L"QSG_RENDER_LOOP", L"basic");
+	if (safeMode || !list.empty()) log(L"shell: starts with %s%s%s", safeMode ? L"safe mode" : L"", safeMode && !list.empty() ? L", " : L"", list.empty() ? L"" : (list + L" off").c_str());
 }
 
 // --- shell process -------------------------------------------------------------------------
@@ -419,6 +495,7 @@ bool startShell() {
 
 	guardConfig(); // a damaged config.json must not be what the shell starts from
 	applyRenderLoopChoice();
+	applySafetyEnvironment();
 	ensureCompiledQml();
 	reconcileGpuPreference(options.shell);
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
@@ -736,8 +813,7 @@ bool gameInFront() {
 	if (testFullscreen()) return true;
 	if (!foregroundIsFullscreenApp()) return false;
 	auto* fg = GetForegroundWindow();
-	QUERY_USER_NOTIFICATION_STATE state {};
-	if (SUCCEEDED(SHQueryUserNotificationState(&state)) && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE)) return true;
+	if (notifystate::fullscreenOrPresenting()) return true;
 	auto style = GetWindowLongPtrW(fg, GWL_STYLE);
 	return (style & WS_CAPTION) != WS_CAPTION && !IsZoomed(fg);
 }
@@ -785,8 +861,7 @@ std::wstring describeForeground(DWORD& pid) {
 	}
 	wchar_t title[128] {};
 	GetWindowTextW(fg, title, _countof(title));
-	QUERY_USER_NOTIFICATION_STATE state {};
-	auto exclusive = SUCCEEDED(SHQueryUserNotificationState(&state)) && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+	auto exclusive = notifystate::fullscreenOrPresenting();
 	return exe + L" \"" + title + L"\"" + (exclusive ? L" (exclusive fullscreen)" : foregroundIsFullscreenApp() ? L" (covers the screen)" : L"");
 }
 
@@ -1096,8 +1171,105 @@ void watchShell() {
 	}
 }
 
+// Five crashes close together: everything goes back to Windows and the user is told why, with the way back to the
+// previous version if there is one.
+void giveUpAfterCrashes(const crashpolicy::Report& report, const std::wstring& subsystem) {
+	log(L"giving up: the shell crashed %d times in 30 minutes", crashPolicy.recent(GetTickCount64()));
+	restoreAndStop(2);
+	std::wstring text = L"ii se cerró varias veces seguidas por un error y se detuvo.\nSe restauró la barra de tareas y el escritorio de Windows.\n\nÚltimo fallo: ";
+	text += crashpolicy::describe(subsystem);
+	if (report.found) text += L" (" + report.where + L")";
+	text += L".\nInformes: %LOCALAPPDATA%\\ii-windows\\crashes\nPara ayudar a arreglarlo: menú Inicio > ii-windows > Reportar un problema de ii.";
+	std::wstring root, id;
+	rollout::Current current;
+	auto canGoBack = rollout::locate(selfDir(), root, id) && rollout::read(root, current) && current.previous != L"none"
+	              && rollout::validId(current.previous) && current.previous != current.active;
+	if (canGoBack && !noUi()) {
+		text += L"\n\n¿Volver a la versión anterior (" + current.previous + L") la próxima vez que se inicie ii?";
+		if (MessageBoxW(nullptr, text.c_str(), L"ii-windows", MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES) {
+			rollout::Current back = current;
+			back.active = current.previous;
+			back.previous = current.active;
+			back.state = L"rolled-back";
+			back.attempts = 0;
+			if (rollout::write(root, back)) log(L"runtime: rolled back to %s at the user's request", back.active.c_str());
+		}
+	} else {
+		alertUser(text);
+	}
+	PostQuitMessage(2);
+}
+
+// The shell ended on its own with an error (a crash, or exit 70 after a scene graph error). Plan 2026-10-31, A4.
+void handleShellCrash(DWORD code, DWORD pid) {
+	auto report = crashpolicy::find(dataDir() + L"\\crashes", pid);
+	auto subsystem = crashpolicy::subsystemOf(report, code);
+	if (report.found) {
+		log(L"crash: %s (%s, %s) in %s, %llu s after start%s", report.where.c_str(), report.code.c_str(), report.kind.c_str(), subsystem.c_str(),
+		    report.uptimeSeconds, report.dump.empty() ? L", no dump" : L"");
+	} else {
+		log(L"crash: exit code 0x%08lX with no crash report (%s)", code, subsystem.c_str());
+	}
+	state::set(L"lastSessionTrouble", 1);
+	auto decision = crashPolicy.onCrash(GetTickCount64(), subsystem, disabledParts, safeMode);
+	auto what = crashpolicy::describe(subsystem);
+	switch (decision.action) {
+	case crashpolicy::Action::Restart:
+		log(L"crash: %d in 30 minutes, restarting", decision.crashes);
+		shellNotices.push_back({L"ii se cerró por un error y se recuperó",
+		                        decision.crashes == 1 ? L"Falló " + what + L". ii se reinició solo; no tienes que hacer nada."
+		                                              : L"Es la segunda vez en poco tiempo (falló " + what
+		                                                    + L"). Si vuelve a pasar, ii apagará esa parte para que el resto siga funcionando.",
+		                        L"normal"});
+		break;
+	case crashpolicy::Action::Disable:
+		disabledParts.push_back(decision.subsystem);
+		saveSafety();
+		log(L"crash: %d in 30 minutes, %d of them in %s: it starts switched off", decision.crashes, 3, decision.subsystem.c_str());
+		shellNotices.push_back({L"Modo seguro: se apagó " + what,
+		                        L"ii se cerró 3 veces por un error en esa parte, así que ahora arranca sin ella; lo demás funciona normal. "
+		                        L"Para encenderla otra vez: Configuración > Avanzado > Diagnóstico > Reactivar todo.",
+		                        L"critical"});
+		break;
+	case crashpolicy::Action::SafeMode:
+		safeMode = true;
+		saveSafety();
+		log(L"crash: %d in 30 minutes: safe mode", decision.crashes);
+		shellNotices.push_back({L"ii está en modo seguro",
+		                        L"ii se cerró varias veces seguidas, así que ahora arranca con lo mínimo (sin multimedia, sin lector de "
+		                        L"notificaciones de Windows, dibujo básico). Reporta el problema: menú Inicio > ii-windows > Reportar un problema de ii.",
+		                        L"critical"});
+		break;
+	case crashpolicy::Action::GiveUp: giveUpAfterCrashes(report, subsystem); return;
+	}
+	SetTimer(hostWindow, TIMER_RESTART_SHELL, 1000, nullptr);
+}
+
+// "safe-mode-off", "restart-shell" (WM_COPYDATA COPYDATA_HOST_COMMAND from the shell or ii-shim host <command>).
+bool hostCommand(const std::wstring& command) {
+	log(L"command: %s", command.c_str());
+	if (command == L"safe-mode-off") {
+		disabledParts.clear();
+		safeMode = false;
+		crashPolicy.reset();
+		saveSafety();
+		state::set(L"lastSessionTrouble", 0);
+		log(L"safety: every part on again (user)");
+		stopShell();
+		if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
+		return true;
+	}
+	if (command == L"restart-shell") {
+		stopShell();
+		if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
+		return true;
+	}
+	return false;
+}
+
 void onShellExited() {
 	if (!shellProcess || shuttingDown) return;
+	auto exitedPid = shellPid;
 	DWORD code = 0;
 	GetExitCodeProcess(shellProcess, &code);
 	CloseHandle(shellProcess);
@@ -1122,15 +1294,7 @@ void onShellExited() {
 		return;
 	}
 
-	auto now = GetTickCount64();
-	crashTimes[crashIndex++ % 3] = now;
-	auto oldest = crashTimes[crashIndex % 3];
-	if (crashIndex >= 3 && now - oldest < 60000) {
-		abortLaunch(L"la shell se cerró varias veces seguidas");
-		return;
-	}
-
-	SetTimer(hostWindow, TIMER_RESTART_SHELL, 1000, nullptr);
+	handleShellCrash(code, exitedPid);
 }
 
 LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -1150,6 +1314,14 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
 		if (!shuttingDown && data && data->dwData == nightlight::COPYDATA)
 			return nightlight::receive(data->lpData, data->cbData);
+		if (!shuttingDown && data && data->dwData == COPYDATA_HOST_COMMAND && data->lpData && data->cbData >= sizeof(wchar_t) && data->cbData <= 4096) {
+			std::wstring command(static_cast<const wchar_t*>(data->lpData), data->cbData / sizeof(wchar_t));
+			while (!command.empty() && command.back() == L'\0') command.pop_back();
+			// Answered after this message returns: a restart must not run inside the sender's SendMessage.
+			auto* copy = new std::wstring(command);
+			PostMessageW(hwnd, WM_APP + 7, 0, reinterpret_cast<LPARAM>(copy));
+			return TRUE;
+		}
 		if (!shuttingDown && data && data->dwData == health::COPYDATA_SERVICE_STATE) {
 			health::receive(reinterpret_cast<HWND>(wParam), data->lpData, data->cbData); // NOLINT
 			evaluateBanners();
@@ -1161,6 +1333,14 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case keyboard::WM_II_VOLUME: volume::handleKey(static_cast<unsigned>(wParam)); return 0;
 	case keyboard::WM_II_LONE_WIN: onLoneWin(); return 0;
 	case WM_II_SHELL_EXITED: onShellExited(); return 0;
+	case WM_APP + 7: { // a host command, posted from WM_COPYDATA
+		std::unique_ptr<std::wstring> command(reinterpret_cast<std::wstring*>(lParam));
+		if (command && !shuttingDown) hostCommand(*command);
+		return 0;
+	}
+	case WM_II_NOTIFY_STATE:
+		if (options.hook && !shuttingDown) keyboard::refreshContext();
+		return 0;
 	case WM_II_HEARTBEAT:
 		if (shellProcess && static_cast<DWORD>(wParam) == shellPid) {
 			lastHeartbeat = GetTickCount64();
@@ -1322,6 +1502,7 @@ int runHost() {
 	hostWindow = CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName, L"ii-host", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
 	taskbarCreatedMsg = RegisterWindowMessageW(L"TaskbarCreated");
 	ChangeWindowMessageFilterEx(hostWindow, taskbarCreatedMsg, MSGFLT_ALLOW, nullptr);
+	notifystate::setListener(hostWindow, WM_II_NOTIFY_STATE);
 	// The taskbar that is there already: the shell's own tray broadcasts TaskbarCreated as it starts, and that
 	// was taken for an Explorer restart (everything applied a second time a second after start).
 	knownExplorerTray = explorerTray();
@@ -1335,6 +1516,8 @@ int runHost() {
 
 	state::set(L"hostClean", 0);
 	coldStart = coldQmlCache();
+	versionId = readVersionId();
+	loadSafety();
 	setPhase(Phase::Preparing, options.shell.empty() ? L"no shell requested" : L"shell requested");
 	instance::recordHost();
 	bench(L"host-ready-to-launch");

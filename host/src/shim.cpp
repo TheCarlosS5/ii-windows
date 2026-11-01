@@ -374,6 +374,32 @@ void sendKey(WORD vk) {
 	SendInput(2, in, sizeof(INPUT));
 }
 
+// ii-shim host <command> (plan 2026-10-31): a command to ii-host, e.g. "safe-mode-off" or "restart-shell" from
+// Configuración > Avanzado > Diagnóstico, "update-check" from Configuración > Actualizaciones. The host of this data
+// folder (II_DATA_DIR test instances have their own window class, see common.cpp instanceTag()). Exit 0 accepted,
+// 1 no host, 2 refused.
+int hostCommand(const Args& args) {
+	if (args.empty() || args[0].empty() || args[0].size() > 200) return 2;
+	std::wstring command = args[0];
+	for (size_t i = 1; i < args.size(); ++i) command += wchar_t(0x1f) + args[i];
+	std::wstring cls = L"IiHostWindow";
+	wchar_t dir[MAX_PATH];
+	auto n = GetEnvironmentVariableW(L"II_DATA_DIR", dir, MAX_PATH);
+	if (n > 0 && n < MAX_PATH) {
+		unsigned long long h = 1469598103934665603ULL;
+		for (DWORD i = 0; i < n; ++i) h = (h ^ static_cast<unsigned long long>(towlower(dir[i]))) * 1099511628211ULL;
+		wchar_t tag[24];
+		swprintf_s(tag, L"-t%08llx", h & 0xffffffffULL);
+		cls += tag;
+	}
+	auto* host = FindWindowW(cls.c_str(), nullptr);
+	if (!host) return 1;
+	COPYDATASTRUCT data {0x49490040, static_cast<DWORD>((command.size() + 1) * sizeof(wchar_t)), command.data()};
+	DWORD_PTR result = 0;
+	if (!SendMessageTimeoutW(host, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG, 3000, &result)) return 1;
+	return result ? 0 : 2;
+}
+
 int playerctl(const Args& args) {
 	if (args.empty()) return 1;
 	const auto& cmd = args[0];
@@ -606,6 +632,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"ocr") return ocrFile(args);
 	if (command == L"notify-send") return notifySend(args);
 	if (command == L"playerctl") return playerctl(args);
+	if (command == L"host") return hostCommand(args);
 	if (command == L"wpctl") return wpctl(args);
 	if (command == L"pidof") return pidof(args);
 	if (command == L"keystate") return keystate(args);

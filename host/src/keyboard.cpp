@@ -276,9 +276,8 @@ void refreshContext() {
 		auto style = GetWindowLongPtrW(fg, GWL_STYLE);
 		facts.hasCaption = (style & WS_CAPTION) == WS_CAPTION;
 		facts.maximized = IsZoomed(fg) || (style & WS_MAXIMIZE);
-		QUERY_USER_NOTIFICATION_STATE state {};
-		facts.exclusiveFullscreen = SUCCEEDED(SHQueryUserNotificationState(&state))
-		                         && (state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE);
+		// Asked on a worker thread (A5): Explorer may be busy, and this runs on the host's main thread.
+		facts.exclusiveFullscreen = notifystate::fullscreenOrPresenting();
 		facts.exe = lowerExeName(pid);
 	}
 	// This runs from the foreground event (onForegroundChanged), so the hook goes the moment an anti-cheat game comes
