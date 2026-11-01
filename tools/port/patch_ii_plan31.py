@@ -314,3 +314,51 @@ add_translations('es_MX', {
     "Update to %1": "Actualizar a %1",
     "Check for updates": "Buscar actualizaciones",
 })
+
+
+# --- F1/E10: microphone, camera and location in use (Windows shows them in its own taskbar, which ii hides) ---------
+# Quickshell.Windows PrivacyMonitor (fork, services/privacy.cpp). In the bar's right-side indicators, always visible
+# while in use, with the apps' names on hover.
+edit(path('modules', 'ii', 'bar', 'BarContent.qml'), [
+    ('''                    Revealer { // ii-windows (plan 2026-10-31, B3): a new version of ii is there
+''', '''                    Repeater { // ii-windows (plan 2026-10-31, F1): privacy indicators
+                        model: [
+                            { icon: "mic", apps: PrivacyMonitor.microphone, what: Translation.tr("Using the microphone: %1") },
+                            { icon: "videocam", apps: PrivacyMonitor.camera, what: Translation.tr("Using the camera: %1") },
+                            { icon: "location_on", apps: PrivacyMonitor.location, what: Translation.tr("Using your location: %1") }
+                        ]
+                        delegate: Revealer {
+                            id: privacyIndicator
+                            required property var modelData
+                            reveal: (modelData.apps?.length ?? 0) > 0
+                            Layout.fillHeight: true
+                            Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
+                            Behavior on Layout.rightMargin {
+                                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                            }
+                            HoverHandler { id: privacyHover }
+                            MaterialSymbol {
+                                text: privacyIndicator.modelData.icon
+                                fill: 1
+                                iconSize: Appearance.font.pixelSize.larger
+                                color: Appearance.m3colors.m3error
+                            }
+                            StyledToolTip {
+                                extraVisibleCondition: privacyHover.hovered
+                                text: privacyIndicator.modelData.what.arg((privacyIndicator.modelData.apps ?? []).join(", "))
+                            }
+                        }
+                    }
+                    Revealer { // ii-windows (plan 2026-10-31, B3): a new version of ii is there
+'''),
+    ('''import QtQuick
+''', '''import QtQuick
+import Quickshell.Windows // ii-windows: PrivacyMonitor
+''', 1),
+])
+
+add_translations('es_MX', {
+    "Using the microphone: %1": "Usando el micrófono: %1",
+    "Using the camera: %1": "Usando la cámara: %1",
+    "Using your location: %1": "Usando tu ubicación: %1",
+})
