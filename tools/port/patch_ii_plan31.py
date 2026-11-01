@@ -2056,3 +2056,80 @@ edit(path('modules', 'common', 'widgets', 'MaterialTextArea.qml'), [
     Accessible.name: root.placeholderText // ii-windows (H3): what the field is for
 '''),
 ])
+
+# --- H4: empty states with an action; a soft sound when a mode starts and when an update is ready -----------------
+edit(path('modules', 'common', 'widgets', 'PagePlaceholder.qml'), [
+    ('''    ColumnLayout {
+        anchors.centerIn: parent
+        spacing: 5
+''', '''    ColumnLayout {
+        anchors.centerIn: parent
+        width: Math.min(root.width - 32, 340) // ii-windows (H4): a longer description wraps instead of overflowing
+        spacing: 5
+'''),
+    ('''    property alias descriptionHorizontalAlignment: widgetDescriptionText.horizontalAlignment
+''', '''    property alias descriptionHorizontalAlignment: widgetDescriptionText.horizontalAlignment
+    // ii-windows (plan 2026-10-31, H4): an empty state can offer one thing to do.
+    property string actionText: ""
+    property string actionIcon: ""
+    signal action()
+'''),
+    ('''            horizontalAlignment: Text.AlignLeft
+            wrapMode: Text.Wrap
+        }
+    }
+''', '''            horizontalAlignment: Text.AlignLeft
+            wrapMode: Text.Wrap
+        }
+        RippleButtonWithIcon {
+            visible: root.actionText !== ""
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 8
+            materialIcon: root.actionIcon
+            mainText: root.actionText
+            onClicked: root.action()
+        }
+    }
+'''),
+])
+edit(path('modules', 'ii', 'sidebarRight', 'notifications', 'NotificationList.qml'), [
+    ('''import qs.services
+import Qt5Compat.GraphicalEffects
+''', '''import qs.services
+import Quickshell // ii-windows (H4): execDetached for the empty state's action
+import Qt5Compat.GraphicalEffects
+'''),
+    ('''        icon: "notifications_active"
+        description: Translation.tr("Nothing")
+''', '''        icon: Notifications.silent ? "notifications_paused" : "notifications_active"
+        // ii-windows (plan 2026-10-31, H4): what this place is, and the one thing to do from it.
+        title: Translation.tr("No notifications")
+        description: Notifications.silent ? Translation.tr("Do not disturb is on: notices are kept here without popping up.")
+            : Translation.tr("Your apps' notices show here.")
+        actionIcon: "schedule"
+        actionText: Translation.tr("Do not disturb hours")
+        onAction: Quickshell.execDetached({ command: ["qs", "-p", Quickshell.shellPath("settings.qml")],
+            environment: { "II_SETTINGS_PAGE": "interfaceconfig" } })
+'''),
+])
+edit(path('services', 'UiSounds.qml'), [
+    ('''    function load() {}
+''', '''    function load() {}
+
+    // ii-windows (plan 2026-10-31, H4): a mode starts (by itself or by hand), an update finished downloading.
+    Connections {
+        target: Modes
+        function onActiveIdChanged() { if (Modes.activeId !== "") root.play("toggle"); }
+    }
+    Connections {
+        target: IiUpdates
+        function onStatusChanged() { if (IiUpdates.status === "downloaded" || IiUpdates.status === "ready") root.play("notify"); }
+    }
+'''),
+])
+add_translations('es_MX', {
+    "No notifications": "Sin notificaciones",
+    "Do not disturb is on: notices are kept here without popping up.": "No molestar está activado: los avisos se guardan aquí sin aparecer.",
+    "Your apps' notices show here.": "Aquí aparecen los avisos de tus apps.",
+    "Do not disturb hours": "Horario de No molestar",
+})
