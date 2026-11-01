@@ -3,6 +3,7 @@
  "objects": [
   "ai",
   "appearance",
+  "appearance.autoDark",
   "appearance.fonts",
   "appearance.palette",
   "appearance.transparency",
@@ -13,6 +14,7 @@
   "audio",
   "audio.protection",
   "background",
+  "background.daily",
   "background.parallax",
   "background.widgets",
   "background.widgets.calendar",
@@ -125,6 +127,15 @@
    "kind": "string"
   },
   "ai.tool": {
+   "kind": "string"
+  },
+  "appearance.autoDark.darkAt": {
+   "kind": "string"
+  },
+  "appearance.autoDark.enable": {
+   "kind": "bool"
+  },
+  "appearance.autoDark.lightAt": {
    "kind": "string"
   },
   "appearance.extraBackgroundTint": {
@@ -270,6 +281,9 @@
     0,
     100
    ]
+  },
+  "background.daily.enable": {
+   "kind": "bool"
   },
   "background.externalProvider": {
    "kind": "string"

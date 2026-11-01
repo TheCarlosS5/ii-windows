@@ -1599,3 +1599,44 @@ add_translations('es_MX', {
         "Sus avisos salen aunque No molestar esté activado. El nombre de la app como lo muestran sus avisos (WhatsApp, Discord), uno por línea.",
     "For example: WhatsApp": "Por ejemplo: WhatsApp",
 })
+
+# --- E13: the look that follows the day (overlay services/DailyLook.qml): Bing's image of the day, light/dark by hour --
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject appearance: JsonObject {
+                property bool extraBackgroundTint: true
+''', '''            property JsonObject appearance: JsonObject {
+                property bool extraBackgroundTint: true
+                property JsonObject autoDark: JsonObject { // ii-windows (plan 2026-10-31, E13): light by day, dark by night
+                    property bool enable: false
+                    property string lightAt: "07:00"
+                    property string darkAt: "19:00"
+                }
+'''),
+    ('''            property JsonObject background: JsonObject {
+                property string externalProvider: "auto"''', '''            property JsonObject background: JsonObject {
+                property JsonObject daily: JsonObject { // ii-windows (plan 2026-10-31, E13): Bing's image of the day
+                    property bool enable: false
+                }
+                property string externalProvider: "auto"'''),
+])
+edit(path('modules', 'settings', 'AppearanceConfig.qml'), [
+    ('''    ContentSection {
+        icon: "wallpaper_slideshow"''', '''    DailyLookSection {} // ii-windows (plan 2026-10-31, E13)
+
+    ContentSection {
+        icon: "wallpaper_slideshow"'''),
+])
+edit(path('shell.qml'), [
+    ('''        DndSchedule.load() // ii-windows (plan 2026-10-31, E12): No molestar at its hours
+''', '''        DndSchedule.load() // ii-windows (plan 2026-10-31, E12): No molestar at its hours
+        DailyLook.load() // ii-windows (plan 2026-10-31, E13): the wallpaper of the day, light by day and dark by night
+'''),
+])
+add_translations('es_MX', {
+    "Through the day": "Según el día",
+    "A new wallpaper every day (Bing's image of the day)": "Un fondo nuevo cada día (la imagen del día de Bing)",
+    "Downloaded once a day into Pictures\\Wallpapers; the colors follow it.": "Se descarga una vez al día en Imágenes\\Wallpapers; los colores lo siguen.",
+    "Light theme by day, dark by night": "Tema claro de día, oscuro de noche",
+    "Light from": "Claro desde",
+    "dark from": "oscuro desde",
+})
