@@ -1,6 +1,6 @@
 # Progreso de la implementación del plan (desde 2026-10-31 noche)
 
-Ramas: `impl/plan-2026-10-31` en ii-windows y en el fork `quickshell`. Nada subido (*push*) ni publicado.
+Ramas: `impl/plan-2026-10-31` en ii-windows y en el fork `quickshell`, subidas y adelantadas a `main` en GitHub (2026-11-01).
 
 Leyenda: ✅ hecho y probado · 🟡 hecho, prueba parcial · ⏳ pendiente
 
@@ -63,12 +63,12 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, prueba parcial · ⏳ pendiente
 | H3 accesibilidad | ✅ | Nombres para el Narrador en botones (texto, tooltip o icono), interruptores (casilla con estado y patrón Toggle), pestañas, ajustes rápidos, dock, notificaciones, campos. UIA: barra+dock 11/11, Configuración 100 % con nombre. |
 | H4 pulido | 🟡 | Estados vacíos con acción (notificaciones), sonido suave al activar un modo y al tener lista una actualización. Revisión completa a 150 %: sin pantalla a 150 % aquí. |
 | H5 recorrido y novedades | ✅ | Recorrido con Buscar todo, Modos y Hoy; "ii se actualizó a X" con "Ver novedades" (notas firmadas guardadas, `ii-shim update whatsnew`), también en Actualizaciones; modo ligero ofrecido a < 8 GB sin tarjeta gráfica (DXGI). |
-| Cierre 0.9.0 | ✅ | Paquete `ii-windows-0.9.0-20261101-d4e3610` (exe con versión 0.9.0) + Setup 62 MB, `publish-release -Beta -DryRun` firmado con la clave real (notas de RELEASE-0.9.0.md dentro), `test-updater-real` 13/13. Suite local 42/43 (test-qs-smoke omitida: falta windeployqt). Arreglados al cerrar: test-search-plus leía la salida sin UTF-8 en la suite; F17 marcaba "pide atención" con cambios rápidos de título (fork 8a81403, test-toplevels 3/3). Nada subido ni publicado. |
+| Cierre 0.9.0 | ✅ | Paquete `ii-windows-0.9.0-20261101-d4e3610` (exe con versión 0.9.0) + Setup 62 MB, `publish-release -Beta -DryRun` firmado con la clave real (notas de RELEASE-0.9.0.md dentro), `test-updater-real` 13/13. Suite local 42/43 (test-qs-smoke omitida: falta windeployqt). Arreglados al cerrar: test-search-plus leía la salida sin UTF-8 en la suite; F17 marcaba "pide atención" con cambios rápidos de título (fork 8a81403, test-toplevels 3/3). **Publicada** el 2026-11-01 como v0.9.0 estable (https://github.com/TheCarlosS5/ii-windows/releases/tag/v0.9.0, etiqueta en ba1f4b6); `update check` contra GitHub real la encuentra y acepta la firma. |
 
 
 ## Retomar aquí
 0.9.0 hecha (ver filas). Pendiente del autor: borrar la tarea fantasma como administrador (`schtasks /delete /tn \ii-windows /f`),
-respaldar `%USERPROFILE%\.ii-release-key`, subir las ramas y publicar (nada se subió).
+respaldar `%USERPROFILE%\.ii-release-key`. La tarea fantasma: `tools\devix-ghost-task.ps1` como administrador (la borra como SYSTEM).
 Trampas: pantalla dormida = capturas viejas (mover el ratón 1 px); heredocs y cadenas de Python comen las barras (usar Write/Edit);
 `state` es palabra reservada en QML; upstream ya tiene services/Updates.qml; las pruebas QML que cambian la configuración
 escriben el config.json real (respaldarlo y devolverlo, como test-modes); Qt.quit() en Component.onCompleted no cierra (usar un Timer);
