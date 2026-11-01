@@ -20,6 +20,26 @@ AbstractBackgroundWidget {
         return (kb / 1048576).toFixed(1);
     }
 
+    // ii-windows (plan 2026-10-31, D2): what the card shows stays still while an app covers this screen (no repaint
+    // of the wallpaper window each time the numbers change), and catches up as soon as the desktop shows.
+    readonly property var liveUsage: ({
+        cpu: ResourceUsage.cpuUsage,
+        memory: ResourceUsage.memoryUsedPercentage,
+        memoryUsed: ResourceUsage.memoryUsed,
+        memoryTotal: ResourceUsage.memoryTotal,
+        swap: ResourceUsage.swapUsedPercentage,
+        swapUsed: ResourceUsage.swapUsed,
+        swapTotal: ResourceUsage.swapTotal
+    })
+    property var usage: root.liveUsage
+    Binding {
+        target: root
+        property: "usage"
+        value: root.liveUsage
+        when: !root.desktopCovered
+        restoreMode: Binding.RestoreNone
+    }
+
     StyledDropShadow {
         target: card
     }
@@ -37,21 +57,21 @@ AbstractBackgroundWidget {
             Gauge {
                 icon: "planner_review"
                 label: Translation.tr("CPU")
-                value: ResourceUsage.cpuUsage
-                detail: `${Math.round(ResourceUsage.cpuUsage * 100)}%`
+                value: root.usage.cpu
+                detail: `${Math.round(root.usage.cpu * 100)}%`
             }
             Gauge {
                 icon: "memory"
                 label: Translation.tr("RAM")
-                value: ResourceUsage.memoryUsedPercentage
-                detail: `${root.gb(ResourceUsage.memoryUsed)} / ${root.gb(ResourceUsage.memoryTotal)} GB`
+                value: root.usage.memory
+                detail: `${root.gb(root.usage.memoryUsed)} / ${root.gb(root.usage.memoryTotal)} GB`
             }
             Gauge {
-                visible: root.showSwap && ResourceUsage.swapTotal > 1
+                visible: root.showSwap && root.usage.swapTotal > 1
                 icon: "swap_horiz"
                 label: Translation.tr("Swap")
-                value: ResourceUsage.swapUsedPercentage
-                detail: `${root.gb(ResourceUsage.swapUsed)} / ${root.gb(ResourceUsage.swapTotal)} GB`
+                value: root.usage.swap
+                detail: `${root.gb(root.usage.swapUsed)} / ${root.gb(root.usage.swapTotal)} GB`
             }
         }
     }

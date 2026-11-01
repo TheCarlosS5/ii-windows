@@ -760,6 +760,31 @@ fix_translations('es_MX', {  # too long beside its number box
     "Timeout duration (if not defined by notification) (ms)": "Tiempo en pantalla (ms) si la app no lo indica",
 })
 
+# --- D2: the desktop clocks follow DesktopTime (overlay services/DesktopTime.qml), whose clock stops while apps cover
+# every screen: a clock with seconds no longer repaints the wallpaper window each second behind a maximized window.
+def desktop_time():
+    base = path('modules', 'ii', 'background', 'widgets', 'clock')
+    count = 0
+    for folder, _, names in os.walk(base):
+        for name in names:
+            if not name.endswith('.qml'):
+                continue
+            file = os.path.join(folder, name)
+            with open(file, encoding='utf-8', newline='') as f:
+                text = f.read()
+            new = text
+            for old in ('DateTime.clock', 'DateTime.time', 'DateTime.longDate'):
+                new = new.replace(old, 'DesktopTime' + old[len('DateTime'):])
+            if new != text:
+                count += text.count('DateTime.') - new.count('DateTime.')
+                with open(file, 'w', encoding='utf-8', newline='') as f:
+                    f.write(new)
+    if count < 8:
+        sys.exit(f'patch_ii_plan31.py (D2): only {count} DateTime uses in the desktop clocks, did upstream move them?')
+
+
+desktop_time()
+
 # --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------
 add_translations('es_MX', {
     "Style": "Estilo",

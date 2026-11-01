@@ -15,6 +15,9 @@ import Quickshell.Hyprland
 Singleton {
     id: root
     property var coveredScreens: []
+    // Every screen covered: nothing of the desktop can be seen (DesktopTime stops its clock).
+    readonly property bool allCovered: Quickshell.screens.length > 0
+        && Quickshell.screens.every(s => root.coveredScreens.includes(s.name))
 
     function covered(screenName: string): bool {
         return root.coveredScreens.includes(screenName);
@@ -35,13 +38,33 @@ Singleton {
         if (names.join("\n") !== root.coveredScreens.join("\n")) root.coveredScreens = names;
     }
 
-    // Maximize/restore has no list-wide signal: a light check each second, plus at once on
-    // focus and desktop changes.
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: root.update()
+    // ii-windows (plan 2026-10-31, D2.3): on each window's own changes (maximize, minimize, fullscreen, screen,
+    // desktop), no more checking every second. Several changes at once make one update.
+    property bool updateQueued: false
+    function queueUpdate() {
+        if (root.updateQueued) return;
+        root.updateQueued = true;
+        Qt.callLater(() => {
+            root.updateQueued = false;
+            root.update();
+        });
+    }
+    Instantiator {
+        model: ToplevelManager.toplevels
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            ignoreUnknownSignals: true
+            function onMaximizedChanged() { root.queueUpdate(); }
+            function onMinimizedChanged() { root.queueUpdate(); }
+            function onFullscreenChanged() { root.queueUpdate(); }
+            function onScreensChanged() { root.queueUpdate(); }
+            function onDesktopChanged() { root.queueUpdate(); }
+        }
+    }
+    Connections {
+        target: Quickshell
+        function onScreensChanged() { root.queueUpdate(); }
     }
     Connections {
         target: ToplevelManager
