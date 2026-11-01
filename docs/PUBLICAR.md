@@ -58,3 +58,23 @@ Lo que las pruebas automáticas no cubren:
 ## 6. Publicar
 
 Fusionar primero la rama del fork (`quickshell-windows`) y después la de ii-windows. Publicar el `.zip`, el `release-check.md` y las notas de la versión (`docs/RELEASE-x.y.z.md`).
+
+Desde la 0.8.0 (plan 2026-10-31, bloque B) las copias instaladas se actualizan solas a partir de la release, así que:
+
+1. `tools\package\make-setup.ps1` (el Setup de Inno, para quien instala por primera vez).
+2. `pwsh tools\package\publish-release.ps1 -DryRun [-Beta] [-Critical] [-Notes docs\RELEASE-x.y.z.md]`: completa
+   `release.json`, lo **firma con la clave del autor** (`%USERPROFILE%\.ii-release-key`, nunca en el repositorio) y lista lo
+   que subiría, sin tocar GitHub.
+3. `pwsh tools\sandbox\tests\test-updater-real.ps1`: el actualizador con ese paquete y esa firma, como en el PC de un usuario
+   (buscar, bajar, instalar junto a una versión vieja, todos los archivos del manifiesto). Debe quedar en verde.
+4. `publish-release.ps1` sin `-DryRun` crea la release y sube el `.zip`, el Setup, `release.json`, su firma, los símbolos y
+   `release-check.md`. **Llega a todas las copias instaladas en las próximas 6 horas**: solo con el visto bueno del autor.
+5. winget: `tools\package\make-winget-manifest.ps1 -Setup out\ii-windows-Setup-<id>.exe -Version x.y.z` escribe y valida el
+   manifiesto `TheCarlosS5.ii-windows` en `out\winget\x.y.z\`; con la release ya publicada, se copia a un fork de
+   `microsoft/winget-pkgs` (`manifests/t/TheCarlosS5/ii-windows/x.y.z/`) y se abre el pull request.
+
+**La clave de firma de las actualizaciones** (`%USERPROFILE%\.ii-release-key`) es la que hace que las copias instaladas
+acepten una versión. Guárdala también fuera de este PC (un USB, un gestor de contraseñas): si se pierde, las versiones
+nuevas firmadas con otra clave no se instalarán solas (habría que publicar una versión puente con la clave nueva
+incluida, firmada con la vieja). Si alguien la obtiene, podría hacer pasar una versión falsa: no la compartas ni la
+subas a ningún lado.
