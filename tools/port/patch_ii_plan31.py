@@ -1510,3 +1510,49 @@ add_translations('es_MX', {
     "Name (what you type in the search, e.g. correo)": "Nombre (lo que escribes en la búsqueda, p. ej. correo)",
     "Text": "Texto",
 })
+
+# --- E11: digital wellbeing (overlay services/Wellbeing.qml, settings WellbeingSection.qml) ---------------------------
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject timetable: JsonObject { // ii-windows (plan 2026-10-31, E3): Configuración > Servicios > Horario de clases
+''', '''            property JsonObject wellbeing: JsonObject { // ii-windows (plan 2026-10-31, E11): Configuración > Sistema > Bienestar
+                property list<var> goals: [] // { exe, minutes }: a notice once a day when an app passes its time
+                property bool eyeBreaks: false // 20-20-20
+                property int eyeEvery: 20 // minutes of use between eye breaks
+                property bool weekly: true // a summary of the week on Sunday evening
+            }
+            property JsonObject timetable: JsonObject { // ii-windows (plan 2026-10-31, E3): Configuración > Servicios > Horario de clases
+'''),
+])
+edit(path('modules', 'settings', 'GeneralConfig.qml'), [
+    ('''    WindowsNoticesSection {} // ii-windows (plan 2026-10-31, F2/F14)
+''', '''    WindowsNoticesSection {} // ii-windows (plan 2026-10-31, F2/F14)
+
+    WellbeingSection {} // ii-windows (plan 2026-10-31, E11)
+'''),
+])
+edit(path('shell.qml'), [
+    ('''        BluetoothBatteryWatch.load() // ii-windows (plan 2026-10-31, E5): low battery of Bluetooth headphones
+''', '''        BluetoothBatteryWatch.load() // ii-windows (plan 2026-10-31, E5): low battery of Bluetooth headphones
+        Wellbeing.load() // ii-windows (plan 2026-10-31, E11): daily limits, eye breaks, the weekly summary
+'''),
+])
+add_translations('es_MX', {
+    "Wellbeing": "Bienestar",
+    "%1 today on %2": "Llevas %1 hoy en %2",
+    "Your daily limit for it is %1. Maybe time for a break?": "Tu límite diario es %1. ¿Una pausa?",
+    "Rest your eyes": "Descansa la vista",
+    "Look at something about 6 meters away for 20 seconds.": "Mira algo a unos 6 metros durante 20 segundos.",
+    "Your week: %1 in front of the screen": "Tu semana: %1 frente a la pantalla",
+    "%1 a day on average. Most: %2.": "%1 al día en promedio. Lo que más: %2.",
+    "Kind reminders from your screen time (the right panel's Usage tab). Everything stays on this PC.":
+        "Recordatorios amables a partir de tu tiempo de pantalla (la pestaña Uso del panel derecho). Todo se queda en esta PC.",
+    "Remind me to rest my eyes (20-20-20)": "Recordarme descansar la vista (20-20-20)",
+    "Every 20 minutes of use: look at something 6 meters away for 20 seconds.": "Cada 20 minutos de uso: mira algo a 6 metros durante 20 segundos.",
+    "A summary of my week on Sunday evening": "Un resumen de mi semana el domingo por la noche",
+    "Daily limits": "Límites diarios",
+    "A notice once a day when an app passes its time.": "Un aviso al día cuando una app pasa su tiempo.",
+    "minutes": "minutos",
+    "Add a limit to one of today's apps:": "Agregar un límite a una de las apps de hoy:",
+    "No screen time today yet: once ii has counted a while, today's apps show here to choose from.":
+        "Aún no hay tiempo de pantalla de hoy: cuando ii lleve un rato contando, aquí salen las apps de hoy para elegir.",
+})

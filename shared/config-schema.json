@@ -110,6 +110,7 @@
   "waffles.calendar",
   "waffles.tweaks",
   "wallpaperSelector",
+  "wellbeing",
   "windowAnimations",
   "windows",
   "workSafety",
@@ -1429,6 +1430,18 @@
    "kind": "bool"
   },
   "wallpaperSelector.useSystemFileDialog": {
+   "kind": "bool"
+  },
+  "wellbeing.eyeBreaks": {
+   "kind": "bool"
+  },
+  "wellbeing.eyeEvery": {
+   "kind": "int"
+  },
+  "wellbeing.goals": {
+   "kind": "list"
+  },
+  "wellbeing.weekly": {
    "kind": "bool"
   },
   "windowAnimations.curve": {
