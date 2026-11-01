@@ -118,7 +118,11 @@ int powerCommand(const std::vector<std::wstring>& args) {
     }
     std::wstring activeId = L"custom", name = friendly(current);
     for (auto s: present) if (s->guid == current) activeId = s->id;
-    std::printf("{\"error\":%lu,\"active\":%s,\"activeGuid\":%s,\"name\":%s,\"plans\":[", error,
+    // ii-windows (plan 2026-10-31, F4): Windows' energy saver (battery saver) is on: SystemStatusFlag 1.
+    SYSTEM_POWER_STATUS power {};
+    auto known = GetSystemPowerStatus(&power) != FALSE;
+    std::printf("{\"error\":%lu,\"saver\":%s,\"onBattery\":%s,\"active\":%s,\"activeGuid\":%s,\"name\":%s,\"plans\":[", error,
+        known && power.SystemStatusFlag == 1 ? "true" : "false", known && power.ACLineStatus == 0 ? "true" : "false",
         json(activeId).c_str(), json(guidString(current)).c_str(), json(name).c_str());
     for (size_t i = 0; i < present.size(); ++i) std::printf("%s{\"id\":%s,\"guid\":%s,\"name\":%s}", i ? "," : "",
         json(present[i]->id).c_str(), json(guidString(present[i]->guid)).c_str(), json(friendly(present[i]->guid)).c_str());

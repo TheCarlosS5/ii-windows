@@ -826,6 +826,34 @@ add_translations('es_MX', {
     "Update and reboot": "Actualizar y reiniciar",
 })
 
+# --- F4: Windows' energy saver as a quick toggle (overlay EnergySaverToggle / AndroidEnergySaverToggle) -------------
+edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'AndroidQuickPanel.qml'), [
+    ('''"mic", "audio", "notifications", "powerProfile"]''', '''"mic", "audio", "notifications", "powerProfile", "energySaver"] // ii-windows: + energySaver (F4)'''),
+])
+edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'androidStyle', 'AndroidToggleDelegateChooser.qml'), [
+    ('''    DelegateChoice { roleValue: "screenSnip"; AndroidScreenSnipToggle {''', '''    DelegateChoice { roleValue: "energySaver"; AndroidEnergySaverToggle { // ii-windows (plan 2026-10-31, F4)
+        required property int index
+        required property var modelData
+        buttonIndex: modelData.configIndex ?? -1
+        buttonData: modelData
+        editMode: root.editMode
+        expandedSize: modelData.size > 1
+        baseCellWidth: root.baseCellWidth
+        baseCellHeight: root.baseCellHeight
+        cellSpacing: root.spacing
+        cellSize: modelData.size
+    } }
+
+    DelegateChoice { roleValue: "screenSnip"; AndroidScreenSnipToggle {'''),
+])
+add_translations('es_MX', {
+    "Energy saver": "Ahorro de energía",
+    "Windows' energy saver: fewer background tasks and a dimmer screen. Opens its settings":
+        "Ahorro de energía de Windows: menos tareas en segundo plano y la pantalla más tenue. Abre su configuración",
+    "On": "Activado",
+    "Off": "Desactivado",
+})
+
 # --- C2.4: the clock's settings in tabs (tools/port/gen_widget_pages.py) --------------------------------------------
 add_translations('es_MX', {
     "Style": "Estilo",
