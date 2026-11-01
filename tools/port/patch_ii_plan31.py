@@ -1138,3 +1138,113 @@ add_translations('es_MX', {
     "Conversions (units, percentages, time in other cities)": "Conversiones (unidades, porcentajes, hora en otras ciudades)",
     "Currency conversion (downloads the exchange rates once a day)": "Conversión de monedas (descarga las tasas de cambio una vez al día)",
 })
+
+# --- E2: modes (overlay services/Modes.qml, settings ModesConfig.qml, sidebarRight ModesRow.qml) -----------------------
+edit(path('modules', 'common', 'Config.qml'), [
+    (r'''            property JsonObject search: JsonObject {
+''', r'''            property JsonObject modes: JsonObject { // ii-windows (plan 2026-10-31, E2): Configuración > Modos
+                property bool enable: true
+                property bool notify: true // a notice when a mode starts or ends by itself
+                property list<var> list: [
+                    { "id": "clase", "name": "", "icon": "school",
+                      "apply": { "dnd": true, "theme": "keep", "light": false, "nightLight": false, "keepAwake": true, "volume": -1 },
+                      "schedule": { "enable": false, "days": [1, 2, 3, 4, 5], "from": "18:00", "to": "22:00" },
+                      "apps": [], "fullscreen": false },
+                    { "id": "juego", "name": "", "icon": "sports_esports",
+                      "apply": { "dnd": true, "theme": "keep", "light": true, "nightLight": false, "keepAwake": false, "volume": -1 },
+                      "schedule": { "enable": false, "days": [0, 1, 2, 3, 4, 5, 6], "from": "20:00", "to": "23:00" },
+                      "apps": ["osu!.exe", "VALORANT-Win64-Shipping.exe", "League of Legends.exe", "cs2.exe", "dota2.exe",
+                               "RobloxPlayerBeta.exe", "Minecraft.Windows.exe", "FortniteClient-Win64-Shipping.exe",
+                               "GenshinImpact.exe", "StarRail.exe", "ZenlessZoneZero.exe", "r5apex.exe", "Overwatch.exe",
+                               "RocketLeague.exe", "GTA5.exe", "eldenring.exe", "Cyberpunk2077.exe"],
+                      "fullscreen": false },
+                    { "id": "presentacion", "name": "", "icon": "co_present",
+                      "apply": { "dnd": true, "theme": "keep", "light": false, "nightLight": false, "keepAwake": true, "volume": -1 },
+                      "schedule": { "enable": false, "days": [1, 2, 3, 4, 5], "from": "08:00", "to": "10:00" },
+                      "apps": [], "fullscreen": false },
+                    { "id": "noche", "name": "", "icon": "bedtime",
+                      "apply": { "dnd": false, "theme": "dark", "light": false, "nightLight": true, "keepAwake": false, "volume": -1 },
+                      "schedule": { "enable": false, "days": [0, 1, 2, 3, 4, 5, 6], "from": "22:00", "to": "06:00" },
+                      "apps": [], "fullscreen": false }
+                ]
+            }
+            property JsonObject search: JsonObject {
+'''),
+])
+edit(path('settings.qml'), [
+    (r'''            component: "modules/settings/ServicesConfig.qml"
+        },
+        {
+            name: Translation.tr("Performance"),''', r'''            component: "modules/settings/ServicesConfig.qml"
+        },
+        {
+            name: Translation.tr("Modes"), // ii-windows (plan 2026-10-31, E2)
+            icon: "auto_mode",
+            component: "modules/settings/ModesConfig.qml"
+        },
+        {
+            name: Translation.tr("Performance"),'''),
+])
+edit(path('shell.qml'), [
+    ('''        LockKeys.load() // ii-windows: Caps/Num/Scroll Lock indicator
+''', '''        LockKeys.load() // ii-windows: Caps/Num/Scroll Lock indicator
+        Modes.load() // ii-windows (plan 2026-10-31, E2): modes start by their hours and apps from the start
+'''),
+])
+edit(path('modules', 'ii', 'sidebarRight', 'SidebarRightContent.qml'), [
+    (r'''            CenterWidgetGroup {
+                Layout.alignment: Qt.AlignHCenter''', r'''            ModesRow { // ii-windows (plan 2026-10-31, E2): Clase, Juego, Presentación, Noche
+                Layout.fillWidth: true
+            }
+
+            CenterWidgetGroup {
+                Layout.alignment: Qt.AlignHCenter'''),
+])
+add_translations('es_MX', {
+    "Modes": "Modos",
+    "Class / Work": "Clase / Trabajo",
+    "Game": "Juego",
+    "Presentation": "Presentación",
+    "Night": "Noche",
+    "%1 mode is on": "Modo %1 activado",
+    "Because %1 is open. It ends when it closes.": "Porque %1 está abierto. Termina cuando se cierre.",
+    "By its hours (%1). Turn it off in the right panel.": "Por su horario (%1). Apágalo en el panel derecho.",
+    "%1 mode ended": "Terminó el modo %1",
+    "What it changed is back as it was.": "Lo que cambió volvió a como estaba.",
+    "A mode changes several things at once and puts them back as they were when it ends. Turn one on in the right panel or from the search (\"modo juego\"), or let it start by itself at its hours or while one of its apps is open.":
+        "Un modo cambia varias cosas a la vez y las deja como estaban cuando termina. Actívalo en el panel derecho o desde la búsqueda (\"modo juego\"), o deja que empiece solo a su hora o mientras una de sus apps esté abierta.",
+    "Use modes": "Usar los modos",
+    "Tell me when a mode starts or ends by itself": "Avisarme cuando un modo empiece o termine solo",
+    "Now: %1": "Ahora: %1",
+    "Name (empty: %1)": "Nombre (vacío: %1)",
+    "What it changes": "Qué cambia",
+    "Do not disturb": "No molestar",
+    "Light mode (fewer animations and effects)": "Modo ligero (menos animaciones y efectos)",
+    "Night light": "Luz nocturna",
+    "Keep the screen on": "Mantener la pantalla encendida",
+    "Theme as it is": "Tema como esté",
+    "Dark": "Oscuro",
+    "Light": "Claro",
+    "Set the volume": "Fijar el volumen",
+    "Volume": "Volumen",
+    "At its hours": "A su hora",
+    "Start by itself at these hours": "Empezar solo en este horario",
+    "Mon": "Lun", "Tue": "Mar", "Wed": "Mié", "Thu": "Jue", "Fri": "Vie", "Sat": "Sáb", "Sun": "Dom",
+    "From": "De",
+    "to": "a",
+    "(it may end the next day: 22:00 to 06:00)": "(puede terminar al día siguiente: 22:00 a 06:00)",
+    "While these apps are open": "Mientras estas apps estén abiertas",
+    "The program's file name, as Task Manager shows it in Details (osu!.exe). One per line.":
+        "El nombre del archivo del programa, como lo muestra el Administrador de tareas en Detalles (osu!.exe). Uno por línea.",
+    "For example: osu!.exe": "Por ejemplo: osu!.exe",
+    "Also with any app in full screen (not browsers)": "También con cualquier app en pantalla completa (no navegadores)",
+    "%1 mode: tap to turn it off": "Modo %1: tócalo para apagarlo",
+    "Turn on %1 mode": "Activar el modo %1",
+    "On because %1 is open": "Activado porque %1 está abierto",
+    "On by its hours (%1)": "Activado por su horario (%1)",
+    "Mode %1": "Modo %1",
+    "Turn off the %1 mode": "Apagar el modo %1",
+    "Mode": "Modo",
+    "Turn off": "Apagar",
+    "Turn on": "Activar",
+})

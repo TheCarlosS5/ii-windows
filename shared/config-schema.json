@@ -64,6 +64,7 @@
   "lock.blur",
   "lock.security",
   "media",
+  "modes",
   "musicRecognition",
   "networking",
   "notifications",
@@ -971,6 +972,15 @@
    "kind": "bool"
   },
   "media.filterDuplicatePlayers": {
+   "kind": "bool"
+  },
+  "modes.enable": {
+   "kind": "bool"
+  },
+  "modes.list": {
+   "kind": "list"
+  },
+  "modes.notify": {
    "kind": "bool"
   },
   "musicRecognition.interval": {

@@ -119,7 +119,7 @@ Singleton {
         const out = { conversion: null, rows: [] };
         if (q.length < 2) return out;
         if (root.enabled("conversions")) out.conversion = root.conversionRow(q);
-        if (root.enabled("commands")) out.rows = out.rows.concat(root.commandRows(q));
+        if (root.enabled("commands")) out.rows = out.rows.concat(root.commandRows(q), root.modeRows(q));
         if (root.enabled("windows")) out.rows = out.rows.concat(root.windowRows(q));
         if (root.enabled("windowsSettings")) out.rows = out.rows.concat(root.windowsSettingsRows(q));
         if (root.enabled("settings")) out.rows = out.rows.concat(root.settingsRows(q));
@@ -202,6 +202,40 @@ Singleton {
             }) };
         });
     }
+    // The modes (plan E2): "modo juego" turns it on (or off when it is on), "salir del modo" ends the active one.
+    function modeRows(q) {
+        if (!Modes.enabled) return [];
+        const out = [];
+        for (const m of Modes.list) {
+            const name = Modes.nameOf(m);
+            const parts = name.split(" / ");
+            const names = [`${Translation.tr("Mode")} ${name}`, `modo ${name}`, `mode ${name}`].concat(parts.map(n => `modo ${n}`), parts);
+            const score = Plus.bestScore(q, names);
+            if (score <= 0) continue;
+            const on = Modes.activeId === m.id;
+            const id = m.id;
+            out.push({ score: score * 0.95, result: root.row({
+                name: on ? Translation.tr("Turn off the %1 mode").arg(name) : Translation.tr("Mode %1").arg(name),
+                verb: on ? Translation.tr("Turn off") : Translation.tr("Turn on"),
+                type: Translation.tr("Modes"),
+                iconName: m.icon || "auto_mode",
+                iconType: LauncherSearchResult.IconType.Material,
+                execute: () => Modes.toggle(id)
+            }) });
+        }
+        if (Modes.active && Plus.bestScore(q, ["salir del modo", "apagar el modo", "quitar el modo", "exit mode", "turn off mode"]) > 0) {
+            out.push({ score: 0.95, result: root.row({
+                name: Translation.tr("Turn off the %1 mode").arg(Modes.nameOf(Modes.active)),
+                verb: Translation.tr("Turn off"),
+                type: Translation.tr("Modes"),
+                iconName: "toggle_off",
+                iconType: LauncherSearchResult.IconType.Material,
+                execute: () => Modes.turnOff()
+            }) });
+        }
+        return out;
+    }
+
     // After the launcher has closed (the screenshot must not catch it).
     property var pending: null
     Timer {
