@@ -54,6 +54,15 @@ Start-Sleep -Milliseconds 1500
 $form.WindowState = 'Minimized'
 [System.Windows.Forms.Application]::DoEvents()
 Start-Sleep -Milliseconds 1500
+# Ask for attention like a chat app does (F17): flash the taskbar button while not in front.
+Add-Type -Namespace Probe -Name Flash -MemberDefinition @"
+[StructLayout(LayoutKind.Sequential)] public struct FLASHWINFO { public uint cbSize; public System.IntPtr hwnd; public uint dwFlags; public uint uCount; public uint dwTimeout; }
+[DllImport("user32.dll")] public static extern bool FlashWindowEx(ref FLASHWINFO pwfi);
+"@
+$fi = New-Object Probe.Flash+FLASHWINFO
+$fi.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($fi); $fi.hwnd = $form.Handle; $fi.dwFlags = 3; $fi.uCount = 3
+[Probe.Flash]::FlashWindowEx([ref]$fi) | Out-Null
+for ($i = 0; $i -lt 15; $i++) { [System.Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 100 }
 $form.Close()
 foreach ($o in $others) { $o.Close() }
 Start-Sleep -Milliseconds 1500
@@ -103,6 +112,9 @@ Assert-True $run.Alive 'the shell is alive at the end'
 Assert-True ($run.Log -match 'probe added') 'the probe window appeared in the list'
 Assert-True ($run.Log -match 'probe title=ii-toplevels-probe final') 'its last title arrived'
 Assert-True ($run.Log -match 'probe minimized=true') 'minimizing it was seen'
+Assert-True ($run.Log -match 'probe urgent=true') 'its asking for attention (taskbar flash) was seen'
+$urgentAt = $run.Log.IndexOf('probe urgent=true'); $minimizedAt = $run.Log.IndexOf('probe minimized=true')
+Assert-True ($urgentAt -gt $minimizedAt) 'only the flash made it urgent (not the title changes before it)'
 Assert-True ($run.Log -match 'probe removed') 'closing it removed it'
 if ($Compare) {
     $other = Invoke-Run $Compare

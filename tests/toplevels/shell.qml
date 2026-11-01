@@ -26,6 +26,8 @@ ShellRoot {
                 if (entry.title.endsWith("final")) console.info(`probe title=${entry.title}`);
             }
             onMinimizedChanged: if (entry.probe) console.info(`probe minimized=${entry.minimized}`)
+            property bool urgent: modelData?.urgent ?? false
+            onUrgentChanged: if (entry.probe) console.info(`probe urgent=${entry.urgent}`)
             onScreensChanged: if (entry.probe) root.geometryChanges++
             Component.onCompleted: if (entry.probe) console.info(`probe added app=${entry.appId}`)
             Component.onDestruction: if (entry.probe) console.info("probe removed")

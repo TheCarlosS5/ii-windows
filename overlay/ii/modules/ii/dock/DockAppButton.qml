@@ -25,6 +25,10 @@ Item {
     readonly property bool isSpecial: isLaunchpad || isStore // the two tiles that are not apps
     readonly property var windows: appToplevel.toplevels ?? []
     readonly property bool appIsActive: windows.find(t => t.activated === true) !== undefined
+    // ii-windows (plan 2026-10-31, F17): one of its windows asks for attention (it flashed its taskbar button: a
+    // message, a finished download). The icon bounces once and its dot stays lit until the window is brought up.
+    readonly property bool appIsUrgent: windows.some(t => t.urgent === true)
+    onAppIsUrgentChanged: if (appIsUrgent && !Config.options.appearance.reduceMotion) bounceAnim.restart()
     // Bumped when the Start menu list changes, so the lookup below runs again (a binding, not an assignment).
     property int entriesRevision: 0
     readonly property var desktopEntry: {
@@ -266,9 +270,10 @@ Item {
     Rectangle {
         visible: !slot.isSeparator && !slot.isSpecial && slot.windows.length > 0
         radius: height / 2
-        width: slot.vertical ? 4 : (slot.appIsActive ? 12 : 4)
-        height: slot.vertical ? (slot.appIsActive ? 12 : 4) : 4
-        color: slot.appIsActive ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.35)
+        width: slot.vertical ? (slot.appIsUrgent ? 6 : 4) : (slot.appIsActive || slot.appIsUrgent ? 12 : 4)
+        height: slot.vertical ? (slot.appIsActive || slot.appIsUrgent ? 12 : 4) : (slot.appIsUrgent ? 6 : 4)
+        color: slot.appIsUrgent ? Appearance.m3colors.m3tertiary
+            : slot.appIsActive ? Appearance.colors.colPrimary : ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.35)
         x: slot.edge === "bottom" ? (slot.width - width) / 2
             : slot.edge === "left" ? slot.iconBase - 8
             : slot.iconBase + 8 - width
