@@ -1443,3 +1443,9 @@ edit(path('modules', 'ii', 'regionSelector', 'RegionSelector.qml'), [
 add_translations('es_MX', {
     "Pin a capture on screen": "Fijar una captura en pantalla",
 })
+
+# --- E7: colors in the search (a typed #hex / rgb() in its formats; the color picker's history under "colores") -----
+add_translations('es_MX', {
+    "Color": "Color",
+    "Picked color": "Color elegido",
+})

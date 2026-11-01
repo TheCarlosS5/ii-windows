@@ -166,5 +166,16 @@ check(S.matchScore("brave", "Inicio - Brave") > 0.5, "a word of the title");
 check(S.matchScore("xyz", "Spotify") === 0, "nothing in common");
 check(S.matchScore("configuracion", "Configuración") === 1, "accents do not matter");
 
+// ---- colors
+let col = S.parseColor("#3a7bd5");
+check(col && col.r === 58 && col.g === 123 && col.b === 213, "#3a7bd5");
+check(JSON.stringify(S.parseColor("#fff")) === '{"r":255,"g":255,"b":255}', "#fff");
+check(JSON.stringify(S.parseColor("rgb(58, 123, 213)")) === JSON.stringify(col), "rgb()");
+check(S.parseColor("123456") === null, "six digits without # or letters are a number, not a color");
+check(S.parseColor("rgb(300, 0, 0)") === null && S.parseColor("hola") === null, "not colors");
+const f = S.colorFormats(col);
+check(f.hex === "#3A7BD5" && f.rgb === "rgb(58, 123, 213)" && f.hsl === "hsl(215, 65%, 53%)", "formats " + JSON.stringify(f));
+check(S.colorFormats({ r: 0, g: 0, b: 0 }).hsl === "hsl(0, 0%, 0%)", "black");
+
 console.log(`${checks} checks, ${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

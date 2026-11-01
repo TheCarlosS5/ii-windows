@@ -286,6 +286,33 @@ int selftest() {
 
 } // namespace
 
+// Plan 2026-10-31, E7: the colors picked, newest first (the last 20, no repeats), in %LOCALAPPDATA%\ii-windows\colors.txt
+// (or II_DATA_DIR): the launcher's "colores" lists them with their formats.
+void rememberColor(const std::string& hex) {
+	wchar_t dir[MAX_PATH] {};
+	auto n = GetEnvironmentVariableW(L"II_DATA_DIR", dir, MAX_PATH);
+	std::wstring base;
+	if (n > 0 && n < MAX_PATH) base = dir;
+	else if ((n = GetEnvironmentVariableW(L"LOCALAPPDATA", dir, MAX_PATH)) > 0 && n < MAX_PATH) base = std::wstring(dir) + L"\\ii-windows";
+	else return;
+	CreateDirectoryW(base.c_str(), nullptr);
+	auto path = base + L"\\colors.txt";
+	std::vector<std::string> colors {hex};
+	if (auto* in = _wfopen(path.c_str(), L"rb")) {
+		char line[64];
+		while (std::fgets(line, sizeof(line), in) && colors.size() < 20) {
+			std::string color(line);
+			while (!color.empty() && (color.back() == '\n' || color.back() == '\r')) color.pop_back();
+			if (color.size() == 7 && color[0] == '#' && color != hex) colors.push_back(color);
+		}
+		std::fclose(in);
+	}
+	if (auto* out = _wfopen(path.c_str(), L"wb")) {
+		for (const auto& color: colors) std::fprintf(out, "%s\n", color.c_str());
+		std::fclose(out);
+	}
+}
+
 int hyprpicker(const std::vector<std::wstring>& args) {
 	try {
 		if (args.size() == 1 && args[0] == L"--selftest") return selftest();
@@ -329,6 +356,7 @@ int hyprpicker(const std::vector<std::wstring>& args) {
 		if (!picker.chosen) return 1;
 		auto text = formatColor(picker.selected, rgb);
 		if (autocopy) copyColor(window.handle, text);
+		rememberColor(formatColor(picker.selected, false));
 		require(std::fprintf(stdout, "%s\n", text.c_str()) > 0 && std::fflush(stdout) == 0, "cannot write stdout");
 		return 0;
 	} catch (const std::exception& error) {

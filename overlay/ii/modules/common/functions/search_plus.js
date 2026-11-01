@@ -502,7 +502,38 @@ function scoreSetting(words, hay, label, isSection) {
     return score;
 }
 
+// ---- colors (plan E7: the color picker's history and typed colors) -------------------------------------------------
+// "#3a7bd5", "#fff", "rgb(58, 123, 213)" → { r, g, b } or null.
+function parseColor(text) {
+    const t = String(text || "").trim().toLowerCase();
+    let m = /^#?([0-9a-f]{6})$/.exec(t);
+    if (m && (t.startsWith("#") || /[a-f]/.test(m[1]))) {
+        const v = parseInt(m[1], 16);
+        return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+    }
+    m = /^#([0-9a-f]{3})$/.exec(t);
+    if (m) return { r: parseInt(m[1][0] + m[1][0], 16), g: parseInt(m[1][1] + m[1][1], 16), b: parseInt(m[1][2] + m[1][2], 16) };
+    m = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$/.exec(t);
+    if (m && [m[1], m[2], m[3]].every(x => parseInt(x) <= 255)) return { r: parseInt(m[1]), g: parseInt(m[2]), b: parseInt(m[3]) };
+    return null;
+}
+
+// { hex: "#3A7BD5", rgb: "rgb(58, 123, 213)", hsl: "hsl(214, 64%, 53%)" }
+function colorFormats(c) {
+    const hex = "#" + [c.r, c.g, c.b].map(v => (v < 16 ? "0" : "") + v.toString(16)).join("").toUpperCase();
+    const r = c.r / 255, g = c.g / 255, b = c.b / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    let h = 0, s = 0;
+    if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+        h *= 60;
+    }
+    return { hex: hex, rgb: `rgb(${c.r}, ${c.g}, ${c.b})`, hsl: `hsl(${Math.round(h)}, ${Math.round(s * 100)}%, ${Math.round(l * 100)}%)` };
+}
+
 // For Node (tests/search-plus/test.js); QML ignores it.
 if (typeof module !== "undefined") module.exports = { norm, stem, matchScore, bestScore, parseNumber, decimalsFor, rounded,
     UNITS, unitNamed, convertUnits, currencyNamed, convertMoney, parse, USUAL, CITY_ZONES, zoneFor, timeThere, COMMANDS,
-    matchCommands, WINDOWS_SETTINGS, matchWindowsSettings, settingsWords, scoreSetting, PESO_OF_COUNTRY };
+    matchCommands, WINDOWS_SETTINGS, matchWindowsSettings, settingsWords, scoreSetting, PESO_OF_COUNTRY, parseColor, colorFormats };

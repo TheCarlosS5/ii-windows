@@ -118,7 +118,8 @@ Singleton {
         const q = (query ?? "").trim();
         const out = { conversion: null, rows: [] };
         if (q.length < 2) return out;
-        if (root.enabled("conversions")) out.conversion = root.conversionRow(q);
+        if (root.enabled("conversions")) out.conversion = root.colorRow(q) ?? root.conversionRow(q);
+        if (root.enabled("commands")) out.rows = out.rows.concat(root.colorHistoryRows(q));
         if (root.enabled("commands")) out.rows = out.rows.concat(root.commandRows(q), root.modeRows(q));
         if (root.enabled("windows")) out.rows = out.rows.concat(root.windowRows(q));
         if (root.enabled("windowsSettings")) out.rows = out.rows.concat(root.windowsSettingsRows(q));
@@ -184,6 +185,42 @@ Singleton {
             return root.copyRow(`${place}: ${clock}${day}`, clock, `${Translation.tr("Time")} · ${diff} · ${found.zone.name}`, "schedule");
         }
         return null;
+    }
+
+    // ---- colors (plan E7): a typed color in its formats, and the color picker's history ("colores") ----------------
+    function colorActions(f) {
+        return ["hex", "rgb", "hsl"].map(k => root.row({
+            name: f[k],
+            iconName: "content_copy",
+            iconType: LauncherSearchResult.IconType.Material,
+            execute: () => { Quickshell.clipboardText = f[k]; }
+        }));
+    }
+    function colorRow(q) {
+        const c = Plus.parseColor(q);
+        if (!c) return null;
+        const f = Plus.colorFormats(c);
+        return root.row({ name: `${f.hex} · ${f.rgb} · ${f.hsl}`, verb: Translation.tr("Copy"), type: Translation.tr("Color"),
+            iconName: "palette", iconType: LauncherSearchResult.IconType.Material,
+            execute: () => { Quickshell.clipboardText = f.hex; }, actions: root.colorActions(f) });
+    }
+    readonly property string colorsPath: (Quickshell.env("II_DATA_DIR") || ((Quickshell.env("LOCALAPPDATA") ?? "") + "/ii-windows")).replace(/\\/g, "/") + "/colors.txt"
+    FileView {
+        id: colorsFile
+        path: root.colorsPath
+        printErrors: false
+        watchChanges: true
+        onFileChanged: reload()
+    }
+    function colorHistoryRows(q) {
+        if (Plus.bestScore(q, ["colores", "historial de colores", "colores recientes", "colors", "color history"]) <= 0) return [];
+        const colors = colorsFile.text().split(/\r?\n/).filter(x => /^#[0-9A-Fa-f]{6}$/.test(x)).slice(0, 8);
+        return colors.map((hex, i) => {
+            const f = Plus.colorFormats(Plus.parseColor(hex));
+            return { score: 0.9 - i * 0.001, result: root.row({ name: `${f.hex} · ${f.rgb} · ${f.hsl}`, verb: Translation.tr("Copy"),
+                type: Translation.tr("Picked color"), iconName: "colorize", iconType: LauncherSearchResult.IconType.Material,
+                execute: () => { Quickshell.clipboardText = f.hex; }, actions: root.colorActions(f) }) };
+        });
     }
 
     // ---- commands -------------------------------------------------------------------------------------------------
