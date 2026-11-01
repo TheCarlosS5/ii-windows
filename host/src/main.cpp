@@ -194,6 +194,7 @@ struct ShellNotice {
 	std::wstring summary;
 	std::wstring body;
 	std::wstring urgency;
+	std::vector<std::pair<std::wstring, std::wstring>> actions; // buttons: label, host command
 };
 std::vector<ShellNotice> shellNotices; // told to the user by the shell once it is up
 std::wstring relaunchRoot;             // ii-launcher of this folder is started once this host has ended (rollback)
@@ -428,7 +429,7 @@ void tellUserThroughShell(const std::wstring& summary, const std::wstring& body,
 void deliverConfigNotices() {
 	for (const auto& notice: configNotices) tellUserThroughShell(L"ii: your settings file was checked", notice);
 	configNotices.clear();
-	for (const auto& notice: shellNotices) tellUserThroughShell(notice.summary, notice.body, notice.urgency);
+	for (const auto& notice: shellNotices) tellUserThroughShell(notice.summary, notice.body, notice.urgency, notice.actions);
 	shellNotices.clear();
 }
 
@@ -1246,7 +1247,8 @@ void handleShellCrash(DWORD code, DWORD pid) {
 		                        decision.crashes == 1 ? L"Falló " + what + L". ii se reinició solo; no tienes que hacer nada."
 		                                              : L"Es la segunda vez en poco tiempo (falló " + what
 		                                                    + L"). Si vuelve a pasar, ii apagará esa parte para que el resto siga funcionando.",
-		                        L"normal"});
+		                        L"normal",
+		                        {{L"Ver detalles", L"settings-open\x1fadvancedconfig"}, {L"Reportar", L"report"}}});
 		break;
 	case crashpolicy::Action::Disable:
 		disabledParts.push_back(decision.subsystem);
@@ -1255,7 +1257,8 @@ void handleShellCrash(DWORD code, DWORD pid) {
 		shellNotices.push_back({L"Modo seguro: se apagó " + what,
 		                        L"ii se cerró 3 veces por un error en esa parte, así que ahora arranca sin ella; lo demás funciona normal. "
 		                        L"Para encenderla otra vez: Configuración > Avanzado > Diagnóstico > Reactivar todo.",
-		                        L"critical"});
+		                        L"critical",
+		                        {{L"Reactivar todo", L"safe-mode-off"}, {L"Reportar", L"report"}}});
 		break;
 	case crashpolicy::Action::SafeMode:
 		safeMode = true;
@@ -1264,7 +1267,8 @@ void handleShellCrash(DWORD code, DWORD pid) {
 		shellNotices.push_back({L"ii está en modo seguro",
 		                        L"ii se cerró varias veces seguidas, así que ahora arranca con lo mínimo (sin multimedia, sin lector de "
 		                        L"notificaciones de Windows, dibujo básico). Reporta el problema: menú Inicio > ii-windows > Reportar un problema de ii.",
-		                        L"critical"});
+		                        L"critical",
+		                        {{L"Reportar", L"report"}, {L"Reactivar todo", L"safe-mode-off"}}});
 		break;
 	case crashpolicy::Action::GiveUp: giveUpAfterCrashes(report, subsystem); return;
 	}
@@ -1499,6 +1503,20 @@ bool hostCommand(const std::wstring& commandLine) {
 		return true;
 	}
 	if (command == L"update-skip" && !argument.empty() && argument.size() < 32) return runUpdateStep(L"skip " + argument, true);
+	if (command == L"report") {
+		// The problem report (diagnostics on the Desktop + the bug form): the installed rescue\ii-report.ps1.
+		auto script = selfDir() + L"\\rescue\\ii-report.ps1";
+		if (GetFileAttributesW(script.c_str()) == INVALID_FILE_ATTRIBUTES) return false;
+		auto cmd = L"powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"" + script + L"\"";
+		STARTUPINFOW si {};
+		si.cb = sizeof(si);
+		PROCESS_INFORMATION pi {};
+		if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) return false;
+		AllowSetForegroundWindow(pi.dwProcessId);
+		CloseHandle(pi.hThread);
+		CloseHandle(pi.hProcess);
+		return true;
+	}
 	if (command == L"settings-open") {
 		openSettings(argument);
 		return true;
