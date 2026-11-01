@@ -1647,3 +1647,42 @@ add_translations('es_MX', {
     "On while Windows is presenting": "Activo mientras Windows presenta",
     "Also while Windows is presenting (PowerPoint's slide show)": "También mientras Windows presenta (la presentación de PowerPoint)",
 })
+
+# --- F6/F7: HDR and the refresh rate as quick toggles (overlay HdrToggle / RefreshRateToggle, ii-shim display) -------
+edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'AndroidQuickPanel.qml'), [
+    ('''"powerProfile", "energySaver"]''', '''"powerProfile", "energySaver", "hdr", "refreshRate"] /* ii-windows: + hdr, refreshRate (F6/F7) */'''),
+])
+edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'androidStyle', 'AndroidToggleDelegateChooser.qml'), [
+    ('''    DelegateChoice { roleValue: "energySaver"; AndroidEnergySaverToggle {''', '''    DelegateChoice { roleValue: "hdr"; AndroidHdrToggle { // ii-windows (plan 2026-10-31, F6)
+        required property int index
+        required property var modelData
+        buttonIndex: modelData.configIndex ?? -1
+        buttonData: modelData
+        editMode: root.editMode
+        expandedSize: modelData.size > 1
+        baseCellWidth: root.baseCellWidth
+        baseCellHeight: root.baseCellHeight
+        cellSpacing: root.spacing
+        cellSize: modelData.size
+    } }
+    DelegateChoice { roleValue: "refreshRate"; AndroidRefreshRateToggle { // ii-windows (plan 2026-10-31, F7)
+        required property int index
+        required property var modelData
+        buttonIndex: modelData.configIndex ?? -1
+        buttonData: modelData
+        editMode: root.editMode
+        expandedSize: modelData.size > 1
+        baseCellWidth: root.baseCellWidth
+        baseCellHeight: root.baseCellHeight
+        cellSpacing: root.spacing
+        cellSize: modelData.size
+    } }
+
+    DelegateChoice { roleValue: "energySaver"; AndroidEnergySaverToggle {'''),
+])
+add_translations('es_MX', {
+    "Not supported": "No compatible",
+    "HDR on the screens that support it (the same switch as Windows Settings)": "HDR en las pantallas que lo admiten (el mismo interruptor de la Configuración de Windows)",
+    "Refresh rate": "Frecuencia de pantalla",
+    "The screen between %1 Hz and %2 Hz (until the next restart)": "La pantalla entre %1 Hz y %2 Hz (hasta el próximo reinicio)",
+})
