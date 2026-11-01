@@ -1380,3 +1380,20 @@ add_translations('es_MX', {
     "Show the Recycle Bin in the dock (click: open, right click: empty)": "Mostrar la papelera en el dock (clic: abrir; clic derecho: vaciar)",
     "Count each app's notifications on its icon": "Contar en cada icono las notificaciones de su app",
 })
+
+# --- E9: Configuración > Avanzado > Compatibilidad (overlay CompatSection.qml + compat.json; ii-shim compat) ---------
+edit(path('modules', 'settings', 'AdvancedConfig.qml'), [
+    ('''    DiagnosticsSection {} // ii-windows: safe mode, error reports (plan 2026-10-31)
+''', '''    DiagnosticsSection {} // ii-windows: safe mode, error reports (plan 2026-10-31)
+
+    CompatSection {} // ii-windows (plan 2026-10-31, E9): other customization apps on this PC
+'''),
+])
+add_translations('es_MX', {
+    "Compatibility": "Compatibilidad",
+    "Looking for other customization apps...": "Buscando otras apps de personalización...",
+    "None of the customization apps ii knows is on this PC (StartAllBack, ExplorerPatcher, Windhawk, PowerToys, Rainmeter, Wallpaper Engine...).":
+        "No hay en esta PC ninguna de las apps de personalización que ii conoce (StartAllBack, ExplorerPatcher, Windhawk, PowerToys, Rainmeter, Wallpaper Engine...).",
+    "These apps also change Windows. ii works with them; this is what to expect.": "Estas apps también cambian Windows. ii funciona con ellas; esto es lo que puedes esperar.",
+    "Look again": "Buscar de nuevo",
+})

@@ -23,6 +23,7 @@
 //   ii-shim vdesk <command> ...            virtual desktops: switch, remove, move windows (vdesk.cpp)
 //   ii-shim config <command> ...           config.json: check, guard, keep-good, export, import (configtool.cpp)
 //   ii-shim top [count]                   programs using the most CPU and memory, as JSON (top.cpp)
+//   ii-shim compat <compat.json>         which customization apps ii knows are on this PC, as JSON (compat.cpp)
 //   ii-shim timezones                    every Windows time zone, its offset now and local names, as JSON (timezones.cpp)
 
 #include "http.h"
@@ -587,6 +588,7 @@ int thumbnail(const std::vector<std::wstring>& args);
 int extwall(const std::vector<std::wstring>& args); // extwall.cpp
 int top(const std::vector<std::wstring>& args); // top.cpp
 int timezones(const std::vector<std::wstring>& args); // timezones.cpp
+int compat(const std::vector<std::wstring>& args); // compat.cpp
 int magick(const std::vector<std::wstring>& args);
 int blurwall(const std::vector<std::wstring>& args); // capture.cpp
 int vdesk(const std::vector<std::wstring>& args);
@@ -640,6 +642,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"system-info") return systemInfoCommand(args);
 	if (command == L"top") return top(args);
 	if (command == L"timezones") return timezones(args);
+	if (command == L"compat") return compat(args);
 	if (command == L"system-sound") return systemSoundCommand(args);
 	if (command == L"test") return test(args);
 	if (command == L"thumbnail") return thumbnail(args);

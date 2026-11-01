@@ -50,6 +50,14 @@ $stateIni = Join-Path $dataDir 'state.ini'
 $safety = if (Test-Path $stateIni) { (Get-Content $stateIni -Raw) -replace '(?s)^.*?\[safety\]', '' -replace '(?s)\r?\n\[.*$', '' } else { '' }
 if (-not $safety.Trim()) { $safety = '(todo encendido)' }
 
+# Plan 2026-10-31, E9: other customization apps on this PC that ii knows (they explain many "two taskbars" reports).
+$compatShim = @((Join-Path $installDir 'quickshell\bin\ii-shim.exe'), (Join-Path $installDir 'ii-shim.exe')) | Where-Object { Test-Path $_ } | Select-Object -First 1
+$compatTable = Join-Path $installDir 'ii\modules\settings\compat.json'
+$compat = '(no se pudo buscar)'
+if ($compatShim -and (Test-Path $compatTable)) {
+    try { $compat = ((& $compatShim compat $compatTable | ConvertFrom-Json) | ForEach-Object { "$($_.id) ($($_.found))" }) -join ', ' } catch {}
+    if (-not $compat) { $compat = '(ninguna)' }
+}
 $report = @"
 ii-windows - reporte de diagnostico ($(Get-Date -Format 'yyyy-MM-dd HH:mm'))
 Adjunta este archivo al reporte en $repo/issues (revisalo antes: es texto normal).
@@ -60,6 +68,7 @@ Pantallas:      $screens  (DPI $dpi)
 GPU:            $gpus
 Procesos de ii: $(if ($running) { $running } else { 'ninguno (ii no esta corriendo)' })
 Idioma:         $((Get-Culture).Name)
+Otras apps:     $compat
 
 ===== ii-host (ultimas 150 lineas) =====
 $(Tail (Join-Path $dataDir 'host.log') 150)
