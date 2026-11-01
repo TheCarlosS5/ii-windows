@@ -1248,3 +1248,83 @@ add_translations('es_MX', {
     "Turn off": "Apagar",
     "Turn on": "Activar",
 })
+
+# --- E3: the "Hoy" tab of the left panel and the class timetable (overlay services/Timetable.qml, sidebarLeft
+# Today.qml, settings TimetableSection.qml) -----------------------------------------------------------------------------
+edit(path('modules', 'common', 'Config.qml'), [
+    (r'''            property JsonObject modes: JsonObject { // ii-windows (plan 2026-10-31, E2): Configuración > Modos
+''', r'''            property JsonObject timetable: JsonObject { // ii-windows (plan 2026-10-31, E3): Configuración > Servicios > Horario de clases
+                property bool enable: true // reminders before each class
+                property int remindMinutes: 10
+                property list<var> classes: [] // { id, subject, day (Sunday 0), from, to, room, link }
+            }
+            property JsonObject modes: JsonObject { // ii-windows (plan 2026-10-31, E2): Configuración > Modos
+'''),
+])
+edit(path('modules', 'settings', 'ServicesConfig.qml'), [
+    (r'''    ContentSection {
+        icon: "search"''', r'''    TimetableSection {} // ii-windows (plan 2026-10-31, E3)
+
+    ContentSection {
+        icon: "search"'''),
+])
+edit(path('modules', 'ii', 'sidebarLeft', 'SidebarLeftContent.qml'), [
+    (r'''    property var tabButtonList: [
+''', r'''    property var tabButtonList: [
+        {"icon": "today", "name": Translation.tr("Today")}, // ii-windows (plan 2026-10-31, E3)
+'''),
+    (r'''                contentChildren: [
+''', r'''                contentChildren: [
+                    today.createObject(), // ii-windows (E3): always there, so no "empty sidebar" placeholder
+'''),
+    (r'''                    ...((root.tabButtonList.length === 0 || (!root.aiChatEnabled && !root.translatorEnabled && root.animeCloset)) ? [placeholder.createObject()] : []),
+''', ''),
+    (r'''        Component {
+            id: aiChat''', r'''        Component {
+            id: today
+            Today {}
+        }
+        Component {
+            id: aiChat'''),
+])
+edit(path('shell.qml'), [
+    ('''        Modes.load() // ii-windows (plan 2026-10-31, E2): modes start by their hours and apps from the start
+''', '''        Modes.load() // ii-windows (plan 2026-10-31, E2): modes start by their hours and apps from the start
+        Timetable.load() // ii-windows (plan 2026-10-31, E3): class reminders without opening the panel
+'''),
+])
+add_translations('es_MX', {
+    "Today": "Hoy",
+    "Good morning": "Buenos días",
+    "Good afternoon": "Buenas tardes",
+    "Good evening": "Buenas noches",
+    "Classes today": "Clases de hoy",
+    "Add your classes in Configuración > Servicios > Horario de clases.": "Agrega tus clases en Configuración > Servicios > Horario de clases.",
+    "No classes today.": "Hoy no hay clases.",
+    "now": "ahora",
+    "in %1 min": "en %1 min",
+    "Join": "Unirme",
+    "To do": "Pendientes",
+    "Nothing pending.": "Nada pendiente.",
+    "Done": "Hecho",
+    "and %1 more": "y %1 más",
+    "Add a task and press Enter": "Agrega una tarea y presiona Enter",
+    "%1 in %2 min": "%1 en %2 min",
+    "%1 starts now": "%1 empieza ahora",
+    "Timetable": "Horario",
+    "Class timetable": "Horario de clases",
+    "Remind me before each class": "Avisarme antes de cada clase",
+    "Minutes before": "Minutos antes",
+    "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles", "Thursday": "Jueves", "Friday": "Viernes",
+    "Saturday": "Sábado", "Sunday": "Domingo",
+    "Remove": "Quitar",
+    "No classes yet. Add them below: they show in the left panel (Hoy) and you get a notice before each one.":
+        "Aún no hay clases. Agrégalas abajo: salen en el panel izquierdo (Hoy) y recibes un aviso antes de cada una.",
+    "Add a class": "Agregar una clase",
+    "Subject": "Materia",
+    "Room or teacher (optional)": "Aula o profesor (opcional)",
+    "Meet / Teams / Zoom link (optional)": "Enlace de Meet / Teams / Zoom (opcional)",
+    "Add": "Agregar",
+    "It needs a subject and a start before its end (24 h, like 18:00).": "Necesita una materia y un inicio antes del final (24 h, como 18:00).",
+    "The link has to start with https://": "El enlace tiene que empezar por https://",
+})

@@ -516,7 +516,7 @@ int killall(const Args& args) {
 int notifySend(const Args& args) {
 	// Collect options the shell understands; forward as
 	// "app\x1fsummary\x1fbody\x1ficon\x1furgency\x1ftimeout\x1ftransient".
-	std::wstring app = L"ii-windows", icon, urgency = L"normal", timeout, transient = L"0";
+	std::wstring app = L"ii-windows", icon, urgency = L"normal", timeout, transient = L"0", buttons;
 	std::vector<std::wstring> positional;
 	for (size_t i = 0; i < args.size(); ++i) {
 		const auto& a = args[i];
@@ -525,7 +525,14 @@ int notifySend(const Args& args) {
 			if (a == flag && i + 1 < args.size()) return args[++i];
 			return L"";
 		};
-		if (a.rfind(L"-a", 0) == 0 || a.rfind(L"--app-name", 0) == 0) {
+		if (a.rfind(L"--ii-button", 0) == 0) {
+			// ii-windows (plan 2026-10-31, E3): --ii-button "Label=host-command", a button that sends a bare command
+			// to ii-host (field 8, like ii-host's own notices).
+			auto pair = value(L"--ii-button");
+			auto eq = pair.find(L'=');
+			if (eq != std::wstring::npos && eq > 0 && eq + 1 < pair.size() && pair.find_first_of(L"\x1d\x1e\x1f") == std::wstring::npos)
+				buttons += (buttons.empty() ? L"" : L"\x1d") + pair.substr(0, eq) + L'\x1e' + pair.substr(eq + 1);
+		} else if (a.rfind(L"-a", 0) == 0 || a.rfind(L"--app-name", 0) == 0) {
 			app = value(a.rfind(L"--", 0) == 0 ? L"--app-name" : L"-a");
 		} else if (a.rfind(L"-i", 0) == 0 || a.rfind(L"--icon", 0) == 0) {
 			icon = value(a.rfind(L"--", 0) == 0 ? L"--icon" : L"-i");
@@ -545,7 +552,8 @@ int notifySend(const Args& args) {
 	if (positional.empty()) return 1;
 
 	auto payload = app + L'\x1f' + positional[0] + L'\x1f' + (positional.size() > 1 ? positional[1] : L"")
-	             + L'\x1f' + icon + L'\x1f' + urgency + L'\x1f' + timeout + L'\x1f' + transient;
+	             + L'\x1f' + icon + L'\x1f' + urgency + L'\x1f' + timeout + L'\x1f' + transient
+	             + (buttons.empty() ? std::wstring() : L'\x1f' + buttons);
 	auto* sink = FindWindowW(L"IiShellNotificationSink", nullptr);
 	if (!sink) return 1;
 	COPYDATASTRUCT data {};

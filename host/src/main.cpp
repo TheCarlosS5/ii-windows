@@ -1594,6 +1594,11 @@ bool hostCommand(const std::wstring& commandLine) {
 		desktop::toggleShowDesktop();
 		return true;
 	}
+	if (command == L"class-join") { // "Unirme" on a class reminder (plan E3): the shell's Timetable opens that class' link
+		sendToShell(L"classJoin", true);
+		sendToShell(L"classJoin", false);
+		return true;
+	}
 	return hostCommandCore(commandLine);
 }
 
