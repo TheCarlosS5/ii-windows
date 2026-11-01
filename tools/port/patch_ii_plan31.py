@@ -193,3 +193,124 @@ edit(path('modules', 'settings', 'InterfaceConfig.qml'), [
                     }
 '''),
 ])
+
+
+# --- B3: the updater's options (read by ii-host and ii-shim update; Configuración > Actualizaciones) ---------------
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''            property JsonObject tour: JsonObject {
+                property bool showOnFirstStart: true // ii-windows: guided tour (modules/ii/tour)
+            }
+''', '''            property JsonObject tour: JsonObject {
+                property bool showOnFirstStart: true // ii-windows: guided tour (modules/ii/tour)
+            }
+
+            property JsonObject updates: JsonObject { // ii-windows (plan 2026-10-31, block B)
+                property bool autoCheck: true // look for a new version now and then (never during a game)
+                property bool autoDownload: true // download it by itself, only on Wi-Fi or cable
+                property string channel: "stable" // "stable" | "beta" (prereleases, for testers)
+                property bool notify: true // a notification when there is one (else only the dot in the bar)
+            }
+'''),
+])
+
+
+# --- B3: updates in Configuración (overlay UpdatesConfig.qml), in About and as a dot in the bar ---------------------------
+edit(path('settings.qml'), [
+    ('''        {
+            name: Translation.tr("About"),
+            icon: "info",
+            component: "modules/settings/About.qml"
+        }
+''', '''        {
+            name: Translation.tr("Updates"), // ii-windows (plan 2026-10-31, block B)
+            icon: "system_update",
+            component: "modules/settings/UpdatesConfig.qml"
+        },
+        {
+            name: Translation.tr("About"),
+            icon: "info",
+            component: "modules/settings/About.qml"
+        }
+'''),
+])
+edit(path('modules', 'settings', 'About.qml'), [
+    ('''                            { icon: "desktop_windows", text: page.windowsName }
+''', '''                            { icon: "desktop_windows", text: page.windowsName },
+                            { icon: "system_update", text: Updates.attention ? Translation.tr("Update: %1").arg(Updates.latestVersion) : "" }
+'''),
+    ('''                materialIcon: "system_update_alt"
+                mainText: Translation.tr("Check for updates")
+                onClicked: Qt.openUrlExternally("https://github.com/TheCarlosS5/ii-windows/releases/latest")
+''', '''                materialIcon: "system_update_alt"
+                // ii-windows (plan 2026-10-31): the updater, not the releases page.
+                mainText: Updates.ready ? Translation.tr("Restart ii now")
+                    : Updates.attention ? Translation.tr("Update to %1").arg(Updates.latestVersion) : Translation.tr("Check for updates")
+                onClicked: Updates.ready ? Updates.restartNow() : Updates.attention ? Updates.install() : Updates.check()
+'''),
+])
+edit(path('modules', 'ii', 'bar', 'BarContent.qml'), [
+    ('''                    spacing: 0
+
+                    Revealer {
+                        reveal: Audio.sink?.audio?.muted ?? false
+''', '''                    spacing: 0
+
+                    Revealer { // ii-windows (plan 2026-10-31, B3): a new version of ii is there
+                        reveal: Updates.attention
+                        Layout.fillHeight: true
+                        Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
+                        Behavior on Layout.rightMargin {
+                            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                        }
+                        MaterialSymbol {
+                            text: Updates.ready ? "restart_alt" : "system_update"
+                            iconSize: Appearance.font.pixelSize.larger
+                            color: Updates.critical ? Appearance.colors.colPrimary : rightSidebarButton.colText
+                        }
+                    }
+                    Revealer {
+                        reveal: Audio.sink?.audio?.muted ?? false
+'''),
+])
+
+add_translations('es_MX', {
+    "Updates": "Actualizaciones",
+    "Looking for a new version…": "Buscando una versión nueva…",
+    "ii %1 is available": "ii %1 está disponible",
+    "ii %1 will download on Wi-Fi or cable": "ii %1 se descargará con Wi-Fi o cable",
+    "Downloading ii %1… %2%": "Descargando ii %1… %2 %",
+    "Checking the download…": "Comprobando la descarga…",
+    "ii %1 is downloaded": "ii %1 está descargada",
+    "Preparing ii %1…": "Preparando ii %1…",
+    "ii %1 is ready: it applies when ii restarts": "ii %1 está lista: se aplica al reiniciar ii",
+    "Could not update: %1": "No se pudo actualizar: %1",
+    "ii is up to date": "ii está al día",
+    "Installed: %1": "Instalada: %1",
+    "Last check: %1": "Última búsqueda: %1",
+    "%1 MB": "%1 MB",
+    "Recommended: it fixes important errors.": "Recomendada: arregla errores importantes.",
+    "From your version this one has to be installed by hand: download the Setup from GitHub.":
+        "Desde tu versión hay que instalarla a mano: descarga el instalador desde GitHub.",
+    "Check now": "Buscar ahora",
+    "Download and install": "Descargar e instalar",
+    "Restart ii now": "Reiniciar ii ahora",
+    "Skip this version": "Omitir esta versión",
+    "See on GitHub": "Ver en GitHub",
+    "What's new in %1": "Novedades de %1",
+    "Options": "Opciones",
+    "Look for updates by itself (never during a game)": "Buscar actualizaciones solo (nunca durante un juego)",
+    "Download them by itself, only on Wi-Fi or cable": "Descargarlas solo, únicamente con Wi-Fi o cable",
+    "Tell me with a notification (otherwise only the dot in the bar)": "Avisarme con una notificación (si no, solo el puntito en la barra)",
+    "Channel": "Canal",
+    "Beta gets test versions first, for the people who try them": "Beta recibe primero las versiones de prueba, para quienes las prueban",
+    "Stable": "Estable",
+    "Beta": "Beta",
+    "Only versions signed by ii-windows are installed, next to the one you have: if the new one does not start, ii goes back by itself. The only thing sent is a question to GitHub.":
+        "Solo se instalan versiones firmadas por ii-windows, al lado de la que tienes: si la nueva no arranca, ii vuelve sola. Lo único que se envía es una consulta a GitHub.",
+    "Previous version": "Versión anterior",
+    "%1 is still on this PC. Going back restarts ii with it.": "%1 sigue en esta PC. Volver a ella reinicia ii con esa versión.",
+    "Go back to %1": "Volver a %1",
+    "Update: %1": "Actualización: %1",
+    "Update to %1": "Actualizar a %1",
+    "Check for updates": "Buscar actualizaciones",
+})

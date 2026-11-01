@@ -103,6 +103,10 @@ constexpr UINT_PTR TIMER_LONE_WIN = 9;
 // no longer asks about "last time".
 constexpr UINT_PTR TIMER_STABLE = 10;
 constexpr UINT STABLE_MS = 10 * 60 * 1000;
+constexpr UINT_PTR TIMER_UPDATE = 11;
+constexpr UINT UPDATE_FIRST_MS = 2 * 60 * 1000;
+constexpr UINT UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
+constexpr UINT UPDATE_RETRY_MS = 15 * 60 * 1000;
 // notifystate.cpp: the answer of SHQueryUserNotificationState changed (a game went exclusive full screen...).
 constexpr UINT WM_II_NOTIFY_STATE = WM_APP + 6;
 // A command from the shell or ii-shim ("safe-mode-off", "restart-shell", ...): WM_COPYDATA with this dwData.
@@ -398,15 +402,19 @@ void rememberGoodConfig() {
 }
 
 // The shell's notification sink is a window of the shell itself; the same message ii-shim notify-send uses.
-void tellUserThroughShell(const std::wstring& summary, const std::wstring& body, const std::wstring& urgency = L"critical") {
+// actions (plan 2026-10-31, B3): buttons as {label, host command}; pressing one sends the command back to this host.
+void tellUserThroughShell(const std::wstring& summary, const std::wstring& body, const std::wstring& urgency = L"critical",
+                          const std::vector<std::pair<std::wstring, std::wstring>>& actions = {}) {
 	if (noUi()) {
-		log(L"config: (no UI) %s", summary.c_str());
+		log(L"notice: (no UI) %s", summary.c_str());
 		return;
 	}
 	auto* sink = FindWindowW(L"IiShellNotificationSink", nullptr);
 	if (!sink) return;
 	const wchar_t sep = 0x1f; // the field separator ii-shim notify-send uses
-	std::wstring payload = std::wstring(L"ii-windows") + sep + summary + sep + body + sep + sep + urgency + sep + sep + L"0";
+	std::wstring buttons;
+	for (const auto& [label, command]: actions) buttons += (buttons.empty() ? L"" : L"\x1d") + label + L"\x1e" + command;
+	std::wstring payload = std::wstring(L"ii-windows") + sep + summary + sep + body + sep + sep + urgency + sep + sep + L"0" + sep + buttons;
 	COPYDATASTRUCT data {};
 	data.dwData = 0x49490010;
 	data.cbData = static_cast<DWORD>((payload.size() + 1) * sizeof(wchar_t));
@@ -1073,6 +1081,14 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 	// verified after STABLE_MS without a crash (plan 2026-10-31, A7).
 	if (rollout::markReady(selfDir())) log(L"runtime: this version came up (ready)");
 	SetTimer(hostWindow, TIMER_STABLE, STABLE_MS, nullptr);
+	// The first look for a new version, a while after start-up (plan 2026-10-31, B2); then every 6 hours.
+	static bool updateTimerSet = false;
+	if (!updateTimerSet) {
+		updateTimerSet = true;
+		wchar_t testFirst[16] {};
+		auto first = GetEnvironmentVariableW(L"II_TEST_UPDATE_FIRST_MS", testFirst, 16) > 0 ? static_cast<UINT>(_wtoi(testFirst)) : UPDATE_FIRST_MS;
+		SetTimer(hostWindow, TIMER_UPDATE, first, nullptr);
+	}
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr); // back to the slow housekeeping tick
 	setPhase(Phase::Active, L"shell is up");
 	rememberGoodConfig(); // once per start, after it came up: not on every change
@@ -1253,7 +1269,220 @@ void handleShellCrash(DWORD code, DWORD pid) {
 }
 
 // "safe-mode-off", "restart-shell" (WM_COPYDATA COPYDATA_HOST_COMMAND from the shell or ii-shim host <command>).
-bool hostCommand(const std::wstring& command) {
+// --- updates (plan 2026-10-31, block B) ------------------------------------------------------------------------------
+// ii-host decides when (never during a game or a locked session; checks 2 minutes after start-up, then every 6 hours)
+// and tells the user; ii-shim update does the work (updater.cpp) and keeps <data>\update\state.json, which the shell's
+// Updates service shows (Configuración > Actualizaciones, the dot in the bar).
+bool hostCommandCore(const std::wstring& command); // below: the commands that are not about updates
+constexpr UINT WM_II_UPDATE_DONE = WM_APP + 9;
+HANDLE updateProcess = nullptr;
+HANDLE updateWait = nullptr;
+std::wstring updateStep;
+bool updateForced = false;
+bool installWanted = false; // the user said "Actualizar": download if needed, then install
+
+jsonlite::Value readJsonFile(const std::wstring& path) {
+	std::string text;
+	if (auto* f = _wfopen(path.c_str(), L"rb")) {
+		char buffer[8192];
+		size_t n = 0;
+		while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0 && text.size() < (4 << 20)) text.append(buffer, n);
+		fclose(f);
+	}
+	if (text.rfind("\xEF\xBB\xBF", 0) == 0) text.erase(0, 3);
+	auto parsed = jsonlite::parse(text);
+	return parsed.ok ? parsed.value : jsonlite::Value::makeObject();
+}
+
+std::string jtext(const jsonlite::Value& v, const char* key) {
+	const auto* m = v.isObject() ? v.find(key) : nullptr;
+	return m && m->type == jsonlite::Type::String ? m->text : std::string();
+}
+
+bool jbool(const jsonlite::Value& v, const char* key, bool fallback) {
+	const auto* m = v.isObject() ? v.find(key) : nullptr;
+	return m && m->type == jsonlite::Type::Bool ? m->boolean : fallback;
+}
+
+// config.json updates.<key> (Config.qml defaults when missing).
+bool updatesOption(const char* key, bool fallback) {
+	auto config = readJsonFile(configtool::paths().file);
+	const auto* updates = config.find("updates");
+	return updates ? jbool(*updates, key, fallback) : fallback;
+}
+
+jsonlite::Value updateState() { return readJsonFile(dataDir() + L"\\update\\state.json"); }
+
+void CALLBACK onUpdateExit(PVOID, BOOLEAN) { PostMessageW(hostWindow, WM_II_UPDATE_DONE, 0, 0); }
+
+// One step of ii-shim update, hidden. Without force it waits for a moment without a game or a locked session.
+bool runUpdateStep(const std::wstring& step, bool force) {
+	if (updateProcess || shuttingDown || options.shell.empty()) return false;
+	if (!force && (gameInFront() || sessionLocked)) {
+		log(L"update: %s postponed (a game in front or the session locked)", step.c_str());
+		return false;
+	}
+	auto shim = options.shell.substr(0, options.shell.find_last_of(L"\\/")) + L"\\bin\\ii-shim.exe";
+	if (GetFileAttributesW(shim.c_str()) == INVALID_FILE_ATTRIBUTES) {
+		log(L"update: no ii-shim next to the shell (%s)", shim.c_str());
+		return false;
+	}
+	auto cmd = L"\"" + shim + L"\" update " + step + (force ? L" --force" : L"");
+	STARTUPINFOW si {};
+	si.cb = sizeof(si);
+	PROCESS_INFORMATION pi {};
+	if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS, nullptr, nullptr, &si, &pi)) {
+		log(L"update: %s could not start (%lu)", step.c_str(), GetLastError());
+		return false;
+	}
+	CloseHandle(pi.hThread);
+	updateProcess = pi.hProcess;
+	updateStep = step;
+	updateForced = force;
+	RegisterWaitForSingleObject(&updateWait, updateProcess, onUpdateExit, nullptr, INFINITE, WT_EXECUTEONLYONCE);
+	log(L"update: %s%s", step.c_str(), force ? L" (the user asked)" : L"");
+	return true;
+}
+
+std::wstring sizeText(const jsonlite::Value& latest) {
+	const auto* size = latest.find("size");
+	auto mb = size && size->type == jsonlite::Type::Number ? static_cast<long long>(size->asDouble() / (1024 * 1024)) : 0;
+	return mb > 0 ? L" Pesa " + std::to_wstring(mb) + L" MB." : L"";
+}
+
+void notifyUpdateAvailable(const jsonlite::Value& state, bool force) {
+	const auto* latest = state.find("latest");
+	if (!latest) return;
+	auto id = fromUtf8(jtext(*latest, "id"));
+	auto version = fromUtf8(jtext(*latest, "version"));
+	FILETIME now {};
+	GetSystemTimeAsFileTime(&now);
+	auto nowValue = (static_cast<ULONGLONG>(now.dwHighDateTime) << 32) | now.dwLowDateTime;
+	auto snoozed = _wcstoui64(state::getText(L"update", L"snoozeUntil").c_str(), nullptr, 10) > nowValue;
+	auto critical = jbool(*latest, "critical", false);
+	if (!force) {
+		if (!updatesOption("notify", true)) return;
+		// Once per version (a critical one again each day), never while snoozed.
+		if (snoozed) return;
+		auto notified = state::getText(L"update", L"notified");
+		auto notifiedAt = _wcstoui64(state::getText(L"update", L"notifiedAt").c_str(), nullptr, 10);
+		if (notified == id && !(critical && nowValue - notifiedAt > 24ULL * 3600 * 10000000ULL)) return;
+	}
+	state::setText(L"update", L"notified", id);
+	state::setText(L"update", L"notifiedAt", std::to_wstring(nowValue));
+	std::wstring body = critical ? L"Recomendada: arregla errores importantes." : L"Trae mejoras y arreglos.";
+	body += sizeText(*latest);
+	if (jbool(*latest, "tooOld", false)) body += L" Desde tu versión hay que instalarla a mano: descárgala de GitHub.";
+	tellUserThroughShell(L"Hay una versión nueva de ii: " + version, body, critical ? L"critical" : L"normal",
+	                     {{L"Actualizar", L"update-install"}, {L"Novedades", L"settings-open\x1fupdates"}, {L"Más tarde", L"update-snooze"}});
+}
+
+void onUpdateDone() {
+	DWORD code = 1;
+	if (updateProcess) {
+		GetExitCodeProcess(updateProcess, &code);
+		CloseHandle(updateProcess);
+	}
+	updateProcess = nullptr;
+	updateWait = nullptr;
+	auto step = updateStep;
+	auto forced = updateForced;
+	auto state = updateState();
+	auto status = jtext(state, "status");
+	log(L"update: %s ended (%lu): %s %s", step.c_str(), code, fromUtf8(status).c_str(), fromUtf8(jtext(state, "error")).c_str());
+	if (shuttingDown) return;
+	const auto* latest = state.find("latest");
+	auto version = latest ? fromUtf8(jtext(*latest, "version")) : std::wstring();
+	if (status == "available" || status == "downloaded") {
+		if (installWanted) {
+			runUpdateStep(status == "downloaded" ? L"install" : L"download", true);
+			return;
+		}
+		notifyUpdateAvailable(state, forced && step == L"check");
+		if (status == "available" && step == L"check" && updatesOption("autoDownload", true)) runUpdateStep(L"download", false);
+	} else if (status == "ready") {
+		installWanted = false;
+		tellUserThroughShell(L"ii " + version + L" está lista",
+		                     L"Se aplicará la próxima vez que se inicie ii. Si la nueva no arranca, ii vuelve sola a la que tienes ahora.",
+		                     L"normal", {{L"Reiniciar ii ahora", L"update-restart"}});
+	} else if (status == "error" && forced) {
+		installWanted = false;
+		tellUserThroughShell(L"No se pudo actualizar ii", fromUtf8(jtext(state, "error")) + L". Sigues con la versión que tienes.", L"normal");
+	} else if (status == "idle" && forced && step == L"check") {
+		tellUserThroughShell(L"ii está al día", L"Tienes la versión más reciente.", L"low");
+	}
+}
+
+void onUpdateTimer() {
+	KillTimer(hostWindow, TIMER_UPDATE);
+	if (!updatesOption("autoCheck", true)) {
+		SetTimer(hostWindow, TIMER_UPDATE, UPDATE_EVERY_MS, nullptr);
+		return;
+	}
+	auto started = runUpdateStep(L"check", false);
+	// Every 6 hours, give or take half an hour (not every installation at the same minute).
+	SetTimer(hostWindow, TIMER_UPDATE, started ? UPDATE_EVERY_MS + (GetTickCount() % (30 * 60 * 1000)) : UPDATE_RETRY_MS, nullptr);
+}
+
+// Configuración, opened on a page (II_SETTINGS_PAGE), from the host (a notification's "Novedades").
+void openSettings(const std::wstring& page) {
+	if (options.shell.empty() || options.config.empty()) return;
+	auto cmd = L"\"" + options.shell + L"\" -p \"" + options.config + L"\\settings.qml\"";
+	SetEnvironmentVariableW(L"II_SETTINGS_PAGE", page.c_str());
+	STARTUPINFOW si {};
+	si.cb = sizeof(si);
+	PROCESS_INFORMATION pi {};
+	auto dir = options.shell.substr(0, options.shell.find_last_of(L"\\/"));
+	if (CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, dir.c_str(), &si, &pi)) {
+		AllowSetForegroundWindow(pi.dwProcessId);
+		CloseHandle(pi.hThread);
+		CloseHandle(pi.hProcess);
+	}
+	SetEnvironmentVariableW(L"II_SETTINGS_PAGE", nullptr);
+}
+
+bool hostCommand(const std::wstring& commandLine) {
+	// "name" or "name\x1fargument" (ii-shim host name argument).
+	auto split = commandLine.find(L'\x1f');
+	auto command = commandLine.substr(0, split);
+	auto argument = split == std::wstring::npos ? std::wstring() : commandLine.substr(split + 1);
+	if (command == L"update-check") return runUpdateStep(L"check", true);
+	if (command == L"update-install") {
+		installWanted = true;
+		auto status = jtext(updateState(), "status");
+		if (status == "ready") {
+			onUpdateDone();
+			return true;
+		}
+		if (updateProcess) return true; // it goes on when the running step ends
+		return runUpdateStep(status == "downloaded" ? L"install" : status == "available" || status == "waiting-network" ? L"download" : L"check", true);
+	}
+	if (command == L"update-restart") {
+		if (jtext(updateState(), "status") != "ready") return false;
+		std::wstring root, id;
+		if (!rollout::locate(selfDir(), root, id)) return false;
+		log(L"update: restarting into the new version");
+		relaunchRoot = root;
+		shutdown(0);
+		return true;
+	}
+	if (command == L"update-snooze") {
+		FILETIME now {};
+		GetSystemTimeAsFileTime(&now);
+		auto until = ((static_cast<ULONGLONG>(now.dwHighDateTime) << 32) | now.dwLowDateTime) + 24ULL * 3600 * 10000000ULL;
+		state::setText(L"update", L"snoozeUntil", std::to_wstring(until));
+		log(L"update: reminders snoozed for a day");
+		return true;
+	}
+	if (command == L"update-skip" && !argument.empty() && argument.size() < 32) return runUpdateStep(L"skip " + argument, true);
+	if (command == L"settings-open") {
+		openSettings(argument);
+		return true;
+	}
+	return hostCommandCore(commandLine);
+}
+
+bool hostCommandCore(const std::wstring& command) {
 	log(L"command: %s", command.c_str());
 	if (command == L"safe-mode-off") {
 		disabledParts.clear();
@@ -1363,6 +1592,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 	case keyboard::WM_II_VOLUME: volume::handleKey(static_cast<unsigned>(wParam)); return 0;
 	case keyboard::WM_II_LONE_WIN: onLoneWin(); return 0;
 	case WM_II_SHELL_EXITED: onShellExited(); return 0;
+	case WM_II_UPDATE_DONE: onUpdateDone(); return 0;
 	case WM_APP + 7: { // a host command, posted from WM_COPYDATA
 		std::unique_ptr<std::wstring> command(reinterpret_cast<std::wstring*>(lParam));
 		if (command && !shuttingDown) hostCommand(*command);
@@ -1457,6 +1687,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		} else if (wParam == TIMER_NOTICE_END) {
 			KillTimer(hwnd, TIMER_NOTICE_END);
 			removeNotice();
+		} else if (wParam == TIMER_UPDATE) {
+			onUpdateTimer();
 		} else if (wParam == TIMER_STABLE) {
 			KillTimer(hwnd, TIMER_STABLE);
 			if (shellReady && !shuttingDown) {

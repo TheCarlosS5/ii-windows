@@ -99,6 +99,7 @@
   "tour",
   "tray",
   "updates",
+  "updates",
   "waffles",
   "waffles.actionCenter",
   "waffles.bar",
@@ -1328,6 +1329,15 @@
   "updates.adviseUpdateThreshold": {
    "kind": "int"
   },
+  "updates.autoCheck": {
+   "kind": "bool"
+  },
+  "updates.autoDownload": {
+   "kind": "bool"
+  },
+  "updates.channel": {
+   "kind": "string"
+  },
   "updates.checkInterval": {
    "kind": "int",
    "range": [
@@ -1336,6 +1346,9 @@
    ]
   },
   "updates.enableCheck": {
+   "kind": "bool"
+  },
+  "updates.notify": {
    "kind": "bool"
   },
   "updates.stronglyAdviseUpdateThreshold": {
