@@ -481,3 +481,49 @@ add_translations('es_MX', {
     "Weak": "Suave",
     "You can turn it back on in Settings > Bar > Workspaces.": "Puedes volver a activarlo en Configuración > Barra > Espacios de trabajo.",
 })
+
+
+# --- C2: the widget gallery's texts (overlay WidgetGallery.qml; tools/port/gen_widget_pages.py builds the rest) --------
+add_translations('es_MX', {
+    "Widgets": "Widgets",
+    "Search widgets": "Buscar widgets",
+    "%1 of %2 on the desktop. Right click the desktop > Edit desktop to move and resize them.":
+        "%1 de %2 en el escritorio. Clic derecho en el escritorio > Editar escritorio para moverlos y cambiarles el tamaño.",
+    "Customize": "Personalizar",
+    "All widgets": "Todos los widgets",
+    "Loading…": "Cargando…",
+})
+
+# --- C2/C6: a widget's gear in the desktop's edit mode opens Configuración > Escritorio on that widget's settings ------
+edit(path('settings.qml'), [
+    ('''        function onActivated(argument) {
+            const index = root.pageIndex(argument);
+''', '''        function onActivated(argument) {
+            SettingsRequest.request(argument); // "page/sub": the page's own part (a widget's settings) follows it
+            const index = root.pageIndex(argument);
+'''),
+])
+edit(path('modules', 'ii', 'background', 'widgets', 'WidgetEditFrame.qml'), [
+    ('''import QtQuick.Layouts
+import qs
+''', '''import QtQuick.Layouts
+import Quickshell
+import qs
+'''),
+    ('''            EditButton {
+                symbol: "visibility_off"
+''', '''            EditButton { // ii-windows (plan 2026-10-31, C6): this widget's settings, in the open Configuración if any
+                symbol: "settings"
+                tip: Translation.tr("Widget settings")
+                onClicked: Quickshell.execDetached({
+                    command: ["qs", "-p", Quickshell.shellPath("settings.qml")],
+                    environment: { "II_SETTINGS_PAGE": "backgroundconfig/" + root.widget.configEntryName }
+                })
+            }
+            EditButton {
+                symbol: "visibility_off"
+'''),
+])
+add_translations('es_MX', {
+    "Widget settings": "Ajustes del widget",
+})
