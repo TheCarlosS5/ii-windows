@@ -75,6 +75,33 @@ Singleton {
         Quickshell.execDetached([root.cliphistBinary, "superpaste", `${Math.round(root.pasteDelay * 1000)}`, ...ids]);
     }
 
+    // ii-windows (plan 2026-10-31, E8): the text in a copied image (Windows OCR), copied as text.
+    // A new file each time: decode-to keeps a file that already exists.
+    property string ocrImage: ""
+    function ocrEntry(entry) {
+        if (decodeProc.running || ocrProc.running) return;
+        root.ocrImage = FileUtils.trimFileProtocol(`${Directories.cache}/media/clipboard-ocr-${Date.now()}.png`);
+        decodeProc.exec([root.cliphistBinary, "decode-to", root.idOf(entry), root.ocrImage]);
+    }
+    Process {
+        id: decodeProc
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) ocrProc.exec(["ii-shim", "ocr", root.ocrImage]);
+        }
+    }
+    Process {
+        id: ocrProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const found = text.trim();
+                if (found) Quickshell.clipboardText = found;
+                Quickshell.execDetached(["notify-send", "-a", "ii", found ? Translation.tr("Text copied") : Translation.tr("No text found in the image"),
+                    found.length > 120 ? found.slice(0, 120) + "…" : found]);
+                Quickshell.execDetached(["ii-shim", "rm", "-f", root.ocrImage]);
+            }
+        }
+    }
+
     Process {
         id: deleteProc
         onExited: (exitCode, exitStatus) => root.refresh()
@@ -123,7 +150,7 @@ Singleton {
 
         stdout: SplitParser {
             onRead: (line) => {
-                readProc.buffer.push(line)
+                readProc.buffer.push(line.replace(/\r$/, "")) // ii-windows: ii-shim prints CRLF; a trailing \r made every image look like text
             }
         }
 

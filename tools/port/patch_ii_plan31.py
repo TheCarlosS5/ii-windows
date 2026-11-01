@@ -1478,7 +1478,14 @@ edit(path('services', 'LauncherSearch.qml'), [
                             execute: () => {
                                 if (!Cliphist.entryIsImage(entry)) SearchPlus.saveSnippet(StringUtils.cleanCliphistEntry(entry));
                             }
-                        })],
+                        }), ...(Cliphist.entryIsImage(entry) ? [resultComp.createObject(null, {
+                            name: Translation.tr("Copy the text in it (OCR)"),
+                            iconName: "document_scanner",
+                            iconType: LauncherSearchResult.IconType.Material,
+                            execute: () => {
+                                Cliphist.ocrEntry(entry);
+                            }
+                        })] : [])],
 '''),
 ])
 edit(path('modules', 'settings', 'ServicesConfig.qml'), [
@@ -1494,6 +1501,9 @@ add_translations('es_MX', {
     "Paste": "Pegar",
     "Paste as plain text": "Pegar como texto sin formato",
     "Save as snippet": "Guardar como fragmento",
+    "Copy the text in it (OCR)": "Copiar el texto que tiene (OCR)",
+    "Text copied": "Texto copiado",
+    "No text found in the image": "No se encontró texto en la imagen",
     "Texts you paste often. Type their name in the search and press Enter: it is pasted into the app you were using.":
         "Textos que pegas seguido. Escribe su nombre en la búsqueda y presiona Enter: se pega en la app que estabas usando.",
     "Add a snippet": "Agregar un fragmento",
