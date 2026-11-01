@@ -83,6 +83,8 @@ Item {
         list.push({ appId: "LAUNCHPAD", toplevels: [], pinned: false });
         if (Config.options.dock.showStore ?? true)
             list.push({ appId: "STORE", toplevels: [], pinned: false });
+        if (Config.options.dock.showTrash ?? true) // ii-windows (plan 2026-10-31, E6)
+            list.push({ appId: "TRASH", toplevels: [], pinned: false });
         return list;
     }
     property real storeLaunchedAt: 0 // the store button ignores a second click within a few seconds

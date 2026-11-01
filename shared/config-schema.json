@@ -855,6 +855,9 @@
   "dock.monochromeIcons": {
    "kind": "bool"
   },
+  "dock.notificationBadges": {
+   "kind": "bool"
+  },
   "dock.pinnedApps": {
    "kind": "strings"
   },
@@ -871,6 +874,9 @@
    "kind": "bool"
   },
   "dock.showStore": {
+   "kind": "bool"
+  },
+  "dock.showTrash": {
    "kind": "bool"
   },
   "hacks.arbitraryRaceConditionDelay": {

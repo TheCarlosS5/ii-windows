@@ -1342,3 +1342,41 @@ add_translations('es_MX', {
     "%1 % battery left": "Le queda %1 % de batería",
     "Mute or unmute the microphone (the whole system)": "Silenciar o activar el micrófono (en todo el sistema)",
 })
+
+# --- E6: the dock's Recycle Bin tile (overlay services/RecycleBin.qml) and notification counts on app icons ----------
+edit(path('modules', 'common', 'Config.qml'), [
+    ('''                property bool showStore: true // ii-windows: the app store as a tile next to the overview button
+''', '''                property bool showStore: true // ii-windows: the app store as a tile next to the overview button
+                property bool showTrash: true // ii-windows (plan 2026-10-31, E6): the Recycle Bin as a tile
+                property bool notificationBadges: true // ii-windows (E6): how many notifications each app has waiting
+'''),
+])
+edit(path('modules', 'settings', 'DockConfig.qml'), [
+    ('''            checked: Config.options.dock.showStore
+            onCheckedChanged: {
+                Config.options.dock.showStore = checked;
+            }
+        }
+''', '''            checked: Config.options.dock.showStore
+            onCheckedChanged: {
+                Config.options.dock.showStore = checked;
+            }
+        }
+        ConfigSwitch { // ii-windows (plan 2026-10-31, E6)
+            buttonIcon: "delete"
+            text: Translation.tr("Show the Recycle Bin in the dock (click: open, right click: empty)")
+            checked: Config.options.dock.showTrash
+            onCheckedChanged: Config.options.dock.showTrash = checked
+        }
+        ConfigSwitch {
+            buttonIcon: "notifications"
+            text: Translation.tr("Count each app's notifications on its icon")
+            checked: Config.options.dock.notificationBadges
+            onCheckedChanged: Config.options.dock.notificationBadges = checked
+        }
+'''),
+])
+add_translations('es_MX', {
+    "Show the Recycle Bin in the dock (click: open, right click: empty)": "Mostrar la papelera en el dock (clic: abrir; clic derecho: vaciar)",
+    "Count each app's notifications on its icon": "Contar en cada icono las notificaciones de su app",
+})

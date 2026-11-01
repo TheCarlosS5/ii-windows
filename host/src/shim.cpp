@@ -11,6 +11,7 @@
 //   loginctl lock-session | ii-shim lock  lock the session
 //   ii-shim suspend                      sleep (not hibernate)
 //   ii-shim empty-bin                    empty the Recycle Bin (Windows asks first)
+//   ii-shim recycle-bin                  what is in it: {"items":N,"bytes":M}
 //   pidof <name>                         print pids of a process name
 //   killall <name>                       end the user's processes with that name
 //   ii-shim fetch <https-url> [opts]      HTTPS bytes to stdout or an atomic cache file
@@ -662,6 +663,14 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"killall" || command == L"pkill") return killall(args);
 	if (command == L"lock" || (command == L"loginctl" && !args.empty() && args[0] == L"lock-session")) {
 		return LockWorkStation() ? 0 : 1;
+	}
+	if (command == L"recycle-bin") {
+		// The dock's Recycle Bin tile (plan 2026-10-31, E6): {"items":N,"bytes":M} over every drive.
+		SHQUERYRBINFO info {};
+		info.cbSize = sizeof(info);
+		if (FAILED(SHQueryRecycleBinW(nullptr, &info))) return 1;
+		std::printf("{\"items\":%lld,\"bytes\":%lld}\n", info.i64NumItems, info.i64Size);
+		return 0;
 	}
 	if (command == L"empty-bin") {
 		// The launcher's "vaciar la papelera" (plan 2026-10-31, E1): Windows' own question first ("¿eliminar

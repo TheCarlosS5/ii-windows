@@ -22,7 +22,18 @@ Item {
     readonly property bool isSeparator: appToplevel.appId === "SEPARATOR" || appToplevel.appId === "SEPARATOR_END"
     readonly property bool isLaunchpad: appToplevel.appId === "LAUNCHPAD"
     readonly property bool isStore: appToplevel.appId === "STORE"
-    readonly property bool isSpecial: isLaunchpad || isStore // the two tiles that are not apps
+    readonly property bool isTrash: appToplevel.appId === "TRASH" // ii-windows (plan 2026-10-31, E6)
+    readonly property bool isSpecial: isLaunchpad || isStore || isTrash // the tiles that are not apps
+    // ii-windows (E6): this app's notifications still in the list (Windows toasts carry the app's display name).
+    readonly property int notificationCount: {
+        if (isSpecial || isSeparator || !(Config.options.dock.notificationBadges ?? true)) return 0;
+        const norm = t => (t ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const names = [norm(desktopEntry?.name), norm(appToplevel.appId)].filter(n => n.length > 1);
+        if (names.length === 0) return 0;
+        return Notifications.list.filter(n => names.includes(norm(n.appName))).length;
+    }
+    Component.onCompleted: if (isTrash) RecycleBin.watched = true
+    Component.onDestruction: if (isTrash) RecycleBin.watched = false
     readonly property var windows: appToplevel.toplevels ?? []
     readonly property bool appIsActive: windows.find(t => t.activated === true) !== undefined
     // ii-windows (plan 2026-10-31, F17): one of its windows asks for attention (it flashed its taskbar button: a
@@ -150,7 +161,7 @@ Item {
             color: Appearance.m3colors.m3primaryContainer
             MaterialSymbol {
                 anchors.centerIn: parent
-                text: slot.isStore ? "storefront" : "apps"
+                text: slot.isStore ? "storefront" : slot.isTrash ? (RecycleBin.full ? "delete" : "delete_outline") : "apps"
                 iconSize: slot.vis * 0.58
                 color: Appearance.m3colors.m3onPrimaryContainer
             }
@@ -173,8 +184,29 @@ Item {
                     font.weight: Font.DemiBold
                 }
                 StyledToolTip {
+                    // A Rectangle has no "hovered": without this it showed on every tile, always.
+                    extraVisibleCondition: slot.isStore && AppUpdates.count > 0 && mouseArea.containsMouse
                     text: Translation.tr("%1 apps can be updated in the store").arg(AppUpdates.count)
                 }
+            }
+        }
+        // ii-windows (plan 2026-10-31, E6): how many of this app's notifications are waiting in the right panel.
+        Rectangle {
+            visible: slot.notificationCount > 0
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: -slot.vis * 0.02
+            height: Math.max(16, slot.vis * 0.32)
+            width: Math.max(height, notifBadgeText.implicitWidth + height * 0.5)
+            radius: height / 2
+            color: Appearance.m3colors.m3error
+            StyledText {
+                id: notifBadgeText
+                anchors.centerIn: parent
+                text: slot.notificationCount > 99 ? "99+" : String(slot.notificationCount)
+                color: Appearance.m3colors.m3onError
+                font.pixelSize: parent.height * 0.62
+                font.weight: Font.DemiBold
             }
         }
 
@@ -241,7 +273,9 @@ Item {
                 if (suppressClick)
                     return;
                 if (mouse.button === Qt.RightButton) {
-                    if (slot.isSpecial)
+                    if (slot.isTrash)
+                        RecycleBin.empty(); // Windows asks first
+                    else if (slot.isSpecial)
                         slot.appListRoot.openContextMenu(null);
                     else
                         slot.appListRoot.openContextMenu(slot);
@@ -260,6 +294,11 @@ Item {
     function activateApp() {
         if (isLaunchpad) {
             GlobalStates.toggleOverview("apps");
+            return;
+        }
+        if (isTrash) {
+            bounceAnim.restart();
+            RecycleBin.open();
             return;
         }
         if (isStore) {
