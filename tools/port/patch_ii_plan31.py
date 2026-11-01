@@ -559,6 +559,17 @@ import qs.modules.settings // ii-windows: the settings search
         locateTimer.tries = 0;
         locateTimer.restart();
     }
+    function loadLazySections(item) { // true if a section had to be made
+        if (!item) return false;
+        let made = false;
+        if (item.isLazySection === true && !item.load) {
+            item.load = true;
+            made = true;
+        }
+        const kids = item.children || [];
+        for (let i = 0; i < kids.length; ++i) made = root.loadLazySections(kids[i]) || made;
+        return made;
+    }
     function findSetting(item, text, found) {
         if (!item || found.length > 40) return;
         if (item.title === text || item.text === text || item.mainText === text || item.placeholderText === text)
@@ -570,6 +581,7 @@ import qs.modules.settings // ii-windows: the settings search
         const entry = root.searchTarget;
         const page = pageLoader.item;
         if (!entry || !page || switchAnim.running || pageLoader.status !== Loader.Ready) return false;
+        if (root.loadLazySections(page)) return false; // made just now (C4.1): look once they are laid out
         const found = [];
         root.findSetting(page, Translation.tr(entry.l), found);
         const shown = found.filter(i => i.visible && i.width > 0);
