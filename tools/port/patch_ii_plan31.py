@@ -1868,10 +1868,13 @@ edit(path('modules', 'ii', 'bar', 'SysTray.qml'), [
 ])
 edit(path('modules', 'common', 'widgets', 'ConfigSwitch.qml'), [
     ('''    onClicked: checked = !checked
-''', '''    onClicked: checked = !checked
-    Accessible.role: Accessible.CheckBox // ii-windows (H3): a switch, on or off
-    Accessible.checkable: true
-    Accessible.checked: root.checked
+''', '''    // ii-windows (plan 2026-10-31, H2/H3): a checkable button that toggles itself on click, Enter or Space (it was
+    // flipped by hand in onClicked): so its accessible state is checkable and Narrator gets UIA's toggle pattern.
+    checkable: true
+    Accessible.role: Accessible.CheckBox
+'''),
+    ('''            onClicked: root.clicked()
+''', '''            onClicked: root.click() // ii-windows: the row toggles with it (the row is checkable now)
 '''),
 ])
 edit(path('modules', 'ii', 'sidebarRight', 'quickToggles', 'androidStyle', 'AndroidQuickToggleButton.qml'), [
@@ -1912,6 +1915,7 @@ edit(path('modules', 'common', 'widgets', 'ConfigSwitch.qml'), [
 ''', '''        StyledSwitch {
             id: switchWidget
             Accessible.ignored: true // ii-windows (H3): the row is the check box Narrator reads
+            focusPolicy: Qt.NoFocus // ii-windows (H2): one Tab stop per row, the row
 '''),
 ])
 edit(path('modules', 'common', 'widgets', 'NavigationRailButton.qml'), [
@@ -1978,3 +1982,77 @@ add_translations('es_MX', {
     "Open": "Abrir",
     "Close": "Cerrar",
 })
+
+# --- H2: buttons by keyboard: a visible focus ring in the accent color, and Enter / Space press them ----------------
+edit(path('modules', 'common', 'widgets', 'RippleButton.qml'), [
+    ('''    background: Rectangle {
+        id: buttonBackground
+''', '''    // ii-windows (plan 2026-10-31, H2): reached with Tab, it shows a ring in the accent color; Enter or Space presses
+    // it like a click (also the buttons that act on press, downAction).
+    Rectangle {
+        anchors.fill: buttonBackground
+        anchors.margins: -3
+        radius: root.buttonEffectiveRadius + 3
+        color: "transparent"
+        border.width: 2
+        border.color: Appearance.colors.colPrimary
+        visible: root.visualFocus
+        z: 100
+    }
+    Keys.onPressed: event => {
+        if (!root.enabled || event.isAutoRepeat) return;
+        if (event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Space) return;
+        event.accepted = true;
+        if (root.downAction) root.downAction();
+        if (root.releaseAction) root.releaseAction();
+        root.click();
+    }
+
+    background: Rectangle {
+        id: buttonBackground
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'NavigationRailButton.qml'), [
+    ('''    Accessible.role: Accessible.PageTab
+''', '''    Accessible.role: Accessible.PageTab
+    // ii-windows (H2): the page reached with Tab shows a ring; Enter opens it.
+    Keys.onReturnPressed: root.click()
+    Keys.onEnterPressed: root.click()
+    Rectangle { // around the page's highlight, not the whole rail width (the page area would cover its right side)
+        x: buttonContent.x + itemBackground.x - 3
+        y: buttonContent.y + itemBackground.y - 3
+        width: itemBackground.width + 6
+        height: itemBackground.height + 6
+        radius: Appearance.rounding.full
+        color: "transparent"
+        border.width: 2
+        border.color: Appearance.colors.colPrimary
+        visible: root.visualFocus
+        z: 100
+    }
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'ToolbarTextField.qml'), [
+    ('''TextField {
+    id: filterField
+''', '''TextField {
+    id: filterField
+    Accessible.name: filterField.placeholderText // ii-windows (H3): what the field is for
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'MaterialTextField.qml'), [
+    ('''TextField {
+    id: root
+''', '''TextField {
+    id: root
+    Accessible.name: root.placeholderText // ii-windows (H3): what the field is for
+'''),
+])
+edit(path('modules', 'common', 'widgets', 'MaterialTextArea.qml'), [
+    ('''TextArea {
+    id: root
+''', '''TextArea {
+    id: root
+    Accessible.name: root.placeholderText // ii-windows (H3): what the field is for
+'''),
+])
