@@ -31,7 +31,18 @@ ShellRoot {
             if (root.step === 13) console.log("E2E manual silent=" + Notifications.silent + " active='" + Modes.activeId + "' reason=" + Modes.reason);
             if (root.step === 14) { Modes.toggle("prueba"); }
             if (root.step === 15) console.log("E2E manualoff silent=" + Notifications.silent + " active='" + Modes.activeId + "'");
-            if (root.step === 20) { console.log("E2E closed silent=" + Notifications.silent + " active='" + Modes.activeId + "' dismissed=" + JSON.stringify(Modes.dismissed)); Qt.quit(); }
+            if (root.step === 20) console.log("E2E closed silent=" + Notifications.silent + " active='" + Modes.activeId + "' dismissed=" + JSON.stringify(Modes.dismissed));
+            // F24: ii-host's "windowsPresentation" (pressed/released) sets Modes.presenting.
+            if (root.step === 21) {
+                const m = JSON.parse(JSON.stringify(Config.options.modes.list[0]));
+                m.apps = []; m.presenting = true;
+                Config.options.modes.list = [m];
+                Modes.dismissed = ({}); // the earlier steps turned it off by hand
+                Modes.presenting = true;
+            }
+            if (root.step === 23) console.log("E2E presenting silent=" + Notifications.silent + " active='" + Modes.activeId + "' reason=" + Modes.reason);
+            if (root.step === 24) Modes.presenting = false;
+            if (root.step === 26) { console.log("E2E presentingend silent=" + Notifications.silent + " active='" + Modes.activeId + "'"); Qt.quit(); }
         }
     }
 }

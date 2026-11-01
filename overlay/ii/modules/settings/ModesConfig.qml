@@ -205,6 +205,13 @@ ContentPage {
                         if (apps.join("\n") !== (section.mode.apps ?? []).join("\n")) page.set(section.index, "apps", apps);
                     }
                 }
+                ConfigSwitch { // F24
+                    readonly property bool follows: section.mode.presenting ?? (section.mode.id === "presentacion")
+                    buttonIcon: "co_present"
+                    text: Translation.tr("Also while Windows is presenting (PowerPoint's slide show)")
+                    checked: follows
+                    onCheckedChanged: if (checked !== follows) page.set(section.index, "presenting", checked)
+                }
                 ConfigSwitch {
                     visible: section.mode.id === "juego"
                     buttonIcon: "fullscreen"

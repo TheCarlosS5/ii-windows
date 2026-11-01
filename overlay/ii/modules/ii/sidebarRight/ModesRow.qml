@@ -63,6 +63,7 @@ ColumnLayout {
         font.pixelSize: Appearance.font.pixelSize.smaller
         color: Appearance.colors.colSubtext
         text: Modes.reason === "app" ? Translation.tr("On because %1 is open").arg(Modes.reasonDetail)
-            : Modes.reason === "schedule" ? Translation.tr("On by its hours (%1)").arg(Modes.reasonDetail) : ""
+            : Modes.reason === "schedule" ? Translation.tr("On by its hours (%1)").arg(Modes.reasonDetail)
+            : Modes.reason === "presenting" ? Translation.tr("On while Windows is presenting") : ""
     }
 }

@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 import qs
 import qs.modules.common
 import qs.modules.common.functions
@@ -36,7 +37,7 @@ Singleton {
     }
 
     property string activeId: ""
-    property string reason: ""       // "manual" | "schedule" | "app"
+    property string reason: ""       // "manual" | "schedule" | "app" | "presenting"
     property string reasonDetail: "" // "18:00–22:00", "osu!"
     readonly property var active: root.modeById(root.activeId)
     property string manualId: ""     // chosen by hand
@@ -77,7 +78,7 @@ Singleton {
         repeat: true
         onTriggered: {
             root.tick += 1;
-            const still = Logic.stillDismissed(root.list, root.dismissed, root.windows(), new Date());
+            const still = Logic.stillDismissed(root.list, root.dismissed, root.windows(), new Date(), root.presenting);
             if (Object.keys(still).length !== Object.keys(root.dismissed).length) root.dismissed = still;
         }
     }
@@ -90,7 +91,24 @@ Singleton {
     readonly property string wanted: {
         root.tick; // the hours move on
         if (!Config.ready || !root.enabled || !root.loaded) return "";
-        return Logic.wanted(root.list, root.manualId, root.dismissed, root.windows(), new Date());
+        return Logic.wanted(root.list, root.manualId, root.dismissed, root.windows(), new Date(), root.presenting);
+    }
+
+    // F24: Windows is presenting (PowerPoint's slide show, "presentationsettings /start"). ii-host says when it changes
+    // (it watches SHQueryUserNotificationState); at start of the shell ii-shim asks once.
+    property bool presenting: false
+    GlobalShortcut {
+        name: "windowsPresentation"
+        description: "Windows' presentation mode started (pressed) or ended (released); sent by ii-host"
+        onPressed: root.presenting = true
+        onReleased: root.presenting = false
+    }
+    Process {
+        running: root.enabled
+        command: ["ii-shim", "notify-state"]
+        stdout: StdioCollector {
+            onStreamFinished: root.presenting = text.trim() === "presentation"
+        }
     }
     onWantedChanged: Qt.callLater(root.reconcile)
     onEnabledChanged: Qt.callLater(root.reconcile)
@@ -172,6 +190,7 @@ Singleton {
         if (mode) {
             title = Translation.tr("%1 mode is on").arg(root.nameOf(mode));
             body = reason === "app" ? Translation.tr("Because %1 is open. It ends when it closes.").arg(detail)
+                : reason === "presenting" ? Translation.tr("Because Windows is presenting. It ends with the presentation.")
                 : Translation.tr("By its hours (%1). Turn it off in the right panel.").arg(detail);
         } else if (old) {
             title = Translation.tr("%1 mode ended").arg(root.nameOf(old));

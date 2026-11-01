@@ -57,6 +57,19 @@ check(L.wanted(modes, "", { juego: true }, osu, at(1, 19, 0)) === "clase|schedul
 check(L.wanted(modes, "borrado", {}, [], at(1, 12, 0)) === "", "a mode chosen by hand that no longer exists");
 check(L.wanted(modes, "", {}, [], at(2, 23, 30)) === "noche|schedule|22:00–06:00", "Tuesday 23:30: Noche");
 
+// ---- F24: Windows presenting
+const presentacion = { id: "presentacion", apps: [], schedule: { enable: false } };
+const withP = [clase, juego, presentacion, noche];
+check(L.wanted(withP, "", {}, [], at(1, 12, 0), true) === "presentacion|presenting|", "Windows presenting: Presentación (saved before it was a choice)");
+check(L.wanted(withP, "", {}, [], at(1, 12, 0), false) === "", "not presenting: none");
+check(L.wanted(withP, "", {}, osu, at(1, 12, 0), true) === "juego|app|osu!", "an app wins over presenting");
+check(L.wanted(withP, "", {}, [], at(1, 19, 0), true) === "presentacion|presenting|", "presenting wins over the hours");
+check(L.wanted(withP, "", { presentacion: true }, [], at(1, 12, 0), true) === "", "turned off by hand while presenting");
+check(L.wanted([clase, Object.assign({}, presentacion, { presenting: false })], "", {}, [], at(1, 12, 0), true) === "", "the choice off");
+check(L.wanted([Object.assign({}, clase, { presenting: true })], "", {}, [], at(1, 12, 0), true) === "clase|presenting|", "another mode can follow it");
+check(JSON.stringify(L.stillDismissed(withP, { presentacion: true }, [], at(1, 12, 0), true)) === '{"presentacion":true}', "still presenting: still off");
+check(JSON.stringify(L.stillDismissed(withP, { presentacion: true }, [], at(1, 12, 0), false)) === "{}", "the presentation ended: forgotten");
+
 // ---- turned off by hand, until its reason ends
 check(JSON.stringify(L.stillDismissed(modes, { juego: true }, osu, at(1, 19, 0))) === '{"juego":true}', "osu! still open: still off");
 check(JSON.stringify(L.stillDismissed(modes, { juego: true }, [], at(1, 19, 0))) === "{}", "osu! closed: forgotten");

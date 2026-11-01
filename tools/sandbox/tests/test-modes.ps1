@@ -42,7 +42,7 @@ try {
     $wpsi = New-Object System.Diagnostics.ProcessStartInfo 'cmd.exe', "/c powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$base\window.ps1`""
     $wpsi.UseShellExecute = $false; $wpsi.CreateNoWindow = $true
     [Diagnostics.Process]::Start($wpsi) | Out-Null
-    Assert-True ($shell.WaitForExit(45000)) 'the probe went through every step'
+    Assert-True ($shell.WaitForExit(55000)) 'the probe went through every step'
 } finally {
     if ($shell -and -not $shell.HasExited) { $shell.Kill(); $shell.WaitForExit(5000) | Out-Null }
     Remove-Item $probeQml -Force -ErrorAction SilentlyContinue
@@ -58,6 +58,8 @@ Assert-True ((Step 'dismissed') -match "silent=false active=''") "off by hand: N
 Assert-True ((Step 'manual') -match "silent=true active='prueba' reason=manual") "on by hand: $(Step 'manual')"
 Assert-True ((Step 'manualoff') -match "silent=false active=''") "off by hand with its app still open: stays off: $(Step 'manualoff')"
 Assert-True ((Step 'closed') -match "silent=false active=''") "its app closed: off: $(Step 'closed')"
+Assert-True ((Step 'presenting') -match "silent=true active='prueba' reason=presenting") "Windows presenting: on (F24): $(Step 'presenting')"
+Assert-True ((Step 'presentingend') -match "silent=false active=''") "the presentation ended: off: $(Step 'presentingend')"
 Assert-True (-not ($log -match '(ReferenceError|TypeError).*(Modes|modes_logic)')) 'no script errors in the modes'
 Remove-Item -Recurse -Force $base -ErrorAction SilentlyContinue
 Complete-IiTest

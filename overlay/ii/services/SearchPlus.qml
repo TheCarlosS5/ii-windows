@@ -345,6 +345,8 @@ Singleton {
         case "dndHour": Notifications.silenceFor("hour"); break;
         case "dndTomorrow": Notifications.silenceFor("tomorrow"); break;
         case "screenshot": root.later(() => root.global("regionScreenshot")); break;
+        // F21: Windows' Snipping Tool records the screen (Windows 11); it asks for the area itself.
+        case "screenRecord": root.later(() => Qt.openUrlExternally("ms-screenclip:?type=recording")); break;
         case "pinCapture": root.later(() => root.global("regionPin")); break;
         case "colorPicker": root.later(() => Quickshell.execDetached(["ii-shim", "hyprpicker", "-a"])); break;
         case "wallpaper": root.later(() => root.global("wallpaperSelectorToggle")); break;

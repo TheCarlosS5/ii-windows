@@ -644,6 +644,17 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"timezones") return timezones(args);
 	if (command == L"compat") return compat(args);
 	if (command == L"system-sound") return systemSoundCommand(args);
+	if (command == L"notify-state") { // plan 2026-10-31, F24: what SHQueryUserNotificationState says now
+		QUERY_USER_NOTIFICATION_STATE state {};
+		if (FAILED(SHQueryUserNotificationState(&state))) return 1;
+		const char* name = state == QUNS_PRESENTATION_MODE ? "presentation"
+			: state == QUNS_RUNNING_D3D_FULL_SCREEN ? "fullscreen"
+			: state == QUNS_BUSY ? "busy"
+			: state == QUNS_QUIET_TIME ? "quiet"
+			: state == QUNS_APP ? "app" : "accepts";
+		std::printf("%s\n", name);
+		return 0;
+	}
 	if (command == L"test") return test(args);
 	if (command == L"thumbnail") return thumbnail(args);
 	if (command == L"magick") return magick(args);

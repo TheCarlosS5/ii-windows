@@ -42,14 +42,23 @@ function appReason(mode, windows) {
     return "";
 }
 
-// Which mode should be on: "id|reason|detail" ("" none). By hand first; then an app (in list order); then the hours.
-// dismissed: { id: true } for automatic modes turned off by hand.
-function wanted(modes, manualId, dismissed, windows, now) {
+// F24: the mode follows Windows' presentation mode (PowerPoint's slide show, "presentationsettings /start"). Modes
+// saved before it was a choice: on for Presentación.
+function followsPresenting(mode) {
+    return mode.presenting === undefined ? mode.id === "presentacion" : !!mode.presenting;
+}
+
+// Which mode should be on: "id|reason|detail" ("" none). By hand first; then an app (in list order); then Windows
+// presenting; then the hours. dismissed: { id: true } for automatic modes turned off by hand.
+function wanted(modes, manualId, dismissed, windows, now, presenting) {
     if (manualId && modes.some(m => m.id === manualId)) return manualId + "|manual|";
     for (const m of modes) {
         if (dismissed[m.id]) continue;
         const app = appReason(m, windows);
         if (app) return m.id + "|app|" + app;
+    }
+    for (const m of modes) {
+        if (presenting && !dismissed[m.id] && followsPresenting(m)) return m.id + "|presenting|";
     }
     for (const m of modes) {
         if (dismissed[m.id]) continue;
@@ -59,11 +68,11 @@ function wanted(modes, manualId, dismissed, windows, now) {
 }
 
 // The dismissals that still hold (their mode's reason has not ended).
-function stillDismissed(modes, dismissed, windows, now) {
+function stillDismissed(modes, dismissed, windows, now, presenting) {
     const out = {};
     for (const id of Object.keys(dismissed)) {
         const m = modes.find(x => x.id === id);
-        if (m && (appReason(m, windows) || inSchedule(m, now))) out[id] = true;
+        if (m && (appReason(m, windows) || (presenting && followsPresenting(m)) || inSchedule(m, now))) out[id] = true;
     }
     return out;
 }

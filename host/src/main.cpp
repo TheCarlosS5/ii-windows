@@ -1731,9 +1731,18 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		if (command && !shuttingDown) hostCommand(*command);
 		return 0;
 	}
-	case WM_II_NOTIFY_STATE:
+	case WM_II_NOTIFY_STATE: {
 		if (options.hook && !shuttingDown) keyboard::refreshContext();
+		// Plan 2026-10-31, F24: Windows' presentation mode turns on ii's Presentación mode (services/Modes.qml).
+		static bool presenting = false;
+		bool now = notifystate::get() == QUNS_PRESENTATION_MODE;
+		if (now != presenting && !shuttingDown) {
+			presenting = now;
+			log(L"notify state: presentation %ls", now ? L"started" : L"ended");
+			sendToShell(L"windowsPresentation", now);
+		}
 		return 0;
+	}
 	case WM_II_SYSHEALTH:
 		onSystemHealth();
 		return 0;

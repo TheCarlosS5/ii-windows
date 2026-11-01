@@ -1640,3 +1640,10 @@ add_translations('es_MX', {
     "Light from": "Claro desde",
     "dark from": "oscuro desde",
 })
+
+# --- F24: Windows' presentation mode turns on Presentación (ii-host "windowsPresentation", overlay Modes.qml) ---------
+add_translations('es_MX', {
+    "Because Windows is presenting. It ends with the presentation.": "Porque Windows está presentando. Termina con la presentación.",
+    "On while Windows is presenting": "Activo mientras Windows presenta",
+    "Also while Windows is presenting (PowerPoint's slide show)": "También mientras Windows presenta (la presentación de PowerPoint)",
+})
