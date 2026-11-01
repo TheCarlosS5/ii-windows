@@ -104,6 +104,8 @@ constexpr UINT_PTR TIMER_LONE_WIN = 9;
 constexpr UINT_PTR TIMER_STABLE = 10;
 constexpr UINT STABLE_MS = 10 * 60 * 1000;
 constexpr UINT_PTR TIMER_UPDATE = 11;
+// Plan 2026-10-31, D4: once a day, with the PC idle, ii-shim janitor trims ii's caches.
+constexpr UINT_PTR TIMER_JANITOR = 12;
 constexpr UINT UPDATE_FIRST_MS = 2 * 60 * 1000;
 constexpr UINT UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
 constexpr UINT UPDATE_RETRY_MS = 15 * 60 * 1000;
@@ -1088,6 +1090,7 @@ void onShellReady(ULONGLONG now, size_t covered, size_t total) {
 		wchar_t testFirst[16] {};
 		auto first = GetEnvironmentVariableW(L"II_TEST_UPDATE_FIRST_MS", testFirst, 16) > 0 ? static_cast<UINT>(_wtoi(testFirst)) : UPDATE_FIRST_MS;
 		SetTimer(hostWindow, TIMER_UPDATE, first, nullptr);
+		SetTimer(hostWindow, TIMER_JANITOR, 15 * 60 * 1000, nullptr); // looks every 15 minutes for an idle moment
 	}
 	SetTimer(hostWindow, TIMER_WATCHDOG, watchdogMs(), nullptr); // back to the slow housekeeping tick
 	setPhase(Phase::Active, L"shell is up");
@@ -1413,6 +1416,27 @@ void onUpdateDone() {
 	}
 }
 
+void onJanitorTimer() {
+	SYSTEMTIME t;
+	GetLocalTime(&t);
+	wchar_t today[16];
+	swprintf_s(today, L"%04d-%02d-%02d", t.wYear, t.wMonth, t.wDay);
+	if (state::getText(L"janitor", L"last") == today || shuttingDown || options.shell.empty() || sessionLocked || gameInFront()) return;
+	LASTINPUTINFO input {sizeof(input), 0};
+	if (!GetLastInputInfo(&input) || GetTickCount() - input.dwTime < 5 * 60 * 1000) return; // only while nobody is at the PC
+	auto shim = options.shell.substr(0, options.shell.find_last_of(L"\\/")) + L"\\bin\\ii-shim.exe";
+	auto cmd = L"\"" + shim + L"\" janitor";
+	STARTUPINFOW si {};
+	si.cb = sizeof(si);
+	PROCESS_INFORMATION pi {};
+	if (CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | IDLE_PRIORITY_CLASS, nullptr, nullptr, &si, &pi)) {
+		CloseHandle(pi.hThread);
+		CloseHandle(pi.hProcess);
+		state::setText(L"janitor", L"last", today);
+		log(L"janitor: trimming caches (once a day, PC idle)");
+	}
+}
+
 void onUpdateTimer() {
 	KillTimer(hostWindow, TIMER_UPDATE);
 	if (!updatesOption("autoCheck", true)) {
@@ -1689,6 +1713,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			removeNotice();
 		} else if (wParam == TIMER_UPDATE) {
 			onUpdateTimer();
+		} else if (wParam == TIMER_JANITOR) {
+			onJanitorTimer();
 		} else if (wParam == TIMER_STABLE) {
 			KillTimer(hwnd, TIMER_STABLE);
 			if (shellReady && !shuttingDown) {

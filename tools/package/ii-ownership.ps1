@@ -46,6 +46,11 @@ function Get-IiOwnedPaths([string]$LocalAppData) {
         [pscustomobject]@{ Kind = 'state';   Root = $qs;   Path = (Join-Path $qs 'cache\notifications');        What = 'historial de avisos de ii' }
         [pscustomobject]@{ Kind = 'cache';   Root = $data; Path = (Join-Path $data 'cache');                    What = 'cache de iconos de ii' }
         [pscustomobject]@{ Kind = 'secrets'; Root = $data; Path = (Join-Path $data 'secrets');                  What = 'claves guardadas (DPAPI)' }
+        # Plan 2026-10-31, D4: what an uninstall used to leave behind (151 MB / 18 929 files on the author's PC).
+        [pscustomobject]@{ Kind = 'cache';   Root = $qs;   Path = (Join-Path $qs 'cache\media');                What = 'caratulas de musica' }
+        [pscustomobject]@{ Kind = 'cache';   Root = $data; Path = (Join-Path $data 'update');                   What = 'descargas de actualizaciones' }
+        [pscustomobject]@{ Kind = 'cache';   Root = $data; Path = (Join-Path $data 'crashes');                  What = 'informes de error' }
+        [pscustomobject]@{ Kind = 'cache';   Root = $LocalAppData; Path = (Join-Path $LocalAppData 'Temp\ii-windows'); What = 'archivos temporales de ii (iconos, caratulas)' }
     )
 }
 
@@ -117,6 +122,16 @@ function Invoke-IiDataRemoval([string]$LocalAppData, [switch]$KeepConfig, [switc
         if ($r.Removed -gt 0) { $messages += "Borrado: $($owned.What)" }
         foreach ($s in $r.Skipped) { $messages += $s }
         foreach ($e in $r.Errors) { $messages += "No se pudo borrar: $e" }
+    }
+    # Plan 2026-10-31, D4: quickshell's prepared trees of ii's own configs (by-shell\<id> with qmltree\qs\modules\ii);
+    # another shell's are never touched, nor Qt's shared qmlcache.
+    if (-not $KeepConfig) {
+        $byShell = Join-Path $LocalAppData 'quickshell\cachey-shell'
+        foreach ($d in @(Get-ChildItem -LiteralPath $byShell -Directory -ErrorAction SilentlyContinue)) {
+            if (-not (Test-Path -LiteralPath (Join-Path $d.FullName 'qmltree\qs\modules\ii'))) { continue }
+            $r = Remove-IiOwnedTree -Path $d.FullName -AllowedRoot $byShell
+            if ($r.Removed -gt 0) { $messages += "Borrado: interfaz de ii preparada ($($d.Name))" }
+        }
     }
     # Folders shared with other programs are only tidied when nothing is left in them.
     $qs = Join-Path $LocalAppData 'quickshell'

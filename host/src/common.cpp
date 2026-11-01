@@ -99,6 +99,15 @@ void log(const wchar_t* fmt, ...) {
 	    msg
 	);
 
+	// Plan 2026-10-31, D4: bounded (it had grown to 860 KB): at 2 MB the log becomes host.log.1, replacing the older one.
+	static unsigned writes = 0;
+	if (++writes % 200 == 1) {
+		WIN32_FILE_ATTRIBUTE_DATA info {};
+		if (GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &info) && (info.nFileSizeHigh > 0 || info.nFileSizeLow > 2 * 1024 * 1024)) {
+			MoveFileExW(path.c_str(), (path + L".1").c_str(), MOVEFILE_REPLACE_EXISTING);
+		}
+	}
+
 	auto file = CreateFileW(
 	    path.c_str(),
 	    FILE_APPEND_DATA,
