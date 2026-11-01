@@ -48,11 +48,27 @@ Leyenda: ✅ hecho y probado · 🟡 hecho, prueba parcial · ⏳ pendiente
 | E5 audio | ✅ | Batería de dispositivos Bluetooth en el fork (propiedad del nodo, PRO60 = 90 % leído), aviso < 20 % / < 10 %; Win+Mayús+A silencia el micrófono del sistema (host). Cambiar la salida ya existía (IPolicyConfig del fork). |
 | E6 dock | 🟡 | Papelera en el dock (llena/vacía, abrir, vaciar) y contador de notificaciones por app. Arreglado: el globo "-1 apps se pueden actualizar" salía en todos los iconos. Recientes por app y pila de Descargas: 1.0. Progreso de descargas: descartado (exige tocar Explorer). |
 | E9 compatibilidad | ✅ | `compat.json` (15 apps), `ii-shim compat`, Avanzado > Compatibilidad, línea en el reporte. Aquí detecta StartAllBack y PowerToys. |
+| E7 capturas | 🟡 | Fijar una captura en pantalla (`crop … pin`, clic central / `regionPin` / búsqueda "Fijar una captura"); el selector de color recuerda (colors.txt) y la búsqueda convierte #hex/rgb()/hsl(). La anotación ya existía (Snipping/ii). **QR: no** (hace falta una librería decodificadora; decisión del autor). |
+| E8 portapapeles | ✅ | Fragmentos (`search.snippets`, Configuración), pegar como texto plano, OCR de una imagen del historial. Arreglado: las imágenes se tomaban como texto (`\r` final). |
+| E11 bienestar | ✅ | `Wellbeing.qml` + `wellbeing_logic.js`: límites diarios por app, descanso de la vista 20-20-20, resumen semanal. Node + `test-wellbeing`. |
+| E12 notificaciones | ✅ | No molestar con horario (días, de noche a mañana) y apps VIP que lo atraviesan; resumen "Mientras Clase estuvo activo: llegaron N avisos" al terminar un modo con No molestar; buscar en las notificaciones (app, título, texto). Agrupar por app y deslizar ya existían. Arreglado de upstream: TypeError al borrar todo antes de 7 s. Node 53/53 (modos), probe con dos avisos de prueba. |
+| E13 fondos vivos | ✅ | `randomwall bing` (imagen del día en el idioma del PC) o una carpeta propia que rota cada N min; tema claro/oscuro por horario o con el sol (amanecer/atardecer del clima). `DailyLook.qml`, Apariencia › Según el día. Node 37/37, `test-dailylook -Network` (descarga real). NASA APOD/Wallhaven: no (APOD pide clave y a veces es video). Un fondo por escritorio: 1.0. |
+| F6/F7 HDR y Hz | ✅ | `ii-shim display` (DisplayConfig/ChangeDisplaySettingsEx; la frecuencia solo por la sesión). Ajustes rápidos HDR y Frecuencia de pantalla. Probado en este PC: 144→120→144 Hz, HDR encendido→apagado, todo como estaba. |
+| F9/F10/F18 | ✅ | Ver E5 y E6. |
+| F16 listas de salto | ⏳ 1.0 | `IApplicationDocumentLists` ya no devuelve nada en Windows 10/11; habría que leer los `.automaticDestinations-ms` (OLE). Va con "recientes por app" de E6 en la 1.0. |
+| F19/F20 alto contraste y tamaño de texto | ✅ | `ii-shim a11y`; el host avisa en cada WM_SETTINGCHANGE; `WindowsAccessibility`: colores del tema de contraste sin transparencias, texto hasta 150 %, sin animaciones si Windows las apaga. Apariencia › Accesibilidad de Windows. Probado con un probe (no se activó un tema de contraste real en este PC). |
+| F21 grabar pantalla | ✅ | "Grabar la pantalla" en la búsqueda → Recortes de Windows (`ms-screenclip:?type=recording`). |
+| F24 presentación | 🟡 | El host avisa cuando Windows entra/sale de `QUNS_PRESENTATION_MODE` → modo Presentación (y cualquier modo que lo pida). E2E con la señal simulada 12/12. **No** visto con una presentación real: en este PC de escritorio `PresentationSettings /start` solo abre su ventana. |
+| H2 teclado | ✅ | Anillo de foco con el color de acento, Enter/Espacio en todos los botones, una parada de Tab por interruptor. Probado con SendInput + UI Automation en Configuración (config.json respaldado y devuelto). Barra: no recibe teclado (ventana sin foco), queda para 1.0. |
+| H3 accesibilidad | ✅ | Nombres para el Narrador en botones (texto, tooltip o icono), interruptores (casilla con estado y patrón Toggle), pestañas, ajustes rápidos, dock, notificaciones, campos. UIA: barra+dock 11/11, Configuración 100 % con nombre. |
+| H4 pulido | 🟡 | Estados vacíos con acción (notificaciones), sonido suave al activar un modo y al tener lista una actualización. Revisión completa a 150 %: sin pantalla a 150 % aquí. |
+| H5 recorrido y novedades | ✅ | Recorrido con Buscar todo, Modos y Hoy; "ii se actualizó a X" con "Ver novedades" (notas firmadas guardadas, `ii-shim update whatsnew`), también en Actualizaciones; modo ligero ofrecido a < 8 GB sin tarjeta gráfica (DXGI). |
 
 
 ## Retomar aquí
-Hecho de la 0.9.0: E1, E2, E3, E5, E6 (parte), E9. Siguiente: E7 (capturas), E8 (portapapeles), E11–E13, F*, H2–H5 (ver 09-hoja-de-ruta.md).
-Al cerrar: stage-ii, deploy, make-package (versión base 0.9.0), make-setup, publish-release -DryRun, test-updater-real, suite local.
+0.9.0 hecha (ver filas). Pendiente del autor: borrar la tarea fantasma como administrador (`schtasks /delete /tn \ii-windows /f`),
+respaldar `%USERPROFILE%\.ii-release-key`, subir las ramas y publicar (nada se subió).
 Trampas: pantalla dormida = capturas viejas (mover el ratón 1 px); heredocs y cadenas de Python comen las barras (usar Write/Edit);
 `state` es palabra reservada en QML; upstream ya tiene services/Updates.qml; las pruebas QML que cambian la configuración
-escriben el config.json real (respaldarlo y devolverlo, como test-modes); Qt.quit() en Component.onCompleted no cierra (usar un Timer).
+escriben el config.json real (respaldarlo y devolverlo, como test-modes); Qt.quit() en Component.onCompleted no cierra (usar un Timer);
+un singleton se crea al primer uso (tocarlo al inicio en los probes); leer `data` en una vinculación avisa en cada botón.
