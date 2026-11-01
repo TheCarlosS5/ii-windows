@@ -83,6 +83,7 @@
   "screenRecord",
   "screenSnip",
   "search",
+  "search.everything",
   "search.imageSearch",
   "search.prefix",
   "sidebar",
@@ -1133,6 +1134,24 @@
   },
   "search.engineBaseUrl": {
    "kind": "string"
+  },
+  "search.everything.commands": {
+   "kind": "bool"
+  },
+  "search.everything.conversions": {
+   "kind": "bool"
+  },
+  "search.everything.currency": {
+   "kind": "bool"
+  },
+  "search.everything.settings": {
+   "kind": "bool"
+  },
+  "search.everything.windows": {
+   "kind": "bool"
+  },
+  "search.everything.windowsSettings": {
+   "kind": "bool"
   },
   "search.excludedSites": {
    "kind": "strings"

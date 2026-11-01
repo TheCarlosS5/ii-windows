@@ -10,6 +10,7 @@
 //   wpctl set-mute @DEFAULT_SOURCE@|@DEFAULT_SINK@ toggle|1|0
 //   loginctl lock-session | ii-shim lock  lock the session
 //   ii-shim suspend                      sleep (not hibernate)
+//   ii-shim empty-bin                    empty the Recycle Bin (Windows asks first)
 //   pidof <name>                         print pids of a process name
 //   killall <name>                       end the user's processes with that name
 //   ii-shim fetch <https-url> [opts]      HTTPS bytes to stdout or an atomic cache file
@@ -21,6 +22,7 @@
 //   ii-shim vdesk <command> ...            virtual desktops: switch, remove, move windows (vdesk.cpp)
 //   ii-shim config <command> ...           config.json: check, guard, keep-good, export, import (configtool.cpp)
 //   ii-shim top [count]                   programs using the most CPU and memory, as JSON (top.cpp)
+//   ii-shim timezones                    every Windows time zone, its offset now and local names, as JSON (timezones.cpp)
 
 #include "http.h"
 
@@ -575,6 +577,7 @@ int switchwall(const std::vector<std::wstring>& args);
 int thumbnail(const std::vector<std::wstring>& args);
 int extwall(const std::vector<std::wstring>& args); // extwall.cpp
 int top(const std::vector<std::wstring>& args); // top.cpp
+int timezones(const std::vector<std::wstring>& args); // timezones.cpp
 int magick(const std::vector<std::wstring>& args);
 int blurwall(const std::vector<std::wstring>& args); // capture.cpp
 int vdesk(const std::vector<std::wstring>& args);
@@ -627,6 +630,7 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"power") return powerCommand(args);
 	if (command == L"system-info") return systemInfoCommand(args);
 	if (command == L"top") return top(args);
+	if (command == L"timezones") return timezones(args);
 	if (command == L"system-sound") return systemSoundCommand(args);
 	if (command == L"test") return test(args);
 	if (command == L"thumbnail") return thumbnail(args);
@@ -650,6 +654,15 @@ int wmain(int argc, wchar_t** argv) {
 	if (command == L"killall" || command == L"pkill") return killall(args);
 	if (command == L"lock" || (command == L"loginctl" && !args.empty() && args[0] == L"lock-session")) {
 		return LockWorkStation() ? 0 : 1;
+	}
+	if (command == L"empty-bin") {
+		// The launcher's "vaciar la papelera" (plan 2026-10-31, E1): Windows' own question first ("¿eliminar
+		// permanentemente N elementos?"), on every drive. An empty bin: nothing to ask.
+		SHQUERYRBINFO info {};
+		info.cbSize = sizeof(info);
+		if (SUCCEEDED(SHQueryRecycleBinW(nullptr, &info)) && info.i64NumItems == 0) return 0;
+		auto hr = SHEmptyRecycleBinW(nullptr, nullptr, 0);
+		return SUCCEEDED(hr) || hr == HRESULT_FROM_WIN32(ERROR_CANCELLED) ? 0 : 1;
 	}
 	if (command == L"suspend") {
 		// Leave a trace: an unexpected sleep must be explainable from ii's own log.

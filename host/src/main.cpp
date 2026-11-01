@@ -1590,6 +1590,10 @@ bool hostCommand(const std::wstring& commandLine) {
 		syshealth::checkNow();
 		return true;
 	}
+	if (command == L"show-desktop") { // the launcher's "mostrar escritorio" (plan 2026-10-31, E1), like Win+D
+		desktop::toggleShowDesktop();
+		return true;
+	}
 	return hostCommandCore(commandLine);
 }
 

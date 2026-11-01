@@ -5,6 +5,7 @@ import qs.modules.common
 import qs.modules.common.widgets
 import "settings-index.js" as Index
 import "widgets/registry.js" as Registry
+import "../common/functions/search_plus.js" as Match
 
 // ii-windows (plan 2026-10-31, C3): what the settings search finds. The index (settings-index.js) is made from the pages
 // when the QML is prepared (tools/port/gen_settings_index.py): every section, subsection and labelled control, its
@@ -19,7 +20,7 @@ Item {
     signal chosen(var entry)
 
     function norm(text) {
-        return (text || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+        return Match.norm(text);
     }
     function pageOf(entry) {
         return root.pages.find(p => p.component.split("/").pop().toLowerCase().replace(".qml", "") === entry.p) ?? null;
@@ -55,33 +56,16 @@ Item {
         }
         return root.cache.haystacks[i];
     }
-    function stem(word) { // plurals find the singular: "notas" → "nota", "colores" → "color"
-        if (word.length > 4 && word.endsWith("es")) return word.slice(0, -2);
-        if (word.length > 3 && word.endsWith("s")) return word.slice(0, -1);
-        return word;
-    }
+    // The matching and the score are search_plus.js' (the launcher finds ii's settings with the same ones, plan E1).
     function search(query) {
-        const words = root.norm(query).split(/\s+/).filter(w => w.length > 0).map(w => root.stem(w));
+        const words = Match.settingsWords(query);
         if (words.length === 0) return [];
         const found = [];
         for (let i = 0; i < Index.entries.length; ++i) {
             const hay = root.haystack(i);
             if (!words.every(w => hay.includes(w))) continue;
             const entry = Index.entries[i];
-            const label = root.norm(Translation.tr(entry.l));
-            let score = 0;
-            let inLabel = 0;
-            for (const w of words) {
-                if (label.includes(w)) inLabel += 1;
-                if (label.startsWith(w)) score += 6;
-                else if (label.includes(" " + w)) score += 4;
-                else if (label.includes(w)) score += 3;
-                else if (w.length >= 8 && label.includes(w.slice(0, w.length - 3))) score += 2; // desenfoque ~ desenfocar
-                else if (hay.includes(" " + w)) score += 1;
-            }
-            const section = entry.l === entry.s || entry.l === entry.ss;
-            if (!section) score += 0.5; // a control before the section that holds it...
-            else if (inLabel === 0) score += 1; // ...unless only other words found it: then the section is the answer
+            const score = Match.scoreSetting(words, hay, root.norm(Translation.tr(entry.l)), entry.l === entry.s || entry.l === entry.ss);
             found.push({ entry: entry, score: score, index: i });
         }
         found.sort((a, b) => b.score - a.score || a.index - b.index);

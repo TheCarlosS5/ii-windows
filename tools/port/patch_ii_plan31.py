@@ -1002,3 +1002,139 @@ add_translations('es_MX', {
     "Hands": "Manecillas",
     "These options are for the Cookie style": "Estas opciones son del estilo Cookie",
 })
+
+# --- E1: "Buscar todo" (overlay services/SearchPlus.qml + modules/common/functions/search_plus.js): the launcher also
+# finds open windows, ii's and Windows' settings, commands and conversions, in one ranking with the apps.
+edit(path('services', 'LauncherSearch.qml'), [
+    (r'''        const startsWithWebSearchPrefix = root.query.startsWith(Config.options.search.prefix.webSearch);
+''', r'''        const startsWithWebSearchPrefix = root.query.startsWith(Config.options.search.prefix.webSearch);
+        // ii-windows (plan 2026-10-31, E1): Buscar todo (services/SearchPlus.qml). Not with a prefix that asks for
+        // something else. SearchPlus.revision: made again when exchange rates or time zones arrive.
+        const plainQuery = !startsWithMathPrefix && !startsWithShellCommandPrefix && !startsWithWebSearchPrefix
+            && !root.query.startsWith(Config.options.search.prefix.app) && !root.query.startsWith(Config.options.search.prefix.action);
+        const plus = plainQuery && SearchPlus.revision >= 0 ? SearchPlus.rows(root.query) : { conversion: null, rows: [] };
+'''),
+    (r'''        if (startsWithNumber || startsWithMathPrefix) {
+            result.push(mathResultObject);
+        } else if (startsWithShellCommandPrefix) {''', r'''        if (plus.conversion) { // ii-windows (E1): "5 km a millas", "100 usd a cop", "15% de 230", "hora en tokio"
+            result.push(plus.conversion);
+        } else if (startsWithNumber || startsWithMathPrefix) {
+            result.push(mathResultObject);
+        } else if (startsWithShellCommandPrefix) {'''),
+    (r'''        //////////////// Apps //////////////////
+        result = result.concat(appResultObjects);
+''', r'''        //////////////// Apps //////////////////
+        // ii-windows (E1): apps, windows, commands and settings in one ranking, the likeliest first (an app keeps its
+        // place among the apps).
+        const typed = StringUtils.cleanPrefix(root.query, Config.options.search.prefix.app);
+        const ranked = appResultObjects.map((r, i) => ({ score: Math.max(SearchPlus.score(typed, r.name), 0.5) - i * 0.0001, result: r }))
+            .concat(plus.rows).map((r, i) => ({ score: r.score, result: r.result, order: i }));
+        ranked.sort((a, b) => b.score - a.score || a.order - b.order);
+        result = result.concat(ranked.map(r => r.result));
+'''),
+    (r'''            if (!startsWithNumber && !startsWithMathPrefix)
+                result.push(mathResultObject);''', r'''            if (!startsWithNumber && !startsWithMathPrefix && root.mathResult !== "") // ii-windows (E1): not an empty row
+                result.push(mathResultObject);'''),
+])
+edit(path('settings.qml'), [
+    (r'''    function openSearchResult(entry) {''', r'''    // "locate:{...}" (II_SETTINGS_PAGE or a second start): a setting the launcher found (plan E1), else null.
+    function located(argument) {
+        if (!(argument || "").startsWith("locate:")) return null;
+        try { return JSON.parse(argument.slice(7)); } catch (e) { return null; }
+    }
+    function openSearchResult(entry) {'''),
+    (r'''    function pageIndex(name) { // -1: not a page
+''', r'''    function pageIndex(name) { // -1: not a page
+        const target = root.located(name);
+        if (target) return root.pageIndex(target.p);
+'''),
+    (r'''            SettingsRequest.request(argument); // "page/sub": the page's own part (a widget's settings) follows it
+''', r'''            const target = root.located(argument);
+            if (!target) SettingsRequest.request(argument); // "page/sub": the page's own part (a widget's settings) follows it
+'''),
+    (r'''            root.raise();
+            root.requestActivate();
+        }
+    }''', r'''            root.raise();
+            root.requestActivate();
+            if (target) root.openSearchResult(target);
+        }
+    }'''),
+    (r'''        root.visible = true;
+''', r'''        root.visible = true;
+        const target = root.located(Quickshell.env("II_SETTINGS_PAGE") || "");
+        if (target) Qt.callLater(() => root.openSearchResult(target)); // plan E1: the setting the launcher found
+'''),
+])
+edit(path('modules', 'common', 'Config.qml'), [
+    (r'''                property bool sloppy: false // Uses levenshtein distance based scoring instead of fuzzy sort. Very weird.
+''', r'''                property bool sloppy: false // Uses levenshtein distance based scoring instead of fuzzy sort. Very weird.
+                property JsonObject everything: JsonObject { // ii-windows (plan 2026-10-31, E1): what the launcher finds besides apps
+                    property bool windows: true
+                    property bool settings: true
+                    property bool windowsSettings: true
+                    property bool commands: true
+                    property bool conversions: true
+                    property bool currency: true // exchange rates from open.er-api.com (only the rates are downloaded)
+                }
+'''),
+])
+EVERYTHING_SWITCH = '''            ConfigSwitch {{
+                buttonIcon: "{icon}"
+                text: Translation.tr("{text}")
+                checked: Config.options.search.everything.{key}
+                onCheckedChanged: Config.options.search.everything.{key} = checked
+            }}
+'''
+edit(path('modules', 'settings', 'ServicesConfig.qml'), [
+    (r'''        ContentSubsection {
+            title: Translation.tr("Prefixes")''', r'''        ContentSubsection { // ii-windows (plan 2026-10-31, E1)
+            title: Translation.tr("Search everything")
+            tooltip: Translation.tr("Besides apps, the search finds these. Try: bloquear, bluetooth, 5 km a millas, 100 usd a cop, hora en tokio")
+''' + ''.join(EVERYTHING_SWITCH.format(icon=i, text=t, key=k) for i, t, k in [
+        ('select_window', 'Open windows', 'windows'),
+        ('settings', "ii's settings", 'settings'),
+        ('settings_applications', "Windows' settings", 'windowsSettings'),
+        ('terminal', 'Commands (lock, sleep, dark theme, do not disturb...)', 'commands'),
+        ('calculate', 'Conversions (units, percentages, time in other cities)', 'conversions'),
+        ('currency_exchange', 'Currency conversion (downloads the exchange rates once a day)', 'currency'),
+    ]) + r'''        }
+
+        ContentSubsection {
+            title: Translation.tr("Prefixes")'''),
+])
+add_translations('es_MX', {
+    # launcher rows
+    "Conversion": "Conversión",
+    "%1 % of %2": "%1 % de %2",
+    "Percentage": "Porcentaje",
+    "Getting exchange rates…": "Obteniendo las tasas de cambio…",
+    "No exchange rates (no connection?)": "Sin tasas de cambio (¿sin conexión?)",
+    "Currency": "Moneda",
+    "Currency · rate of %1": "Moneda · tasa del %1",
+    "(tomorrow)": "(mañana)",
+    "(yesterday)": "(ayer)",
+    "same time as here": "la misma hora que aquí",
+    "%1 h from here": "%1 h respecto a aquí",
+    "Time": "Hora",
+    "Turn off do not disturb": "Desactivar No molestar",
+    "Turn on do not disturb": "Activar No molestar",
+    "Turn off light mode": "Desactivar el modo ligero",
+    "Turn on light mode": "Activar el modo ligero",
+    "Quick action": "Acción rápida",
+    "Switch to": "Ir",
+    "Open window": "Ventana abierta",
+    "Close": "Cerrar",
+    "Windows settings": "Configuración de Windows",
+    "ii setting": "Ajuste de ii",
+    # Configuración > Servicios > Buscar
+    "Search everything": "Buscar todo",
+    "Besides apps, the search finds these. Try: bloquear, bluetooth, 5 km a millas, 100 usd a cop, hora en tokio":
+        "Además de apps, la búsqueda encuentra esto. Prueba: bloquear, bluetooth, 5 km a millas, 100 usd a cop, hora en tokio",
+    "Open windows": "Ventanas abiertas",
+    "ii's settings": "Ajustes de ii",
+    "Windows' settings": "Ajustes de Windows",
+    "Commands (lock, sleep, dark theme, do not disturb...)": "Comandos (bloquear, suspender, tema oscuro, no molestar...)",
+    "Conversions (units, percentages, time in other cities)": "Conversiones (unidades, porcentajes, hora en otras ciudades)",
+    "Currency conversion (downloads the exchange rates once a day)": "Conversión de monedas (descarga las tasas de cambio una vez al día)",
+})
