@@ -1304,10 +1304,10 @@ bool jbool(const jsonlite::Value& v, const char* key, bool fallback) {
 	return m && m->type == jsonlite::Type::Bool ? m->boolean : fallback;
 }
 
-// config.json updates.<key> (Config.qml defaults when missing).
+// config.json iiUpdates.<key> (Config.qml defaults when missing).
 bool updatesOption(const char* key, bool fallback) {
 	auto config = readJsonFile(configtool::paths().file);
-	const auto* updates = config.find("updates");
+	const auto* updates = config.find("iiUpdates");
 	return updates ? jbool(*updates, key, fallback) : fallback;
 }
 

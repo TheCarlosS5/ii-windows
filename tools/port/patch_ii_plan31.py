@@ -204,7 +204,7 @@ edit(path('modules', 'common', 'Config.qml'), [
                 property bool showOnFirstStart: true // ii-windows: guided tour (modules/ii/tour)
             }
 
-            property JsonObject updates: JsonObject { // ii-windows (plan 2026-10-31, block B)
+            property JsonObject iiUpdates: JsonObject { // ii-windows (plan 2026-10-31, block B; "updates" is upstream's Arch checker)
                 property bool autoCheck: true // look for a new version now and then (never during a game)
                 property bool autoDownload: true // download it by itself, only on Wi-Fi or cable
                 property string channel: "stable" // "stable" | "beta" (prereleases, for testers)
@@ -236,16 +236,16 @@ edit(path('settings.qml'), [
 edit(path('modules', 'settings', 'About.qml'), [
     ('''                            { icon: "desktop_windows", text: page.windowsName }
 ''', '''                            { icon: "desktop_windows", text: page.windowsName },
-                            { icon: "system_update", text: Updates.attention ? Translation.tr("Update: %1").arg(Updates.latestVersion) : "" }
+                            { icon: "system_update", text: IiUpdates.attention ? Translation.tr("Update: %1").arg(IiUpdates.latestVersion) : "" }
 '''),
     ('''                materialIcon: "system_update_alt"
                 mainText: Translation.tr("Check for updates")
                 onClicked: Qt.openUrlExternally("https://github.com/TheCarlosS5/ii-windows/releases/latest")
 ''', '''                materialIcon: "system_update_alt"
                 // ii-windows (plan 2026-10-31): the updater, not the releases page.
-                mainText: Updates.ready ? Translation.tr("Restart ii now")
-                    : Updates.attention ? Translation.tr("Update to %1").arg(Updates.latestVersion) : Translation.tr("Check for updates")
-                onClicked: Updates.ready ? Updates.restartNow() : Updates.attention ? Updates.install() : Updates.check()
+                mainText: IiUpdates.ready ? Translation.tr("Restart ii now")
+                    : IiUpdates.attention ? Translation.tr("Update to %1").arg(IiUpdates.latestVersion) : Translation.tr("Check for updates")
+                onClicked: IiUpdates.ready ? IiUpdates.restartNow() : IiUpdates.attention ? IiUpdates.install() : IiUpdates.check()
 '''),
 ])
 edit(path('modules', 'ii', 'bar', 'BarContent.qml'), [
@@ -256,16 +256,16 @@ edit(path('modules', 'ii', 'bar', 'BarContent.qml'), [
 ''', '''                    spacing: 0
 
                     Revealer { // ii-windows (plan 2026-10-31, B3): a new version of ii is there
-                        reveal: Updates.attention
+                        reveal: IiUpdates.attention
                         Layout.fillHeight: true
                         Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
                         Behavior on Layout.rightMargin {
                             animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
                         }
                         MaterialSymbol {
-                            text: Updates.ready ? "restart_alt" : "system_update"
+                            text: IiUpdates.ready ? "restart_alt" : "system_update"
                             iconSize: Appearance.font.pixelSize.larger
-                            color: Updates.critical ? Appearance.colors.colPrimary : rightSidebarButton.colText
+                            color: IiUpdates.critical ? Appearance.colors.colPrimary : rightSidebarButton.colText
                         }
                     }
                     Revealer {

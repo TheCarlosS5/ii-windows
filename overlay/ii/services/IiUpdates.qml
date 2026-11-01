@@ -14,20 +14,20 @@ Singleton {
     id: root
 
     readonly property string dataDir: Quickshell.env("II_DATA_DIR") || (Quickshell.env("LOCALAPPDATA") + "\\ii-windows")
-    property var state: ({})
+    property var info: ({})
 
-    readonly property string status: state?.status ?? "idle"
-    readonly property var latest: state?.latest ?? null
+    readonly property string status: info?.status ?? "idle"
+    readonly property var latest: info?.latest ?? null
     readonly property string latestVersion: latest?.version ?? ""
     readonly property bool critical: latest?.critical ?? false
     readonly property bool tooOld: latest?.tooOld ?? false
     readonly property string notes: latest?.notes ?? ""
     readonly property string releaseUrl: latest?.url ?? "https://github.com/TheCarlosS5/ii-windows/releases"
     readonly property real sizeMb: Math.round((latest?.size ?? 0) / 1048576)
-    readonly property real progress: (state?.progress?.total ?? 0) > 0 ? state.progress.bytes / state.progress.total : 0
-    readonly property string error: state?.error ?? ""
-    readonly property string current: state?.current ?? ""
-    readonly property string lastCheck: state?.lastCheck ?? ""
+    readonly property real progress: (info?.progress?.total ?? 0) > 0 ? info.progress.bytes / info.progress.total : 0
+    readonly property string error: info?.error ?? ""
+    readonly property string current: info?.current ?? ""
+    readonly property string lastCheck: info?.lastCheck ?? ""
     readonly property bool busy: ["checking", "downloading", "verifying", "installing"].includes(root.status)
     readonly property bool ready: root.status === "ready"
     // Something for the user to see: the dot in the bar.
@@ -70,7 +70,7 @@ Singleton {
         onFileChanged: reload()
         onLoaded: {
             try {
-                root.state = JSON.parse(stateFile.text());
+                root.info = JSON.parse(stateFile.text());
             } catch (e) {}
         }
     }

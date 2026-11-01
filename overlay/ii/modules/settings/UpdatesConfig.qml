@@ -6,7 +6,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-// ii-windows (plan 2026-10-31, B3/B7): Configuración > Actualizaciones. The state comes from services/Updates.qml;
+// ii-windows (plan 2026-10-31, B3/B7): Configuración > Actualizaciones. The state comes from services/IiUpdates.qml;
 // every button asks ii-host, which runs ii-shim update with its rules (never during a game...).
 ContentPage {
     id: page
@@ -39,7 +39,7 @@ ContentPage {
                 implicitWidth: 64
                 implicitHeight: 64
                 shape: MaterialShape.Shape.Cookie9Sided
-                text: Updates.ready ? "restart_alt" : Updates.attention ? "download" : Updates.status === "error" ? "error" : "verified"
+                text: IiUpdates.ready ? "restart_alt" : IiUpdates.attention ? "download" : IiUpdates.status === "error" ? "error" : "verified"
                 iconSize: 30
                 padding: 14
             }
@@ -49,10 +49,10 @@ ContentPage {
                 StyledText {
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
-                    text: Updates.statusText()
+                    text: IiUpdates.statusText()
                     font.pixelSize: Appearance.font.pixelSize.larger
                     font.weight: Font.Medium
-                    color: Updates.status === "error" ? Appearance.m3colors.m3error : Appearance.colors.colOnLayer1
+                    color: IiUpdates.status === "error" ? Appearance.m3colors.m3error : Appearance.colors.colOnLayer1
                 }
                 StyledText {
                     Layout.fillWidth: true
@@ -62,8 +62,8 @@ ContentPage {
                     text: {
                         const parts = [];
                         if (page.activeVersion.length > 0) parts.push(Translation.tr("Installed: %1").arg(page.activeVersion));
-                        if (Updates.lastCheck.length > 0) parts.push(Translation.tr("Last check: %1").arg(Qt.formatDateTime(new Date(Updates.lastCheck), "dd/MM HH:mm")));
-                        if (Updates.attention && Updates.sizeMb > 0) parts.push(Translation.tr("%1 MB").arg(Updates.sizeMb));
+                        if (IiUpdates.lastCheck.length > 0) parts.push(Translation.tr("Last check: %1").arg(Qt.formatDateTime(new Date(IiUpdates.lastCheck), "dd/MM HH:mm")));
+                        if (IiUpdates.attention && IiUpdates.sizeMb > 0) parts.push(Translation.tr("%1 MB").arg(IiUpdates.sizeMb));
                         return parts.join(" · ");
                     }
                 }
@@ -71,20 +71,20 @@ ContentPage {
         }
 
         StyledProgressBar {
-            visible: Updates.status === "downloading"
+            visible: IiUpdates.status === "downloading"
             Layout.fillWidth: true
-            value: Updates.progress
+            value: IiUpdates.progress
         }
 
         StyledText {
-            visible: Updates.critical && Updates.attention
+            visible: IiUpdates.critical && IiUpdates.attention
             Layout.fillWidth: true
             wrapMode: Text.Wrap
             color: Appearance.colors.colPrimary
             text: Translation.tr("Recommended: it fixes important errors.")
         }
         StyledText {
-            visible: Updates.tooOld && Updates.attention
+            visible: IiUpdates.tooOld && IiUpdates.attention
             Layout.fillWidth: true
             wrapMode: Text.Wrap
             color: Appearance.m3colors.m3error
@@ -95,46 +95,46 @@ ContentPage {
             Layout.fillWidth: true
             spacing: 5
             RippleButtonWithIcon {
-                visible: !Updates.busy && !Updates.attention
+                visible: !IiUpdates.busy && !IiUpdates.attention
                 materialIcon: "refresh"
                 mainText: Translation.tr("Check now")
-                onClicked: Updates.check()
+                onClicked: IiUpdates.check()
             }
             RippleButtonWithIcon {
-                visible: !Updates.busy && Updates.attention && !Updates.ready && !Updates.tooOld
+                visible: !IiUpdates.busy && IiUpdates.attention && !IiUpdates.ready && !IiUpdates.tooOld
                 materialIcon: "download"
                 mainText: Translation.tr("Download and install")
-                onClicked: Updates.install()
+                onClicked: IiUpdates.install()
             }
             RippleButtonWithIcon {
-                visible: Updates.ready
+                visible: IiUpdates.ready
                 materialIcon: "restart_alt"
                 mainText: Translation.tr("Restart ii now")
-                onClicked: Updates.restartNow()
+                onClicked: IiUpdates.restartNow()
             }
             RippleButtonWithIcon {
-                visible: Updates.attention && !Updates.ready && !Updates.busy
+                visible: IiUpdates.attention && !IiUpdates.ready && !IiUpdates.busy
                 materialIcon: "block"
                 mainText: Translation.tr("Skip this version")
-                onClicked: Updates.skip()
+                onClicked: IiUpdates.skip()
             }
             RippleButtonWithIcon {
                 materialIcon: "open_in_new"
                 mainText: Translation.tr("See on GitHub")
-                onClicked: Qt.openUrlExternally(Updates.releaseUrl)
+                onClicked: Qt.openUrlExternally(IiUpdates.releaseUrl)
             }
         }
     }
 
     ContentSection {
-        visible: Updates.attention && Updates.notes.length > 0
+        visible: IiUpdates.attention && IiUpdates.notes.length > 0
         icon: "new_releases"
-        title: Translation.tr("What's new in %1").arg(Updates.latestVersion)
+        title: Translation.tr("What's new in %1").arg(IiUpdates.latestVersion)
         StyledText {
             Layout.fillWidth: true
             wrapMode: Text.Wrap
             textFormat: Text.MarkdownText
-            text: Updates.notes
+            text: IiUpdates.notes
             color: Appearance.colors.colOnLayer1
             onLinkActivated: link => Qt.openUrlExternally(link)
         }
@@ -147,27 +147,27 @@ ContentPage {
         ConfigSwitch {
             buttonIcon: "update"
             text: Translation.tr("Look for updates by itself (never during a game)")
-            checked: Config.options.updates.autoCheck
-            onCheckedChanged: Config.options.updates.autoCheck = checked
+            checked: Config.options.iiUpdates.autoCheck
+            onCheckedChanged: Config.options.iiUpdates.autoCheck = checked
         }
         ConfigSwitch {
             buttonIcon: "wifi"
             text: Translation.tr("Download them by itself, only on Wi-Fi or cable")
-            checked: Config.options.updates.autoDownload
-            onCheckedChanged: Config.options.updates.autoDownload = checked
+            checked: Config.options.iiUpdates.autoDownload
+            onCheckedChanged: Config.options.iiUpdates.autoDownload = checked
         }
         ConfigSwitch {
             buttonIcon: "notifications"
             text: Translation.tr("Tell me with a notification (otherwise only the dot in the bar)")
-            checked: Config.options.updates.notify
-            onCheckedChanged: Config.options.updates.notify = checked
+            checked: Config.options.iiUpdates.notify
+            onCheckedChanged: Config.options.iiUpdates.notify = checked
         }
         ContentSubsection {
             title: Translation.tr("Channel")
             tooltip: Translation.tr("Beta gets test versions first, for the people who try them")
             ConfigSelectionArray {
-                currentValue: Config.options.updates.channel
-                onSelected: newValue => Config.options.updates.channel = newValue
+                currentValue: Config.options.iiUpdates.channel
+                onSelected: newValue => Config.options.iiUpdates.channel = newValue
                 options: [
                     { displayName: Translation.tr("Stable"), icon: "verified", value: "stable" },
                     { displayName: Translation.tr("Beta"), icon: "science", value: "beta" }
@@ -199,7 +199,7 @@ ContentPage {
             RippleButtonWithIcon {
                 materialIcon: "undo"
                 mainText: Translation.tr("Go back to %1").arg(page.previousVersion)
-                onClicked: Updates.rollback()
+                onClicked: IiUpdates.rollback()
             }
         }
     }

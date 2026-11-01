@@ -333,7 +333,7 @@ std::unique_ptr<http::Client> makeClient() {
 std::wstring channelFromConfig() {
 	auto parsed = jsonlite::parse(readFile(configtool::paths().file));
 	if (parsed.ok) {
-		const auto* updates = member(parsed.value, "updates");
+		const auto* updates = member(parsed.value, "iiUpdates");
 		auto channel = updates ? text(member(*updates, "channel")) : std::string();
 		if (channel == "beta") return L"beta";
 	}
