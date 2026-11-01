@@ -28,6 +28,7 @@ Los atajos de ii se resuelven dentro de ii también con una aplicación maximiza
 | Win+V | Clipboard history | available | `overviewClipboardToggle` |  |
 | Win+Period | Emoji picker | available | `overviewEmojiToggle` |  |
 | Win+M | Media controls | available | `mediaControlsToggle` |  |
+| Shift+Win+A | Mute or unmute the microphone (the whole system) | available | `@micMute` |  |
 | Win+J | Show or hide the bar | available | `barToggle` |  |
 | Win+K | On-screen keyboard | available | `oskToggle` |  |
 | Win+Slash | This cheatsheet | available | `cheatsheetToggle` |  |

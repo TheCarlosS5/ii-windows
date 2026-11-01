@@ -15,6 +15,7 @@ Shortcut {true, false, false, false, 'N', L"sidebarRightToggle", L"sidebar-right
 Shortcut {true, false, false, false, 'V', L"overviewClipboardToggle", L"clipboard"},
 Shortcut {true, false, false, false, VK_OEM_PERIOD, L"overviewEmojiToggle", L"emoji"},
 Shortcut {true, false, false, false, 'M', L"mediaControlsToggle", L"media"},
+Shortcut {true, false, false, true, 'A', L"@micMute", L"mic-mute"},
 Shortcut {true, false, false, false, 'J', L"barToggle", L"bar"},
 Shortcut {true, false, false, false, 'K', L"oskToggle", L"osk"},
 Shortcut {true, false, false, false, VK_OEM_2, L"cheatsheetToggle", L"cheatsheet"},

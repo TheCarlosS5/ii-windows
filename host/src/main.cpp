@@ -737,6 +737,19 @@ void dispatchShortcut(WPARAM pressed, LPARAM index) {
 	if (name && name[0] == L'@') {
 		if (pressed && wcscmp(name, L"@showDesktop") == 0) desktop::toggleShowDesktop();
 		if (pressed && wcscmp(name, L"@closeWindow") == 0) closeForegroundWindow();
+		if (pressed && wcscmp(name, L"@micMute") == 0) {
+			// Plan 2026-10-31, E5: the whole system's microphone (the default capture device), also over a game; the
+			// bar shows mic_off while it is muted.
+			auto dir = options.shell.substr(0, options.shell.find_last_of(L"\\/"));
+			auto cmd = L"\"" + dir + L"\\bin\\ii-shim.exe\" wpctl set-mute @DEFAULT_SOURCE@ toggle";
+			STARTUPINFOW si {};
+			si.cb = sizeof(si);
+			PROCESS_INFORMATION pi {};
+			if (CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+				CloseHandle(pi.hThread);
+				CloseHandle(pi.hProcess);
+			}
+		}
 		if (pressed && wcscmp(name, L"@colorPicker") == 0) {
 			// ii's color picker (Super+Shift+C on Linux): ii-shim hyprpicker, next to the shell.
 			auto dir = options.shell.substr(0, options.shell.find_last_of(L"\\/"));

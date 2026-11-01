@@ -51,6 +51,8 @@
       "target": { "kind": "shell", "name": "overviewEmojiToggle" }, "keys": [ { "mods": ["win"], "key": "Period" } ] },
     { "id": "media", "group": "Shell", "text": "Media controls", "support": "available",
       "target": { "kind": "shell", "name": "mediaControlsToggle" }, "keys": [ { "mods": ["win"], "key": "M" } ] },
+    { "id": "mic-mute", "group": "Windows", "text": "Mute or unmute the microphone (the whole system)", "support": "available",
+      "target": { "kind": "host", "name": "@micMute" }, "keys": [ { "mods": ["win", "shift"], "key": "A" } ] },
     { "id": "bar", "group": "Shell", "text": "Show or hide the bar", "support": "available",
       "target": { "kind": "shell", "name": "barToggle" }, "keys": [ { "mods": ["win"], "key": "J" } ] },
     { "id": "osk", "group": "Shell", "text": "On-screen keyboard", "support": "available",

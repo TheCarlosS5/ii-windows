@@ -1328,3 +1328,17 @@ add_translations('es_MX', {
     "It needs a subject and a start before its end (24 h, like 18:00).": "Necesita una materia y un inicio antes del final (24 h, como 18:00).",
     "The link has to start with https://": "El enlace tiene que empezar por https://",
 })
+
+# --- E5: Bluetooth headphones' battery (fork reads it; overlay services/BluetoothBatteryWatch.qml warns) and the
+# system-wide microphone mute (Win+Shift+A, ii-host @micMute) --------------------------------------------------------
+edit(path('shell.qml'), [
+    ('''        Timetable.load() // ii-windows (plan 2026-10-31, E3): class reminders without opening the panel
+''', '''        Timetable.load() // ii-windows (plan 2026-10-31, E3): class reminders without opening the panel
+        BluetoothBatteryWatch.load() // ii-windows (plan 2026-10-31, E5): low battery of Bluetooth headphones
+'''),
+])
+add_translations('es_MX', {
+    "%1 is running low": "%1 se está quedando sin batería",
+    "%1 % battery left": "Le queda %1 % de batería",
+    "Mute or unmute the microphone (the whole system)": "Silenciar o activar el micrófono (en todo el sistema)",
+})

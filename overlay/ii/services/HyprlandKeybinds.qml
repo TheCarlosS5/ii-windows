@@ -39,6 +39,7 @@ Singleton {
         bind(superKey, "V", "Shell: Clipboard history"),
         bind(superKey, "Period", "Shell: Emoji picker"),
         bind(superKey, "M", "Shell: Media controls"),
+        bind(superKey | shift, "A", "Windows: Mute or unmute the microphone (the whole system)"),
         bind(superKey, "J", "Shell: Show or hide the bar"),
         bind(superKey, "K", "Shell: On-screen keyboard"),
         bind(superKey, "Slash", "Shell: This cheatsheet"),
