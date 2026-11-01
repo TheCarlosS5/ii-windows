@@ -2,6 +2,29 @@
 
 El archivo es `%LOCALAPPDATA%\quickshell\illogical-impulse\config.json`. La herramienta es `ii-shim config …` (código en `host/src/configtool.cpp`; el esquema sale de `Config.qml` con `tools/dev/gen-config-schema.py` y está en `shared/config-schema.json`).
 
+## Las páginas de Configuración (desde la 0.8.0)
+
+La ventana se abre con Win+I (una sola: si ya está abierta, viene al frente). Arriba, **Buscar ajustes** (Ctrl+F) lleva a
+cualquier ajuste por su nombre, en español o en inglés, y lo resalta.
+
+| Página | Qué tiene |
+|---|---|
+| Inicio | Fondo y colores, posición y estilo de la barra, esquinas de la pantalla. |
+| Apariencia | Transparencia, generación de color, selector de fondos, fuentes, paralaje, animaciones de ventanas, fondos animados. |
+| Barra | Posicionamiento (también **Pantallas**: todas o solo la principal), bandeja, botones, clima, escritorios, avisos emergentes. |
+| Dock | Todo el dock (también **Pantallas** y la tienda en el dock). |
+| Escritorio | **Galería de widgets** (cada uno con "Personalizar"; el reloj con pestañas) e iconos del escritorio. En el modo edición del escritorio, el engranaje de cada widget abre sus ajustes aquí. |
+| Paneles | Chuleta, bloqueo, **notificaciones** (también las de la barra), barras laterales, avisos en pantalla, vista general. |
+| Sistema | Audio, batería, idioma, políticas, sonidos, hora y **Avisos de Windows** (reinicio pendiente, poco espacio). |
+| Servicios | IA, redes, recursos, rutas, búsqueda, clima. |
+| Rendimiento | Todos los efectos o ligero, reducir animaciones, dibujo, ventanas de otros programas. |
+| Atajos | Los atajos de ii (cambiar o quitar), cuándo ceden ante juegos, teclas de volumen y multimedia. Escribe `shortcuts.ini`. |
+| Avanzado | Integración con Windows, copia y restauración, diagnóstico (crashes, modo seguro). |
+| Actualizaciones | Versión nueva, novedades, opciones del actualizador, volver a la anterior. |
+| Acerca de | Versión, créditos. |
+
+Abrir en una página concreta: `II_SETTINGS_PAGE=<archivo>` (por ejemplo `backgroundconfig/clock`, `updatesconfig`).
+
 ## Lo que pasa solo
 
 - **Antes de arrancar la shell** (`ii-host`): si `config.json` no es JSON válido (truncado por un apagón o un disco lleno, mal editado), se aparta como `config.json.invalid-<fecha>` (se guardan las 10 últimas) y se pone la última copia buena (`config.last-good.json`). Sin copia buena, ii arranca con sus valores por defecto. Se avisa con una notificación cuando la shell está arriba y queda en `host.log`.
