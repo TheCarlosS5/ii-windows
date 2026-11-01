@@ -40,6 +40,16 @@ $running = (Get-Process quickshell, ii-host -ErrorAction SilentlyContinue | ForE
 $qsLogRoot = if ($QsLogDir) { $QsLogDir } else { Join-Path $env:TEMP 'quickshell\by-id' }
 $qsLog = Get-ChildItem $qsLogRoot -Filter log.log -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 
+# Plan 2026-10-31, A9/G3: the crash reports of the last 7 days (the JSON only: code, module+offset, part of ii) and
+# what ii-host switched off after them. The .dmp files are never added: they can contain window titles and texts.
+$crashDir = Join-Path $dataDir 'crashes'
+$crashes = @(Get-ChildItem $crashDir -Filter *.json -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) } |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 10 | ForEach-Object { "$($_.LastWriteTime.ToString('yyyy-MM-dd HH:mm'))  $((Get-Content $_.FullName -Raw).Trim())" }) -join "`r`n"
+if (-not $crashes) { $crashes = '(ninguno)' }
+$stateIni = Join-Path $dataDir 'state.ini'
+$safety = if (Test-Path $stateIni) { (Get-Content $stateIni -Raw) -replace '(?s)^.*?\[safety\]', '' -replace '(?s)\r?\n\[.*$', '' } else { '' }
+if (-not $safety.Trim()) { $safety = '(todo encendido)' }
+
 $report = @"
 ii-windows - reporte de diagnostico ($(Get-Date -Format 'yyyy-MM-dd HH:mm'))
 Adjunta este archivo al reporte en $repo/issues (revisalo antes: es texto normal).
@@ -56,6 +66,12 @@ $(Tail (Join-Path $dataDir 'host.log') 150)
 
 ===== quickshell (ultimas 200 lineas) =====
 $(if ($qsLog) { Tail $qsLog.FullName 200 } else { '(sin log)' })
+
+===== modo seguro (state.ini [safety]) =====
+$($safety)
+
+===== informes de error de los ultimos 7 dias (sin el volcado de memoria) =====
+$($crashes)
 "@
 
 $desktop = [Environment]::GetFolderPath('Desktop')
