@@ -162,7 +162,11 @@ try {
     $script = Join-Path $base 'killed-install.ps1'
     Set-Content $script ". '$PSScriptRoot\..\..\package\ii-runtime.ps1'`n`$env:II_TEST_FAULT = 'hang-after-staged'`nInstall-IiRuntime -Payload '$p2' -Root '$rk' -VersionId 'v2'"
     # a hang fault: sleeps right after the staged journal entry
-    $killedProc = Start-Process powershell.exe -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script -PassThru -WindowStyle Hidden
+    $psi = New-Object Diagnostics.ProcessStartInfo 'powershell.exe', "-NoProfile -ExecutionPolicy Bypass -File `"$script`""
+    $psi.UseShellExecute = $false; $psi.CreateNoWindow = $true
+    # A pwsh 7 parent exports its module path; let Windows PowerShell initialize its own modules.
+    [void]$psi.EnvironmentVariables.Remove('PSModulePath')
+    $killedProc = [Diagnostics.Process]::Start($psi)
     $sw = [Diagnostics.Stopwatch]::StartNew(); $seen = $false
     while ($sw.Elapsed.TotalSeconds -lt 60) { $j = Read-IiJournal $rk; if ($j -and $j.step -eq 'staged') { $seen = $true; break }; Start-Sleep -Milliseconds 100 }
     try { $killedProc.Kill() } catch {}

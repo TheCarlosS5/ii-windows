@@ -15,6 +15,9 @@
 
 namespace ii::rollout {
 
+// A user stopped a pending version before readiness; the launcher must leave it selected.
+inline constexpr unsigned long EXIT_START_CANCELLED = 18;
+
 struct Current {
 	bool present = false;
 	std::wstring active;   // version id, or "legacy" for the flat pre-0.1.4 layout in the install folder

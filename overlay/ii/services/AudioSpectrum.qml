@@ -10,8 +10,9 @@ import qs.modules.common.functions
 Singleton {
     id: root
     property var consumers: []
+    property bool demand: false
     property list<real> points: []
-    readonly property bool wanted: consumers.length > 0 && !Config.options.appearance.reduceMotion && !GlobalStates.screenLocked
+    readonly property bool wanted: demand && !Config.options.appearance.reduceMotion && !GlobalStates.screenLocked
     onWantedChanged: if (!wanted) {
         points = [];
         // QProcess::terminate sends WM_CLOSE on Windows; a console audio producer has no window.
@@ -25,6 +26,14 @@ Singleton {
         else if (!enabled && index >= 0) next.splice(index, 1);
         else return;
         consumers = next;
+        demandSoon.restart();
+    }
+
+    function settleDemand() { demand = consumers.length > 0; }
+    Timer {
+        id: demandSoon
+        interval: 30
+        onTriggered: root.settleDemand()
     }
 
     Process {

@@ -27,6 +27,7 @@ add_executable(ii-host WIN32
 	src/nightlight.cpp
 	src/nightlight_core.cpp
 	src/splash.cpp
+	src/recovery.cpp
 	src/health.cpp
 	src/rollout.cpp
 	src/jsonlite.cpp

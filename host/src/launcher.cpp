@@ -13,6 +13,7 @@
 #include <windows.h>
 
 #include <shellapi.h>
+#include <algorithm>
 
 #include <cstdarg>
 #include <cstdio>
@@ -197,6 +198,15 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 			CloseHandle(pi.hProcess);
 			if (code == EXIT_ALREADY_RUNNING) {
 				log(L"another ii-host is already running; nothing to verify");
+				return 0;
+			}
+			if (code == rollout::EXIT_START_CANCELLED) {
+				// Cancellation is not a failed launch, including for the bounded attempt counter.
+				if (known && now.active == current.active && now.state == L"pending") {
+					now.attempts = std::max(0, now.attempts - 1);
+					rollout::write(root, now);
+				}
+				log(L"startup cancelled by the user; keeping version %s pending", current.active.c_str());
 				return 0;
 			}
 			return fallBack(current, tail, L"ii-host ended before the version was verified", code);

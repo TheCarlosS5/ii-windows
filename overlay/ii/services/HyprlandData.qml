@@ -27,6 +27,37 @@ Singleton {
     property var dirtyWindows: ({})
     property bool allWindowsDirty: true
     property bool monitorsDirty: true
+    property bool workspacesDirty: true
+    property var windowGeometries: ({})
+
+    // Per-window QObject properties notify geometry bindings without replacing the public lists.
+    Component {
+        id: geometryFactory
+        QtObject {
+            property var at: []
+            property var size: []
+        }
+    }
+    function updateGeometry(address, data) {
+        let geometry = root.windowGeometries[address];
+        if (!geometry) {
+            geometry = geometryFactory.createObject(root, { at: data.at, size: data.size });
+            root.windowGeometries[address] = geometry;
+        } else {
+            if (geometry.at[0] !== data.at[0] || geometry.at[1] !== data.at[1]) geometry.at = data.at;
+            if (geometry.size[0] !== data.size[0] || geometry.size[1] !== data.size[1]) geometry.size = data.size;
+        }
+        return geometry;
+    }
+    function attachGeometry(data, geometry) {
+        Object.defineProperty(data, "at", { enumerable: true, get: function() { return geometry.at; } });
+        Object.defineProperty(data, "size", { enumerable: true, get: function() { return geometry.size; } });
+        return data;
+    }
+    function invalidateWorkspaces() {
+        root.workspacesDirty = true;
+        root.queueRebuild();
+    }
 
     function queueRebuild() {
         if (!rebuildSoon.running) rebuildSoon.start();
@@ -34,6 +65,7 @@ Singleton {
     function invalidateAll() {
         allWindowsDirty = true;
         monitorsDirty = true;
+        workspacesDirty = true;
         queueRebuild();
     }
     function invalidateWindow(toplevel) {
@@ -82,7 +114,7 @@ Singleton {
     function updateWindowList() { invalidateAll(); }
     function updateLayers() {}
     function updateMonitors() { invalidateAll(); }
-    function updateWorkspaces() { queueRebuild(); }
+    function updateWorkspaces() { invalidateWorkspaces(); }
     function updateAll() { invalidateAll(); }
 
     function monitorIdFor(toplevel) {
@@ -138,7 +170,14 @@ Singleton {
                 "focusHistoryID": t.activated ? 0 : i + 1,
                 "inhibitingIdle": false,
             };
-            list.push(root.sameWindow(previous, next) ? previous : next);
+            const geometry = root.updateGeometry(address, next);
+            list.push(root.sameWindow(previous, next) ? previous : root.attachGeometry(next, geometry));
+        }
+        const windowsChanged = list.length !== root.windowList.length || list.some((win, i) => win !== root.windowList[i]);
+        if (!windowsChanged && !root.workspacesDirty) {
+            root.allWindowsDirty = false;
+            root.dirtyWindows = ({});
+            return;
         }
         const focused = Hyprland.focusedMonitor;
         const workspaces = Hyprland.workspaces.values.map(w => {
@@ -158,10 +197,10 @@ Singleton {
             const previous = root.workspaceById[w.id];
             return root.sameWorkspace(previous, next) ? previous : next;
         });
-        const windowsChanged = list.length !== root.windowList.length || list.some((win, i) => win !== root.windowList[i]);
         const membershipChanged = list.length !== root.addresses.length || list.some((win, i) => win.address !== root.addresses[i]);
         if (root.monitorsDirty) root.monitors = monitors;
         root.monitorsDirty = false;
+        root.workspacesDirty = false;
         root.allWindowsDirty = false;
         root.dirtyWindows = ({});
         if (windowsChanged) {
@@ -169,17 +208,24 @@ Singleton {
             const byAddress = {};
             for (const w of list) byAddress[w.address] = w;
             root.windowByAddress = byAddress;
+            for (const address of Object.keys(root.windowGeometries)) {
+                if (byAddress[address]) continue;
+                root.windowGeometries[address].destroy();
+                delete root.windowGeometries[address];
+            }
         }
         if (membershipChanged) root.addresses = list.map(w => w.address);
-        if (workspaces.length !== root.workspaces.length || workspaces.some((w, i) => w !== root.workspaces[i]))
-            root.workspaces = workspaces;
+        const workspacesChanged = workspaces.length !== root.workspaces.length || workspaces.some((w, i) => w !== root.workspaces[i]);
+        if (workspacesChanged) root.workspaces = workspaces;
         const workspaceIds = workspaces.map(w => w.id);
         if (workspaceIds.length !== root.workspaceIds.length || workspaceIds.some((id, i) => id !== root.workspaceIds[i]))
             root.workspaceIds = workspaceIds;
-        const byId = {};
-        for (const w of workspaces) byId[w.id] = w;
-        root.workspaceById = byId;
-        root.activeWorkspace = byId[current] ?? workspaces[0] ?? null;
+        if (workspacesChanged) {
+            const byId = {};
+            for (const w of workspaces) byId[w.id] = w;
+            root.workspaceById = byId;
+        }
+        root.activeWorkspace = root.workspaceById[current] ?? workspaces[0] ?? null;
     }
 
     Component.onCompleted: rebuild()
@@ -200,7 +246,7 @@ Singleton {
     }
     Connections {
         target: Hyprland.workspaces
-        function onValuesChanged() { root.queueRebuild(); }
+        function onValuesChanged() { root.invalidateWorkspaces(); }
     }
     Connections {
         target: Hyprland.monitors
@@ -212,6 +258,7 @@ Singleton {
             required property var modelData
             target: modelData
             function onLastIpcObjectChanged() { root.invalidateAll(); }
+            function onGeometryChanged() { root.invalidateAll(); }
         }
     }
     Instantiator {
@@ -219,7 +266,7 @@ Singleton {
         delegate: Connections {
             required property var modelData
             target: modelData
-            function onNameChanged() { root.queueRebuild(); }
+            function onNameChanged() { root.invalidateWorkspaces(); }
         }
     }
     Instantiator {

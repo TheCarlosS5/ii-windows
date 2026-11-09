@@ -18,6 +18,7 @@
 #include "configtool.h"
 #include "nightlight.h"
 #include "rollout.h"
+#include "recovery.h"
 #include "crashpolicy.h"
 
 #include <objbase.h>
@@ -419,6 +420,7 @@ bool ensureCompiledQml() {
 	CloseHandle(pi.hThread);
 	// The message loop keeps servicing the cover, panic key and close requests. Windows stays usable
 	// throughout a cold start; hiding Explorer is deferred until the real shell reports ready.
+	if (options.splash || GetEnvironmentVariableW(L"II_TEST_RECOVERY", nullptr, 0)) recovery::showIfNeeded(hostWindow);
 	splash::close();
 	SetTimer(hostWindow, TIMER_PRECOMPILE, 50, nullptr);
 	return false;
@@ -561,6 +563,7 @@ bool startShell() {
 	applyRenderLoopChoice();
 	applySafetyEnvironment();
 	if (!ensureCompiledQml()) return true; // pending compilation resumes launch from the message loop
+	if (recovery::pending()) return true; // the compiler may finish before the recovery choice
 	reconcileGpuPreference(options.shell);
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
 	// Nobody edits an installed config: Quickshell watching its ~600 QML files (and their folders) for a
@@ -686,6 +689,7 @@ void restoreAndStop(int code) {
 	UnregisterHotKey(hostWindow, HOTKEY_PANIC);
 	KillTimer(hostWindow, TIMER_RESTART_SHELL);
 	stopCompiler();
+	recovery::close();
 	stopShell();
 	removeNotice();
 	if (waitingGame) CloseHandle(waitingGame);
@@ -700,10 +704,18 @@ void restoreAndStop(int code) {
 	setPhase(code == 0 ? Phase::Recovered : Phase::Failed);
 }
 
-void shutdown(int code) {
+void shutdown(int code, bool voluntary = false) {
+	int exitCode = code;
+	std::wstring root, id;
+	rollout::Current current;
+	if (voluntary && !shellReady && rollout::locate(selfDir(), root, id)
+	    && rollout::read(root, current) && current.active == id && current.state == L"pending") {
+		exitCode = rollout::EXIT_START_CANCELLED;
+		log(L"startup: cancelled by the user; pending version stays selected");
+	}
 	screentime::write(); // the minutes since the last write
 	restoreAndStop(code);
-	PostQuitMessage(code);
+	PostQuitMessage(exitCode);
 }
 
 // The shell cannot be started (or kept up): everything is put back first, then the user is told
@@ -1687,7 +1699,7 @@ bool hostCommandCore(const std::wstring& command) {
 		state::setText(L"pause", L"until", today);
 		state::set(L"lastSessionTrouble", 0);
 		log(L"pause: ii is paused for today (%s) at the user's request; it starts again at the next logon after today", today);
-		shutdown(0);
+		shutdown(0, true);
 		return true;
 	}
 	if (command == L"rollback") {
@@ -1819,6 +1831,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		return TRUE;
 	case WM_II_COVER:
 		if (shuttingDown) return 0;
+		if (wParam != 0) recovery::close();
 		if (wParam == 0) {
 			exposeExplorer(L"the user wants Windows while ii loads");
 			splash::close();
@@ -1832,12 +1845,14 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		} else if (wParam == 2) {
 			hostCommand(L"pause-today");
 		}
+		if (wParam != 0 && !shuttingDown && !compilerProcess && !shellProcess && !startShell())
+			scheduleLaunchRetry(L"no se pudo lanzar el shell");
 		return 0;
 	case WM_HOTKEY:
 		if (wParam == HOTKEY_PANIC) {
 			log(L"panic hotkey");
 			state::set(L"lastSessionTrouble", 1); // the next logon offers safe mode / not today (A9)
-			shutdown(3);
+			shutdown(3, true);
 		}
 		return 0;
 	case WM_TIMER:
@@ -1938,13 +1953,13 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		return 0;
 	case WM_ENDSESSION:
-		if (wParam) shutdown(0);
+		if (wParam) shutdown(0, true);
 		else { // logoff cancelled
 			applyAll();
 			if (options.nightlight) nightlight::start(guardReady);
 		}
 		return 0;
-	case WM_CLOSE: shutdown(0); return 0;
+	case WM_CLOSE: shutdown(0, true); return 0;
 	default: return DefWindowProcW(hwnd, msg, wParam, lParam);
 	}
 }
@@ -2072,6 +2087,7 @@ int runHost() {
 	MSG msg;
 	int code = 0;
 	while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
+		if (recovery::dispatch(msg)) continue;
 		TranslateMessage(&msg);
 		DispatchMessageW(&msg);
 	}

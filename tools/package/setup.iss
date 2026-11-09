@@ -41,10 +41,7 @@ OutputBaseFilename=ii-windows-Setup-{#AppVersion}
 Compression=lzma2/normal
 SolidCompression=yes
 WizardStyle=modern
-WizardImageFile={#RepoRoot}\tools\package\setup\wizard.bmp
-WizardSmallImageFile={#RepoRoot}\tools\package\setup\wizard-small.bmp
 LicenseFile={#RepoRoot}\LICENSE
-SetupIconFile={#RepoRoot}\tools\package\setup\ii.ico
 ShowLanguageDialog=auto
 CloseApplications=no
 

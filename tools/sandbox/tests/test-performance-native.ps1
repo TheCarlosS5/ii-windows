@@ -8,7 +8,7 @@ if (-not (Test-Path $Quickshell)) { Skip-Test 'build and deploy Quickshell first
 if (-not (Test-Path "$repo\host\build\ii-fake-cava.exe")) { Skip-Test 'build ii-fake-cava first' }
 $base = Join-Path $env:TEMP ('ii-performance-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $base | Out-Null
-function Run-Probe([string]$Name, [string]$Qml, [hashtable]$Env = @{}) {
+function Run-Probe([string]$Name, [string]$Qml, [hashtable]$Env = @{}, [scriptblock]$Tick = $null) {
     $dir = Join-Path $base $Name
     New-Item -ItemType Directory -Force $dir | Out-Null
     Set-Content "$dir\shell.qml" $Qml -Encoding UTF8
@@ -23,7 +23,11 @@ function Run-Probe([string]$Name, [string]$Qml, [hashtable]$Env = @{}) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $p = [Diagnostics.Process]::Start($psi)
     $out = $p.StandardOutput.ReadToEndAsync(); $err = $p.StandardError.ReadToEndAsync()
-    if (-not $p.WaitForExit(20000)) { $p.Kill(); throw "$Name timed out" }
+    while (-not $p.WaitForExit(50)) {
+        [System.Windows.Forms.Application]::DoEvents()
+        if ($Tick) { & $Tick $sw.Elapsed.TotalSeconds }
+        if ($sw.Elapsed.TotalSeconds -gt 20) { $p.Kill(); throw "$Name timed out" }
+    }
     $log = $out.Result + "`n" + $err.Result
     Set-Content "$repo\build\performance-$Name.log" $log
     Assert-Equal $p.ExitCode 0 "$Name exits normally (see build/performance-$Name.log)"
@@ -69,6 +73,137 @@ ShellRoot {
 }
 '@
     Assert-True ($run.Log -match 'PASS native window model' -and $run.Log -notmatch 'ReferenceError|TypeError|FAIL') 'the actual QML model loads and publishes the native probe'
+
+    New-Item -ItemType Directory -Force "$base\geometry\services" | Out-Null
+    Copy-Item "$repo\overlay\ii\services\HyprlandData.qml" "$base\geometry\services"
+    $move = @{ Done = $false }
+    $run = Run-Probe 'geometry' @'
+import QtQuick
+import Quickshell
+import qs.services
+ShellRoot {
+    id: root
+    property var probe: HyprlandData.windowList.find(w => w.title === "ii-performance-probe") ?? null
+    property real observedX: probe?.at[0] ?? -1
+    property real firstX: -1
+    property var firstList: null
+    property int listChanges: 0
+    Connections { target: HyprlandData; function onWindowListChanged() { if (root.firstList) root.listChanges++; } }
+    Timer { interval: 900; running: true; onTriggered: {
+        root.firstX = root.observedX; root.firstList = HyprlandData.windowList;
+    } }
+    Timer { interval: 3200; running: true; onTriggered: {
+        console.info("geometry diagnostics", root.firstX, root.observedX, root.firstList === HyprlandData.windowList, root.listChanges);
+        console.info(root.firstX !== root.observedX && root.firstList === HyprlandData.windowList && root.listChanges === 0
+            ? "PASS reactive geometry without model publication" : "FAIL reactive geometry without model publication");
+        Qt.quit();
+    } }
+}
+'@ @{} { param($seconds)
+        if ($seconds -gt 1.5 -and -not $move.Done) {
+            $move.Done = $true
+            $form.Left += 70
+        }
+    }
+    Assert-True ($run.Log -match 'PASS reactive geometry' -and $run.Log -notmatch 'FAIL|TypeError|ReferenceError') 'geometry bindings update while model identity remains stable'
+
+    # Emit only geometryChanged at fixed focus, as a DPI/work-area update does.
+    New-Item -ItemType Directory -Force "$base\scaling\services", "$base\scaling\mock" | Out-Null
+    $modelSource = Get-Content "$repo\overlay\ii\services\HyprlandData.qml" -Raw
+    $modelSource = $modelSource.Replace('import Quickshell.Hyprland', 'import "../mock"').Replace('model: Hyprland.monitors', 'model: Hyprland.monitors.values').Replace('model: Hyprland.workspaces', 'model: Hyprland.workspaces.values')
+    Set-Content "$base\scaling\services\HyprlandData.qml" $modelSource -Encoding UTF8
+    Set-Content "$base\scaling\mock\Hyprland.qml" @'
+pragma Singleton
+import QtQuick
+import Quickshell
+Singleton {
+    id: root
+    property QtObject primary: QtObject {
+        property int id: 0
+        property string name: "fixed-focus"
+        property var lastIpcObject: ({ id: 0, scale: 1, width: 1920, height: 1080, reserved: [0,0,0,0] })
+        signal geometryChanged()
+    }
+    property QtObject monitors: QtObject { property var values: [root.primary] }
+    property QtObject workspaces: QtObject { property var values: [{ id: 1, name: "1" }] }
+    property var focusedWorkspace: ({ id: 1 })
+    property QtObject focusedMonitor: primary
+    function monitorFor(screen) { return primary; }
+}
+'@ -Encoding UTF8
+    $run = Run-Probe 'scaling' @'
+import QtQuick
+import Quickshell
+import qs.services
+import qs.mock
+ShellRoot {
+    id: root
+    property var probe: HyprlandData.windowList.find(w => w.title === "ii-performance-probe") ?? null
+    property real firstWidth: 0
+    Timer { interval: 800; running: true; onTriggered: {
+        root.firstWidth = root.probe.size[0];
+        Hyprland.primary.lastIpcObject.scale = 2;
+        Hyprland.primary.lastIpcObject.width = 3840;
+        Hyprland.primary.geometryChanged();
+    } }
+    Timer { interval: 1400; running: true; onTriggered: {
+        console.info(root.probe.size[0] === Math.round(root.firstWidth / 2) && HyprlandData.monitors[0].width === 3840
+            ? "PASS fixed-focus scale invalidation" : "FAIL fixed-focus scale invalidation"); Qt.quit();
+    } }
+}
+'@
+    Assert-True ($run.Log -match 'PASS fixed-focus scale' -and $run.Log -notmatch 'FAIL|TypeError|ReferenceError') 'geometryChanged refreshes monitor and client dimensions at fixed focus'
+
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+[ComImport, Guid("a5cd92ff-29be-454c-8d04-d82879fb3f1b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IProbeDesktops {
+    [PreserveSig] int IsCurrent(IntPtr hwnd, [MarshalAs(UnmanagedType.Bool)] out bool current);
+    [PreserveSig] int Desktop(IntPtr hwnd, out Guid id);
+    [PreserveSig] int Move(IntPtr hwnd, ref Guid id);
+}
+public static class ProbeDesktops {
+    static IProbeDesktops Manager() { return (IProbeDesktops)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("aa509086-5ca9-4c25-8f95-589d3c07b48a"))); }
+    public static Guid Desktop(IntPtr hwnd) { var m = Manager(); Guid id; Marshal.ThrowExceptionForHR(m.Desktop(hwnd, out id)); Marshal.ReleaseComObject(m); return id; }
+    public static int Move(IntPtr hwnd, Guid id) { var m = Manager(); int result = m.Move(hwnd, ref id); Marshal.ReleaseComObject(m); return result; }
+}
+'@
+    $originalDesktop = [ProbeDesktops]::Desktop($form.Handle)
+    $bytes = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops').VirtualDesktopIDs
+    $ids = @(); for ($i = 0; $i -lt $bytes.Length; $i += 16) { $ids += [guid]::new([byte[]]$bytes[$i..($i + 15)]) }
+    $other = @($ids | Where-Object { $_ -ne $originalDesktop }) | Select-Object -First 1
+    if ($other) {
+        $move = @{ Done = $false; Result = -1 }
+        $qml = @'
+import QtQuick
+import Quickshell
+import Quickshell.Wayland
+ShellRoot {
+    id: root
+    property var original: null
+    property int closedCount: 0
+    Connections { target: root.original; function onClosed() { root.closedCount++; } }
+    Timer { interval: 100; running: true; repeat: true; onTriggered: {
+        if (!root.original) root.original = ToplevelManager.toplevels.values.find(t => t.title === "ii-performance-probe") ?? null;
+    } }
+    Timer { interval: 6500; running: true; onTriggered: {
+        console.info(root.original && root.closedCount === 0 && ToplevelManager.toplevels.values.includes(root.original)
+            && root.original.desktop === TARGET_INDEX ? "PASS delayed desktop move preserves identity" : "FAIL delayed desktop move preserves identity"); Qt.quit();
+    } }
+}
+'@
+        try {
+            $run = Run-Probe 'identity' ($qml.Replace('TARGET_INDEX', [string][array]::IndexOf($ids, $other))) @{ QS_TEST_DESKTOP_QUERY_DELAY_MS = 1200 } {
+                param($seconds)
+                if ($seconds -gt 2.5 -and -not $move.Done) {
+                    $move.Done = $true; $move.Result = [ProbeDesktops]::Move($form.Handle, $other)
+                }
+            }
+            Assert-Equal $move.Result 0 'the native probe moved to another existing desktop'
+            Assert-True ($run.Log -match 'PASS delayed desktop move' -and $run.Log -notmatch 'FAIL|TypeError|ReferenceError') 'a delayed Explorer answer preserves the window object and never emits closed'
+        } finally { [void][ProbeDesktops]::Move($form.Handle, $originalDesktop) }
+    } else { Write-Output 'desktop identity probe skipped: a second desktop is required' }
 
     $run = Run-Probe 'thumbnails' @'
 import QtQuick
@@ -137,20 +272,21 @@ ShellRoot {
         root.step++;
         switch (root.step) {
         case 1: root.check(AudioSpectrum.consumers.length === 2 && AudioSpectrum.points.length === 4, "both monitors receive one stream"); left.active = false; break;
-        case 2: root.check(AudioSpectrum.consumers.length === 1 && AudioSpectrum.points.length === 4, "one covered monitor leaves stream running"); Config.options.appearance.reduceMotion = true; break;
-        case 3: root.check(AudioSpectrum.points.length === 0, "light mode stops stream"); Config.options.appearance.reduceMotion = false; break;
-        case 4: root.check(AudioSpectrum.points.length === 4, "normal mode resumes stream"); GlobalStates.screenLocked = true; break;
-        case 5: root.check(AudioSpectrum.points.length === 0, "lock stops stream"); GlobalStates.screenLocked = false; break;
-        case 6: root.check(AudioSpectrum.points.length === 4, "unlock resumes stream"); right.active = false; break;
-        case 7: root.check(AudioSpectrum.consumers.length === 0 && AudioSpectrum.points.length === 0, "last monitor stops stream"); root.temporary = factory.createObject(root); break;
-        case 8: root.check(AudioSpectrum.points.length === 4, "dynamic subscriber receives stream"); root.temporary.destroy(); break;
-        case 9: root.check(AudioSpectrum.consumers.length === 0 && AudioSpectrum.points.length === 0, "destroyed subscriber releases stream"); Qt.quit(); break;
+        case 2: root.check(AudioSpectrum.consumers.length === 1 && AudioSpectrum.points.length === 4, "one covered monitor leaves stream running"); right.active = false; left.active = true; break;
+        case 3: root.check(AudioSpectrum.consumers.length === 1 && AudioSpectrum.points.length === 4, "outgoing-first handoff preserves stream"); left.active = false; right.active = true; Config.options.appearance.reduceMotion = true; break;
+        case 4: root.check(AudioSpectrum.points.length === 0, "light mode stops stream"); Config.options.appearance.reduceMotion = false; break;
+        case 5: root.check(AudioSpectrum.points.length === 4, "normal mode resumes stream"); GlobalStates.screenLocked = true; break;
+        case 6: root.check(AudioSpectrum.points.length === 0, "lock stops stream"); GlobalStates.screenLocked = false; break;
+        case 7: root.check(AudioSpectrum.points.length === 4, "unlock resumes stream"); right.active = false; break;
+        case 8: root.check(AudioSpectrum.consumers.length === 0 && AudioSpectrum.points.length === 0, "last monitor stops stream"); root.temporary = factory.createObject(root); break;
+        case 9: root.check(AudioSpectrum.points.length === 4, "dynamic subscriber receives stream"); root.temporary.destroy(); break;
+        case 10: root.check(AudioSpectrum.consumers.length === 0 && AudioSpectrum.points.length === 0, "destroyed subscriber releases stream"); Qt.quit(); break;
         }
     } }
 }
 '@
     Assert-True ($run.Log -notmatch 'FAIL|ReferenceError|TypeError|failed to load') 'native spectrum checks report no failure'
-    Assert-Equal ([regex]::Matches($run.Log, 'PASS ')).Count 9 'all spectrum lifecycle checks ran'
+    Assert-Equal ([regex]::Matches($run.Log, 'PASS ')).Count 10 'all spectrum lifecycle checks ran'
     Assert-Equal (@(Get-ChildItem $run.Dir -Filter 'cava-*.started')).Count 4 'one producer per active period, independent of monitor count'
 }
 finally {
