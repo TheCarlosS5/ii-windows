@@ -59,7 +59,7 @@ try {
     $code = Wait-IiExit $p 120
     Assert-Equal $code 2 'a shell that never becomes ready is restarted a few times and then abandoned'
     $log = Get-IiHostLog $data
-    Assert-True ($log -match 'giving Explorer back') 'the first failed start gives Explorer back while it retries'
+    Assert-True ($log -match 'keeping Explorer available until ready') 'a shell that never becomes ready leaves Explorer available'
     Assert-True ($log -match 'giving up: .*colgada') 'after the retries the host gives up (as stuck, not as crashed)'
     Start-Sleep -Milliseconds 500
     Assert-Equal (Get-IiProcessesAt $shell).Count 0 'no hung shell is left behind'

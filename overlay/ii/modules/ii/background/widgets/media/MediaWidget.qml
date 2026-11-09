@@ -53,20 +53,13 @@ AbstractBackgroundWidget {
 
     // The spectrum behind the card, as ii's media popup draws it: cava (ii-shim's, WASAPI
     // loopback on Windows) only while music plays and the desktop is on screen.
-    property list<real> visualizerPoints: []
-    Process {
-        id: cava
-        running: root.playing && (root.player?.isPlaying ?? false) && (root.configEntry.spectrum ?? true)
+    property list<real> visualizerPoints: spectrum.active ? AudioSpectrum.points : []
+    AudioSpectrumClient {
+        id: spectrum
+        active: root.playing && (root.player?.isPlaying ?? false) && (root.configEntry.spectrum ?? true)
             && root.visible && !GlobalStates.screenLocked && ((QsWindow.window as QsWindow)?.visible ?? false)
-            // Not under a maximized app, and not twice: the media panel runs its own cava.
+            // The media popup takes over the shared stream while it is open.
             && !root.desktopCovered && !GlobalStates.mediaControlsOpen
-        command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
-        onRunningChanged: if (!running) root.visualizerPoints = []
-        stdout: SplitParser {
-            onRead: data => {
-                root.visualizerPoints = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
-            }
-        }
     }
 
     Loader {

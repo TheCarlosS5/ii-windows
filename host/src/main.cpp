@@ -108,6 +108,7 @@ constexpr UINT_PTR TIMER_UPDATE = 11;
 constexpr UINT_PTR TIMER_JANITOR = 12;
 // Windows' settings changed (WM_SETTINGCHANGE): the shell re-reads the accessibility ones a moment later (F19/F20).
 constexpr UINT_PTR TIMER_A11Y = 13;
+constexpr UINT_PTR TIMER_PRECOMPILE = 14;
 constexpr UINT UPDATE_FIRST_MS = 2 * 60 * 1000;
 constexpr UINT UPDATE_EVERY_MS = 6 * 60 * 60 * 1000;
 constexpr UINT UPDATE_RETRY_MS = 15 * 60 * 1000;
@@ -140,6 +141,10 @@ HWINEVENTHOOK showHook = nullptr;
 HANDLE shellJob = nullptr;
 HANDLE shellProcess = nullptr;
 HANDLE shellWait = nullptr;
+HANDLE compilerProcess = nullptr;
+HANDLE compilerJob = nullptr;
+ULONGLONG compilerStartedAt = 0;
+bool precompileAttempted = false;
 bool shuttingDown = false;
 bool guardReady = false;
 bool booting = false;
@@ -354,12 +359,14 @@ void applyRenderLoopChoice() {
 // files itself and kept the memory peak of doing so (the "1 GB at the first start"). Here a separate process does it,
 // once, and its memory goes with it. Only for the real shell (a test host or a stand-in never runs it, unless
 // II_TEST_PRECOMPILE=1; QML_DISK_CACHE_PATH, Qt's own, moves the cache for such a test).
-void ensureCompiledQml() {
+bool ensureCompiledQml() {
+	if (compilerProcess) return false;
+	if (precompileAttempted) return true;
 	wchar_t flag[4] {};
 	auto testing = GetEnvironmentVariableW(L"II_TEST_PRECOMPILE", flag, _countof(flag)) > 0 && flag[0] == L'1';
-	if ((noUi() && !testing) || options.config.empty()) return;
+	if ((noUi() && !testing) || options.config.empty()) return true;
 	auto exe = options.shell.substr(options.shell.find_last_of(L"\\/") + 1);
-	if (_wcsicmp(exe.c_str(), L"quickshell.exe") != 0) return;
+	if (_wcsicmp(exe.c_str(), L"quickshell.exe") != 0) return true;
 	std::wstring cache;
 	wchar_t custom[MAX_PATH] {};
 	if (GetEnvironmentVariableW(L"QML_DISK_CACHE_PATH", custom, MAX_PATH) > 0) {
@@ -377,7 +384,8 @@ void ensureCompiledQml() {
 		FindClose(handle);
 	}
 	auto done = state::getText(L"qml", L"compiledFor");
-	if (files >= 300 && _wcsicmp(done.c_str(), options.config.c_str()) == 0) return;
+	if (files >= 300 && _wcsicmp(done.c_str(), options.config.c_str()) == 0) return true;
+	precompileAttempted = true;
 
 	log(L"shell: compiling the QML first (%zu files in the cache, last compiled for %s)", files, done.empty() ? L"nothing" : done.c_str());
 	auto cmd = L"\"" + options.shell + L"\" -p \"" + options.config + L"\"";
@@ -386,20 +394,56 @@ void ensureCompiledQml() {
 	si.cb = sizeof(si);
 	PROCESS_INFORMATION pi {};
 	auto dir = options.shell.substr(0, options.shell.find_last_of(L"\\/"));
-	auto started = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS, nullptr, dir.c_str(), &si, &pi);
+	auto started = CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | CREATE_SUSPENDED | BELOW_NORMAL_PRIORITY_CLASS, nullptr, dir.c_str(), &si, &pi);
 	SetEnvironmentVariableW(L"QS_PRECOMPILE", nullptr);
 	if (!started) {
 		log(L"shell: could not compile the QML first (%lu): the shell does it", GetLastError());
-		return;
+		return true;
 	}
+	compilerJob = CreateJobObjectW(nullptr, nullptr);
+	JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits {};
+	limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+	if (!compilerJob || !SetInformationJobObject(compilerJob, JobObjectExtendedLimitInformation, &limits, sizeof(limits))
+	    || !AssignProcessToJobObject(compilerJob, pi.hProcess)) {
+		TerminateProcess(pi.hProcess, 1);
+		CloseHandle(pi.hThread);
+		CloseHandle(pi.hProcess);
+		if (compilerJob) CloseHandle(compilerJob);
+		compilerJob = nullptr;
+		log(L"shell: could not supervise the compiler: the shell does it");
+		return true;
+	}
+	compilerProcess = pi.hProcess;
+	compilerStartedAt = GetTickCount64();
+	ResumeThread(pi.hThread);
 	CloseHandle(pi.hThread);
-	auto began = GetTickCount64();
+	// The message loop keeps servicing the cover, panic key and close requests. Windows stays usable
+	// throughout a cold start; hiding Explorer is deferred until the real shell reports ready.
+	splash::close();
+	SetTimer(hostWindow, TIMER_PRECOMPILE, 50, nullptr);
+	return false;
+}
+
+void stopCompiler() {
+	KillTimer(hostWindow, TIMER_PRECOMPILE);
+	if (compilerJob) CloseHandle(compilerJob); // kills the compiler too, including on cancellation
+	if (compilerProcess) CloseHandle(compilerProcess);
+	compilerJob = compilerProcess = nullptr;
+}
+
+bool pollCompiler() {
+	if (!compilerProcess) return false;
+	auto elapsed = GetTickCount64() - compilerStartedAt;
+	wchar_t testTimeout[16] {};
+	auto timeout = noUi() && GetEnvironmentVariableW(L"II_TEST_PRECOMPILE_TIMEOUT_MS", testTimeout, _countof(testTimeout)) > 0
+	             ? std::max(50, _wtoi(testTimeout)) : 120000;
+	if (WaitForSingleObject(compilerProcess, 0) != WAIT_OBJECT_0 && elapsed < static_cast<ULONGLONG>(timeout)) return false;
 	DWORD code = 1;
-	if (WaitForSingleObject(pi.hProcess, 120000) == WAIT_OBJECT_0) GetExitCodeProcess(pi.hProcess, &code);
-	else TerminateProcess(pi.hProcess, 1);
-	CloseHandle(pi.hProcess);
+	GetExitCodeProcess(compilerProcess, &code);
 	if (code == 0) state::setText(L"qml", L"compiledFor", options.config);
-	log(L"shell: QML compiled %s in %llu ms", code == 0 ? L"" : L"(not completely: the shell does the rest)", GetTickCount64() - began);
+	log(L"shell: QML compiled %s in %llu ms", code == 0 ? L"" : L"(not completely: the shell does the rest)", elapsed);
+	stopCompiler();
+	return true;
 }
 
 void rememberGoodConfig() {
@@ -516,7 +560,7 @@ bool startShell() {
 	guardConfig(); // a damaged config.json must not be what the shell starts from
 	applyRenderLoopChoice();
 	applySafetyEnvironment();
-	ensureCompiledQml();
+	if (!ensureCompiledQml()) return true; // pending compilation resumes launch from the message loop
 	reconcileGpuPreference(options.shell);
 	health::prepareLaunch(hostWindow); // the shell inherits the instance id and where to report
 	// Nobody edits an installed config: Quickshell watching its ~600 QML files (and their folders) for a
@@ -641,6 +685,7 @@ void restoreAndStop(int code) {
 	keyboard::uninstall();
 	UnregisterHotKey(hostWindow, HOTKEY_PANIC);
 	KillTimer(hostWindow, TIMER_RESTART_SHELL);
+	stopCompiler();
 	stopShell();
 	removeNotice();
 	if (waitingGame) CloseHandle(waitingGame);
@@ -1796,6 +1841,10 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 		}
 		return 0;
 	case WM_TIMER:
+		if (wParam == TIMER_PRECOMPILE) {
+			if (pollCompiler() && !shuttingDown && !startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
+			return 0;
+		}
 		if (wParam == TIMER_A11Y) {
 			KillTimer(hostWindow, TIMER_A11Y);
 			sendToShell(L"windowsAccessibility", true);
@@ -2000,9 +2049,13 @@ int runHost() {
 		log(L"boot: high priority, fast taskbar checks, splash");
 	}
 
-	applyAll();
-	if (options.shell.empty()) setPhase(Phase::Active, L"no shell to wait for");
-	else if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
+	if (options.shell.empty()) {
+		applyAll();
+		setPhase(Phase::Active, L"no shell to wait for");
+	} else {
+		log(L"shell: keeping Explorer available until ready");
+		if (!startShell()) scheduleLaunchRetry(L"no se pudo lanzar el shell");
+	}
 	// Everything below (gamma ramps through GDI, the hook thread) can take a moment and the
 	// shell's load doesn't depend on it.
 	if (options.nightlight) nightlight::start(guardReady);

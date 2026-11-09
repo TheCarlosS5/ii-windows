@@ -125,6 +125,7 @@ AbstractBackgroundWidget {
             fillMode: Image.PreserveAspectFit
             // Its own `visible` is false here (offscreen source): follow the widget instead.
             playing: root.imageReady && root.visible && root.configEntry.enable && ((QsWindow.window as QsWindow)?.visible ?? false)
+            paused: root.desktopCovered
         }
     }
 

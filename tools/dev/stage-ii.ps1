@@ -89,6 +89,8 @@ if (-not $NoSidebar -and (Test-Path "$root\tools\port\patch_ii_sidebar.py")) {
 & python -I "$root\tools\port\gen_settings_index.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "gen_settings_index.py failed" }
 # The long settings pages make each section's controls when it comes into view (C4.1), after the index read them.
 & python -I "$root\tools\port\gen_lazy_sections.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "gen_lazy_sections.py failed" }
+# One spectrum process shared by desktop widgets and the media popup.
+& python -I "$root\tools\port\patch_ii_spectrum.py" | Out-Null; if ($LASTEXITCODE -ne 0) { throw "patch_ii_spectrum.py failed" }
 # Every folder/file the QML imports must be there and not empty (a submodule that was never
 # initialised leaves an empty folder, and the shell then dies on start): refuse to stage such a tree.
 $importCheck = & python -I "$root\tools\dev\check-qml-imports.py" $dest

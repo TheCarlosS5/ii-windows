@@ -216,6 +216,11 @@ bool isNamedHost() {
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
+	// A deliberately slow/failing compiler for the host's asynchronous precompile regression tests.
+	if (env(L"QS_PRECOMPILE") == L"1" && !env(L"II_FAKE_PRECOMPILE_MS").empty()) {
+		Sleep(static_cast<DWORD>(_wtoi(env(L"II_FAKE_PRECOMPILE_MS").c_str())));
+		return _wtoi(env(L"II_FAKE_PRECOMPILE_EXIT").c_str());
+	}
 	int argc = 0;
 	auto** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
 	if (isNamedHost()) return runAsFakeHost(argc, argv);

@@ -24,7 +24,32 @@ Singleton {
     property var activeWorkspace: null
     property var monitors: []
     property var layers: ({})
-    property string lastSignature: ""
+    property var dirtyWindows: ({})
+    property bool allWindowsDirty: true
+    property bool monitorsDirty: true
+
+    function queueRebuild() {
+        if (!rebuildSoon.running) rebuildSoon.start();
+    }
+    function invalidateAll() {
+        allWindowsDirty = true;
+        monitorsDirty = true;
+        queueRebuild();
+    }
+    function invalidateWindow(toplevel) {
+        if (toplevel) dirtyWindows[`0x${toplevel.HyprlandToplevel.address}`] = true;
+        queueRebuild();
+    }
+    function sameWindow(a, b) {
+        return a && a.hidden === b.hidden && a.at[0] === b.at[0] && a.at[1] === b.at[1]
+            && a.size[0] === b.size[0] && a.size[1] === b.size[1] && a.workspace.id === b.workspace.id
+            && a.monitor === b.monitor && a.class === b.class && a.title === b.title
+            && a.pid === b.pid && a.executable === b.executable
+            && a.fullscreen === b.fullscreen && a.focusHistoryID === b.focusHistoryID;
+    }
+    function sameWorkspace(a, b) {
+        return a && Object.keys(b).every(key => a[key] === b[key]);
+    }
 
     // Convenient stuff (unchanged from upstream)
     function toplevelsForWorkspace(workspace) {
@@ -53,12 +78,12 @@ Singleton {
         }, null);
     }
 
-    // Same entry points as upstream; all of them rebuild from live data.
-    function updateWindowList() { rebuild(); }
+    // Preserve upstream entry points, coalescing bursts into one publication.
+    function updateWindowList() { invalidateAll(); }
     function updateLayers() {}
-    function updateMonitors() { rebuild(); }
-    function updateWorkspaces() { rebuild(); }
-    function updateAll() { rebuild(); }
+    function updateMonitors() { invalidateAll(); }
+    function updateWorkspaces() { queueRebuild(); }
+    function updateAll() { invalidateAll(); }
 
     function monitorIdFor(toplevel) {
         const screen = toplevel.screens?.[0];
@@ -67,8 +92,7 @@ Singleton {
     }
 
     function rebuild() {
-        const monitorObjects = Hyprland.monitors.values;
-        const monitors = monitorObjects.map(m => m.lastIpcObject);
+        const monitors = root.monitorsDirty ? Hyprland.monitors.values.map(m => m.lastIpcObject) : root.monitors;
         const monitorById = {};
         for (const m of monitors) monitorById[m.id] = m;
 
@@ -77,12 +101,18 @@ Singleton {
         const list = [];
         for (let i = 0; i < toplevels.length; ++i) {
             const t = toplevels[i];
+            const address = `0x${t.HyprlandToplevel.address}`;
+            const previous = root.windowByAddress[address];
+            if (previous && !root.allWindowsDirty && !root.dirtyWindows[address]) {
+                list.push(previous);
+                continue;
+            }
             const monitorId = root.monitorIdFor(t);
             const scale = monitorById[monitorId]?.scale ?? 1;
             const g = t.geometry;
             // A window on all desktops (or of unknown desktop) shows on the current one.
             const workspaceId = (t.desktop ?? -1) >= 0 ? t.desktop + 1 : current;
-            list.push({
+            const next = {
                 "address": `0x${t.HyprlandToplevel.address}`,
                 "mapped": true,
                 "hidden": t.minimized,
@@ -107,13 +137,14 @@ Singleton {
                 "swallowing": "0x0",
                 "focusHistoryID": t.activated ? 0 : i + 1,
                 "inhibitingIdle": false,
-            });
+            };
+            list.push(root.sameWindow(previous, next) ? previous : next);
         }
         const focused = Hyprland.focusedMonitor;
         const workspaces = Hyprland.workspaces.values.map(w => {
             const windows = list.filter(win => win.workspace.id === w.id);
             const last = windows.find(win => win.focusHistoryID === 0) ?? windows[0];
-            return {
+            const next = {
                 "id": w.id,
                 "name": w.name,
                 "monitor": focused?.name ?? "",
@@ -124,22 +155,27 @@ Singleton {
                 "lastwindowtitle": last?.title ?? "",
                 "ispersistent": true,
             };
+            const previous = root.workspaceById[w.id];
+            return root.sameWorkspace(previous, next) ? previous : next;
         });
-        // This runs every second (titles and geometry have no change signal): when nothing changed, publish
-        // nothing, so the overview, bar and dock bound to these lists are not re-evaluated for nothing.
-        const signature = JSON.stringify([list, workspaces, monitors, current]);
-        if (signature === root.lastSignature)
-            return;
-        root.lastSignature = signature;
-
-        root.monitors = monitors;
-        root.windowList = list;
-        const byAddress = {};
-        for (const w of list) byAddress[w.address] = w;
-        root.windowByAddress = byAddress;
-        root.addresses = list.map(w => w.address);
-        root.workspaces = workspaces;
-        root.workspaceIds = workspaces.map(w => w.id);
+        const windowsChanged = list.length !== root.windowList.length || list.some((win, i) => win !== root.windowList[i]);
+        const membershipChanged = list.length !== root.addresses.length || list.some((win, i) => win.address !== root.addresses[i]);
+        if (root.monitorsDirty) root.monitors = monitors;
+        root.monitorsDirty = false;
+        root.allWindowsDirty = false;
+        root.dirtyWindows = ({});
+        if (windowsChanged) {
+            root.windowList = list;
+            const byAddress = {};
+            for (const w of list) byAddress[w.address] = w;
+            root.windowByAddress = byAddress;
+        }
+        if (membershipChanged) root.addresses = list.map(w => w.address);
+        if (workspaces.length !== root.workspaces.length || workspaces.some((w, i) => w !== root.workspaces[i]))
+            root.workspaces = workspaces;
+        const workspaceIds = workspaces.map(w => w.id);
+        if (workspaceIds.length !== root.workspaceIds.length || workspaceIds.some((id, i) => id !== root.workspaceIds[i]))
+            root.workspaceIds = workspaceIds;
         const byId = {};
         for (const w of workspaces) byId[w.id] = w;
         root.workspaceById = byId;
@@ -148,43 +184,62 @@ Singleton {
 
     Component.onCompleted: rebuild()
 
-    // Window list changes (open/close/activate) rebuild at once; geometry and titles are
-    // picked up by a light periodic refresh.
+    // Every field used above has a fork signal. No periodic rebuilding or whole-model JSON serialization.
     Connections {
         target: ToplevelManager.toplevels
-        function onValuesChanged() { rebuildSoon.restart(); }
+        function onValuesChanged() { root.invalidateAll(); }
     }
     Connections {
         target: ToplevelManager
-        function onActiveToplevelChanged() { rebuildSoon.restart(); }
+        function onActiveToplevelChanged() { root.queueRebuild(); }
     }
     Connections {
         target: Hyprland
-        function onFocusedMonitorChanged() { rebuildSoon.restart(); }
-        function onFocusedWorkspaceChanged() { rebuildSoon.restart(); }
+        function onFocusedMonitorChanged() { root.invalidateAll(); }
+        function onFocusedWorkspaceChanged() { root.invalidateAll(); }
     }
     Connections {
         target: Hyprland.workspaces
-        function onValuesChanged() { rebuildSoon.restart(); }
+        function onValuesChanged() { root.queueRebuild(); }
     }
-    // A window moved to another desktop (or desktops closed / reordered under it).
+    Connections {
+        target: Hyprland.monitors
+        function onValuesChanged() { root.invalidateAll(); }
+    }
+    Instantiator {
+        model: Hyprland.monitors
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onLastIpcObjectChanged() { root.invalidateAll(); }
+        }
+    }
+    Instantiator {
+        model: Hyprland.workspaces
+        delegate: Connections {
+            required property var modelData
+            target: modelData
+            function onNameChanged() { root.queueRebuild(); }
+        }
+    }
     Instantiator {
         model: ToplevelManager.toplevels
         delegate: Connections {
             required property var modelData
             target: modelData
-            function onDesktopChanged() { rebuildSoon.restart(); }
+            function onDesktopChanged() { root.invalidateWindow(modelData); }
+            function onTitleChanged() { root.invalidateWindow(modelData); }
+            function onAppIdChanged() { root.invalidateWindow(modelData); }
+            function onGeometryChanged() { root.invalidateWindow(modelData); }
+            function onScreensChanged() { root.invalidateWindow(modelData); }
+            function onMinimizedChanged() { root.invalidateWindow(modelData); }
+            function onFullscreenChanged() { root.invalidateWindow(modelData); }
+            function onActivatedChanged() { root.invalidateWindow(modelData); }
         }
     }
     Timer {
         id: rebuildSoon
         interval: 30
-        onTriggered: root.rebuild()
-    }
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
         onTriggered: root.rebuild()
     }
 }

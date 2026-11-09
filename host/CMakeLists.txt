@@ -71,6 +71,9 @@ target_include_directories(ii-fake-shell PRIVATE src)
 target_compile_definitions(ii-fake-shell PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN)
 target_link_libraries(ii-fake-shell PRIVATE user32 shell32)
 
+# A deterministic audio producer for shared-spectrum tests; never packaged.
+add_executable(ii-fake-cava ../tests/performance/fake-cava.cpp)
+
 # R03: the lock contract of quickshell-windows (WlSessionLock) as a plain state machine.
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../quickshell/src/win32/compat/lockstate.hpp)
 	add_executable(ii-lockstate-test src/lockstate_test.cpp)

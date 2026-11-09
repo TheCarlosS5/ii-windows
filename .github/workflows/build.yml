@@ -86,6 +86,8 @@ jobs:
       - name: Checks
         shell: pwsh
         run: |
+          node tests/performance/test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -I tools/dev/gen-config-schema.py --stage build/ii --check
           python -I tools/dev/check-eol.py
           python -I tools/dev/check-winrt-null.py

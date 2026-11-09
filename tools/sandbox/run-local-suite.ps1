@@ -7,7 +7,7 @@
 #              cmake --build host\build-clang --target ii-shim   (clang-cl)
 # A test whose prerequisite is missing is reported as SKIPPED, never as passed.
 param([string]$Only = '', [int]$TimeoutSec = 600)
-$tests = 'test-ownership', 'test-changes', 'test-autostart', 'test-runtime', 'test-install-flow', 'test-staging', 'test-qml-lint',
+$tests = 'test-performance-native', 'test-host-precompile-async', 'test-ownership', 'test-changes', 'test-autostart', 'test-runtime', 'test-install-flow', 'test-staging', 'test-qml-lint',
          'test-actions', 'test-vdesk', 'test-config', 'test-language', 'test-linux-routes', 'test-shim-files', 'test-report-redaction', 'test-airequest',
          'test-fastfetch', 'test-host-launch', 'test-host-heartbeat', 'test-host-games', 'test-host-health', 'test-rescue-ps', 'test-bench', 'test-qs-smoke', 'test-input-region', 'test-eol', 'test-host-precompile',
          'test-host-crash-policy', 'test-host-syshealth', 'test-mpris-stress', 'test-updater', 'test-privacy-monitor', 'test-janitor', 'test-winrt-null', 'test-untranslated', 'test-settings-search', 'test-toplevels', 'test-desktop-cover', 'test-updater-real', 'test-search-plus', 'test-modes', 'test-timetable', 'test-wellbeing', 'test-dailylook'
